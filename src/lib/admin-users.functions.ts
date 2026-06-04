@@ -63,14 +63,13 @@ export const adminCreateInvite = createServerFn({ method: "POST" })
       .maybeSingle();
     if (tErr || !tenant) throw new Error("Tenant não foi criado pelo trigger");
 
-    const status = data.amountCents === 0 ? "pending_activation" : "pending_payment";
     await supabaseAdmin
       .from("tenants")
       .update({
         plan_id: data.planId ?? null,
         billing_cycle: data.billingCycle === "free" ? null : data.billingCycle,
         credits_monthly_allowance: data.customAllowance ?? 0,
-        status: status as any,
+        status: "pending_payment" as any,
         created_by_admin: true,
       })
       .eq("id", tenant.id);
