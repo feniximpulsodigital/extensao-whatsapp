@@ -113,6 +113,18 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     return new Promise((res)=>chrome.storage.local.get(["enabled"],(r)=>res(r.enabled!==false)));
   }
 
+  // ---- Estado por contato (lead) ----
+  function chatKey(chat){ return "chat:"+chat; }
+  function getChatEnabled(chat){
+    return new Promise((res)=>chrome.storage.local.get([chatKey(chat)],(r)=>{
+      const v = r[chatKey(chat)];
+      res(v !== false); // default: ativo
+    }));
+  }
+  function setChatEnabled(chat, val){
+    return new Promise((res)=>chrome.storage.local.set({[chatKey(chat)]: !!val}, ()=>res()));
+  }
+
   function findInputBox(){
     // tenta vários seletores conhecidos do WhatsApp Web
     return document.querySelector('footer div[contenteditable="true"][data-tab="10"]')
