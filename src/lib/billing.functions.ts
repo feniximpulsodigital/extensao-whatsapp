@@ -276,7 +276,8 @@ export const getAppSettings = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     await adminGuard(supabase, userId);
-    const { data, error } = await supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
       .from("app_settings")
       .select("id, asaas_env, asaas_api_key_sandbox, asaas_api_key_production, asaas_webhook_token, updated_at")
       .limit(1)
@@ -298,12 +299,13 @@ export const updateAppSettings = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
     await adminGuard(supabase, userId);
-    const { data: existing } = await supabase.from("app_settings").select("id").limit(1).maybeSingle();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: existing } = await supabaseAdmin.from("app_settings").select("id").limit(1).maybeSingle();
     if (existing) {
-      const { error } = await supabase.from("app_settings").update(data).eq("id", existing.id);
+      const { error } = await supabaseAdmin.from("app_settings").update(data).eq("id", existing.id);
       if (error) throw new Error(error.message);
     } else {
-      const { error } = await supabase.from("app_settings").insert(data);
+      const { error } = await supabaseAdmin.from("app_settings").insert(data);
       if (error) throw new Error(error.message);
     }
     return { ok: true };
