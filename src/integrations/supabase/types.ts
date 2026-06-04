@@ -230,6 +230,7 @@ export type Database = {
         Row: {
           amount_cents: number
           asaas_payment_id: string | null
+          billing_cycle: string | null
           billing_type: string | null
           created_at: string
           description: string | null
@@ -239,6 +240,8 @@ export type Database = {
           metadata: Json
           package_id: string | null
           paid_at: string | null
+          pix_copy_paste: string | null
+          pix_qr_code: string | null
           plan_id: string | null
           status: Database["public"]["Enums"]["payment_status"]
           tenant_id: string
@@ -247,6 +250,7 @@ export type Database = {
         Insert: {
           amount_cents: number
           asaas_payment_id?: string | null
+          billing_cycle?: string | null
           billing_type?: string | null
           created_at?: string
           description?: string | null
@@ -256,6 +260,8 @@ export type Database = {
           metadata?: Json
           package_id?: string | null
           paid_at?: string | null
+          pix_copy_paste?: string | null
+          pix_qr_code?: string | null
           plan_id?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           tenant_id: string
@@ -264,6 +270,7 @@ export type Database = {
         Update: {
           amount_cents?: number
           asaas_payment_id?: string | null
+          billing_cycle?: string | null
           billing_type?: string | null
           created_at?: string
           description?: string | null
@@ -273,6 +280,8 @@ export type Database = {
           metadata?: Json
           package_id?: string | null
           paid_at?: string | null
+          pix_copy_paste?: string | null
+          pix_qr_code?: string | null
           plan_id?: string | null
           status?: Database["public"]["Enums"]["payment_status"]
           tenant_id?: string
@@ -304,6 +313,8 @@ export type Database = {
       }
       plans: {
         Row: {
+          asaas_plan_ref: string | null
+          billing_cycle: string
           created_at: string
           description: string | null
           features: Json
@@ -313,10 +324,13 @@ export type Database = {
           monthly_credits: number
           name: string
           price_cents: number
+          price_cents_annual: number
           sort_order: number
           updated_at: string
         }
         Insert: {
+          asaas_plan_ref?: string | null
+          billing_cycle?: string
           created_at?: string
           description?: string | null
           features?: Json
@@ -326,10 +340,13 @@ export type Database = {
           monthly_credits?: number
           name: string
           price_cents?: number
+          price_cents_annual?: number
           sort_order?: number
           updated_at?: string
         }
         Update: {
+          asaas_plan_ref?: string | null
+          billing_cycle?: string
           created_at?: string
           description?: string | null
           features?: Json
@@ -339,6 +356,7 @@ export type Database = {
           monthly_credits?: number
           name?: string
           price_cents?: number
+          price_cents_annual?: number
           sort_order?: number
           updated_at?: string
         }
@@ -417,6 +435,9 @@ export type Database = {
       }
       tenants: {
         Row: {
+          asaas_customer_id: string | null
+          asaas_subscription_id: string | null
+          billing_cycle: string | null
           company_name: string
           created_at: string
           credits_balance: number
@@ -432,6 +453,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          asaas_customer_id?: string | null
+          asaas_subscription_id?: string | null
+          billing_cycle?: string | null
           company_name: string
           created_at?: string
           credits_balance?: number
@@ -447,6 +471,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          asaas_customer_id?: string | null
+          asaas_subscription_id?: string | null
+          billing_cycle?: string | null
           company_name?: string
           created_at?: string
           credits_balance?: number
@@ -515,7 +542,12 @@ export type Database = {
         | "overdue"
         | "refunded"
         | "failed"
-      tenant_status: "active" | "suspended" | "cancelled" | "trial"
+      tenant_status:
+        | "active"
+        | "suspended"
+        | "cancelled"
+        | "trial"
+        | "pending_payment"
       transaction_type:
         | "purchase"
         | "consumption"
@@ -658,7 +690,13 @@ export const Constants = {
         "refunded",
         "failed",
       ],
-      tenant_status: ["active", "suspended", "cancelled", "trial"],
+      tenant_status: [
+        "active",
+        "suspended",
+        "cancelled",
+        "trial",
+        "pending_payment",
+      ],
       transaction_type: [
         "purchase",
         "consumption",
