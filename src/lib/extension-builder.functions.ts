@@ -13,9 +13,12 @@ const MANIFEST = (brandName: string) => ({
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab"],
   host_permissions: ["https://web.whatsapp.com/*"],
-  action: { default_popup: "popup.html", default_icon: "icon.png" },
+  action: {
+    default_popup: "popup.html",
+    default_icon: { "16": "icon-16.png", "48": "icon-48.png", "128": "icon-128.png" },
+  },
   background: { service_worker: "background.js" },
-  icons: { "16": "icon.png", "48": "icon.png", "128": "icon.png" },
+  icons: { "16": "icon-16.png", "48": "icon-48.png", "128": "icon-128.png" },
   content_scripts: [
     {
       matches: ["https://web.whatsapp.com/*"],
