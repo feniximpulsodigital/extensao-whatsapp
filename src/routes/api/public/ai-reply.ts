@@ -133,7 +133,10 @@ export const Route = createFileRoute("/api/public/ai-reply")({
           const provider = (globalCfg as any).provider as "groq" | "openai" | "anthropic";
           const model = globalCfg.default_model;
           const temperature = Number(tenantCfg?.temperature ?? globalCfg.default_temperature);
-          const maxTokens = tenantCfg?.max_tokens ?? globalCfg.default_max_tokens;
+          // Auto: dimensiona resposta pelo tamanho da última mensagem do usuário (otimiza custo)
+          const lastUserMsg = [...parsed.data.messages].reverse().find((m: any) => m.role === "user")?.content ?? "";
+          const approxInTokens = Math.ceil(lastUserMsg.length / 4);
+          const maxTokens = Math.min(800, Math.max(180, approxInTokens * 2 + 120));
 
           const kbBlock = kb.length
             ? "\n\nBase de conhecimento da empresa:\n" + kb.map((k: any) => `- P: ${k.question}\n  R: ${k.answer}`).join("\n")
