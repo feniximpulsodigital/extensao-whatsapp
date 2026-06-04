@@ -192,6 +192,10 @@ export type Database = {
           asaas_api_key_sandbox: string | null
           asaas_env: string
           asaas_webhook_token: string | null
+          brand_accent_dark: string
+          brand_accent_light: string
+          brand_logo_url: string | null
+          brand_name: string
           created_at: string
           id: string
           singleton: boolean
@@ -202,6 +206,10 @@ export type Database = {
           asaas_api_key_sandbox?: string | null
           asaas_env?: string
           asaas_webhook_token?: string | null
+          brand_accent_dark?: string
+          brand_accent_light?: string
+          brand_logo_url?: string | null
+          brand_name?: string
           created_at?: string
           id?: string
           singleton?: boolean
@@ -212,6 +220,10 @@ export type Database = {
           asaas_api_key_sandbox?: string | null
           asaas_env?: string
           asaas_webhook_token?: string | null
+          brand_accent_dark?: string
+          brand_accent_light?: string
+          brand_logo_url?: string | null
+          brand_name?: string
           created_at?: string
           id?: string
           singleton?: boolean
