@@ -480,7 +480,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   // ---------- Loops ----------
   setInterval(()=>{ ensureToggleButton(); onChatMaybeChanged(); }, 1500);
-  setInterval(()=>{ processOneUnread().catch((e)=>warn("BG loop", e)); }, 3500);
+  setInterval(()=>{ processOneUnread().catch((e)=>warn("BG loop", e)); }, 5000);
 
   // boot
   setTimeout(()=>{ markExistingAsSeen(); ensureToggleButton(); lastSeenChat = getChatId(); }, 1500);
