@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.8",
+  version: "1.0.9",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -120,6 +120,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     if(tag==="input"||tag==="textarea") return true;
     if(el.getAttribute && el.getAttribute("contenteditable")==="true") return true;
     return false;
+  }
+  function isUserTyping(){
+    const box = findInputBox();
+    return !!(box && (box.innerText || box.textContent || '').trim().length > 0);
   }
 
   function setButtonStatus(text, ok, ms){
@@ -377,7 +381,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   async function processOneUnread(){
     if(bgBusy || busy) return false;
     if(!(await getEnabled())) return false;
-    if(!isUserIdle() || isUserComposing()) return false;
+    if(!isUserIdle() || isUserComposing() || isUserTyping()) return false;
 
     const rows = findUnreadChatRows();
     if(!rows.length) return false;
@@ -476,7 +480,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   // ---------- Loops ----------
   setInterval(()=>{ ensureToggleButton(); onChatMaybeChanged(); }, 1500);
-  setInterval(()=>{ processOneUnread().catch((e)=>warn("BG loop", e)); }, 3500);
+  setInterval(()=>{ processOneUnread().catch((e)=>warn("BG loop", e)); }, 5000);
 
   // boot
   setTimeout(()=>{ markExistingAsSeen(); ensureToggleButton(); lastSeenChat = getChatId(); }, 1500);
