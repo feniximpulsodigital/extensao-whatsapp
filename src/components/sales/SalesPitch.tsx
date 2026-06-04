@@ -1,12 +1,27 @@
 import { Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   MessageSquare, Clock, TrendingDown, Frown, Check, ArrowRight,
   Sparkles, Brain, Shield, Zap, Users, Star, BadgeCheck, Rocket,
 } from "lucide-react";
+import { getPublicPlans } from "@/lib/plans.functions";
+
+function formatBRL(cents: number) {
+  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
+}
 
 export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" }) {
+  const fetchPlans = useServerFn(getPublicPlans);
+  const { data } = useQuery({
+    queryKey: ["public-plans"],
+    queryFn: () => fetchPlans(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const plans = data?.plans ?? [];
+
   return (
     <>
       {/* Dor / problema */}
