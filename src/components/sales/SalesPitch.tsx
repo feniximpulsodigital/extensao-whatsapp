@@ -163,7 +163,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
           {[
             { n: "1", icon: Rocket, title: "Crie sua conta", desc: "Cadastro em segundos. Escolha um plano e libere o acesso." },
             { n: "2", icon: Brain, title: "Ensine sua IA", desc: "Cole perguntas frequentes, preços e o jeito de falar da sua marca." },
-            { n: "3", icon: Zap, title: "Conecte o WhatsApp", desc: "Instale a extensão no Chrome do computador que usar. Continua usando o WhatsApp Web normalmente — a Argos entra por extensão e funciona em quantos PCs quiser." },
+            { n: "3", icon: Zap, title: "Conecte o WhatsApp", desc: "Instale a extensão no Chrome do computador que vai ficar com o WhatsApp Web aberto. Pode ser em quantos PCs quiser — a IA só responde enquanto pelo menos um deles estiver ligado, com o Chrome aberto, a extensão ativa e o WhatsApp Web conectado." },
           ].map((step) => (
             <div key={step.n} className="relative rounded-lg border p-6">
               <div className="absolute -top-3 -left-3 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">
@@ -174,6 +174,15 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
               <p className="mt-1 text-sm text-muted-foreground">{step.desc}</p>
             </div>
           ))}
+        </div>
+
+        <div className="mx-auto mt-8 max-w-3xl rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
+          <p className="font-semibold text-foreground">Importante: como a Argos fica online</p>
+          <p className="mt-1 text-muted-foreground">
+            A Argos funciona acoplada ao seu WhatsApp Web. Para a IA responder seus clientes, é necessário ter pelo menos
+            <strong className="text-foreground"> um computador ligado, com o Chrome aberto, a extensão da Argos instalada e o WhatsApp Web conectado</strong>.
+            Se todos os computadores forem desligados ou o WhatsApp Web for fechado, a IA pausa até voltar a estar online. Você pode usar em quantos PCs quiser para garantir disponibilidade.
+          </p>
         </div>
       </section>
 
