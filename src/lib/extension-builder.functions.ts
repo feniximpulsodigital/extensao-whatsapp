@@ -247,6 +247,8 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     if(SEEN.has(bubble)) return;
     SEEN.add(bubble);
 
+    if(!isRecentIncoming(bubble)){log("mensagem antiga ignorada"); return;}
+
     const dataId = bubble.getAttribute("data-id") || bubble.closest("[data-id]")?.getAttribute("data-id");
     if(dataId){
       if(PROCESSED_IDS.has(dataId)) return;
@@ -266,6 +268,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     if(chat !== currentChat){currentChat = chat; history = []; log("novo chat:", chat);}
 
     log("nova mensagem recebida:", text);
+    setButtonStatus("🤖 LENDO...", true, 4000);
     busy = true;
     try{
       history.push({role:"user", content:text});
@@ -273,18 +276,21 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       const reply = await askAI(history);
       if(reply){
         history.push({role:"assistant", content:reply});
+        setButtonStatus("🤖 ENVIANDO...", true, 4000);
         await new Promise(r=>setTimeout(r, 800 + Math.random()*1200)); // pequeno delay humano
-        await sendReply(reply);
+        const sent = await sendReply(reply);
+        setButtonStatus(sent ? "🤖 RESPONDIDO" : "⚠️ NÃO ENVIOU", sent, 7000);
       }
     } finally { busy = false; }
   }
 
   function scanForNewIncoming(root){
     // Pega APENAS a última mensagem recebida visível (não envia respostas a mensagens antigas no scroll)
-    const all = (root||document).querySelectorAll('div.message-in, div[class*="message-in"]');
+    const all = (root||document).querySelectorAll('#main div.message-in, #main div[class*="message-in"]');
     if(!all.length) return;
-    const last = all[all.length-1];
-    processIncoming(last);
+    const recent = Array.from(all).filter(isRecentIncoming);
+    if(!recent.length) return;
+    processIncoming(recent[recent.length-1]);
   }
 
   const obs = new MutationObserver((muts)=>{
@@ -314,10 +320,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   }
 
   // ---- Botão "IA: ON/OFF" no cabeçalho do chat ----
-  const BTN_ID = "argos-toggle-btn";
   function styleBtn(btn, on){
-    btn.textContent = on ? "🤖 IA: ON" : "🤖 IA: OFF";
-    btn.style.background = on ? "#16a34a" : "#dc2626";
+    const hasOverride = statusOverrideText && Date.now() < statusOverrideUntil;
+    btn.textContent = hasOverride ? statusOverrideText : (on ? "🤖 IA: ON" : "🤖 IA: OFF");
+    btn.style.background = hasOverride ? (statusOverrideOk ? "#16a34a" : "#dc2626") : (on ? "#16a34a" : "#dc2626");
     btn.style.color = "#fff";
     btn.style.border = "none";
     btn.style.padding = "6px 12px";
