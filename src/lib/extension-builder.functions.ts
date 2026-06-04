@@ -61,7 +61,6 @@ chrome.storage.local.get(["enabled","active"],(r)=>{
 });
 e.addEventListener("change",()=>chrome.storage.local.set({enabled:e.checked}));
 `;
-`;
 
 const BACKGROUND_JS = `// Service worker — mantém estado e ouve mensagens do content script.
 chrome.runtime.onInstalled.addListener(()=>{
