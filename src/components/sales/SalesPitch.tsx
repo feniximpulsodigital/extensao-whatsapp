@@ -1,12 +1,27 @@
 import { Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   MessageSquare, Clock, TrendingDown, Frown, Check, ArrowRight,
   Sparkles, Brain, Shield, Zap, Users, Star, BadgeCheck, Rocket,
 } from "lucide-react";
+import { getPublicPlans } from "@/lib/plans.functions";
+
+function formatBRL(cents: number) {
+  return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0 });
+}
 
 export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" }) {
+  const fetchPlans = useServerFn(getPublicPlans);
+  const { data } = useQuery({
+    queryKey: ["public-plans"],
+    queryFn: () => fetchPlans(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const plans = data?.plans ?? [];
+
   return (
     <>
       {/* Dor / problema */}
@@ -172,51 +187,47 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
             </h2>
             <p className="mt-4 text-muted-foreground">Sem fidelidade. Cancele quando quiser.</p>
           </div>
-          <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-2">
-            {[
-              {
-                name: "Starter",
-                price: "R$ 97",
-                tagline: "Pra começar a responder rápido hoje.",
-                features: ["1.000 créditos de IA/mês", "1 WhatsApp conectado", "Base de conhecimento ilimitada", "Suporte por e-mail"],
-              },
-              {
-                name: "Pro",
-                price: "R$ 297",
-                tagline: "Pra quem vende todo dia pelo WhatsApp.",
-                features: ["5.000 créditos de IA/mês", "1 WhatsApp conectado", "Prompts customizados", "Resposta automática 24/7", "Suporte prioritário"],
-                highlight: true,
-              },
-            ].map((p) => (
-              <Card key={p.name} className={p.highlight ? "border-primary shadow-lg relative" : ""}>
-                {p.highlight && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
-                    Mais escolhido
-                  </div>
-                )}
-                <CardHeader>
-                  <CardTitle>{p.name}</CardTitle>
-                  <CardDescription>{p.tagline}</CardDescription>
-                  <div className="mt-2 text-3xl font-bold">
-                    {p.price}
-                    <span className="text-sm font-normal text-muted-foreground">/mês</span>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {p.features.map((feat) => (
-                      <li key={feat} className="flex items-center gap-2 text-sm">
-                        <Check className="h-4 w-4 text-primary shrink-0" /> {feat}
-                      </li>
-                    ))}
-                  </ul>
-                  <Button className="mt-6 w-full" variant={p.highlight ? "default" : "outline"} asChild>
-                    <Link to="/login">Começar agora <ArrowRight className="h-4 w-4" /></Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          {plans.length === 0 ? (
+            <p className="mt-12 text-center text-sm text-muted-foreground">
+              Carregando planos…
+            </p>
+          ) : (
+            <div className={`mx-auto mt-12 grid max-w-5xl gap-6 ${plans.length >= 3 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+              {plans.map((p) => (
+                <Card key={p.id} className={p.highlight ? "border-primary shadow-lg relative" : ""}>
+                  {p.highlight && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                      Mais escolhido
+                    </div>
+                  )}
+                  <CardHeader>
+                    <CardTitle>{p.name}</CardTitle>
+                    {p.description && <CardDescription>{p.description}</CardDescription>}
+                    <div className="mt-2 text-3xl font-bold">
+                      {formatBRL(p.priceCents)}
+                      <span className="text-sm font-normal text-muted-foreground">/mês</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {p.monthlyCredits.toLocaleString("pt-BR")} créditos de IA por mês
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {p.features.map((feat) => (
+                        <li key={feat} className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-primary shrink-0" /> {feat}
+                        </li>
+                      ))}
+                    </ul>
+                    <Button className="mt-6 w-full" variant={p.highlight ? "default" : "outline"} asChild>
+                      <Link to="/login">Assinar agora <ArrowRight className="h-4 w-4" /></Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
         </div>
       </section>
 
@@ -227,15 +238,15 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
             <div className="text-center">
               <span className="text-sm font-semibold uppercase tracking-wider text-primary">Sem risco</span>
               <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
-                Você testa antes de pagar
+                Compromisso real, sem letra miúda
               </h2>
             </div>
             <div className="mt-10 grid gap-4 md:grid-cols-2">
               {[
-                { icon: BadgeCheck, title: "7 dias para experimentar", desc: "Use sem cartão. Se não gostar, simplesmente não assina." },
-                { icon: Shield, title: "Seus dados são seus", desc: "Conversas criptografadas. Você é dono da sua base de conhecimento." },
+                { icon: BadgeCheck, title: "Sem fidelidade", desc: "Mensal de verdade. Cancela em um clique, sem multa nem retenção." },
+                { icon: Shield, title: "Seus dados são seus", desc: "A base de conhecimento e as conversas pertencem à sua empresa. Exporte quando quiser." },
                 { icon: Users, title: "Suporte humano", desc: "Time real ajuda você a configurar a IA do jeito do seu negócio." },
-                { icon: Zap, title: "Sem fidelidade", desc: "Cancela em um clique. Nada de multa, nada de letra miúda." },
+                { icon: Zap, title: "Atualizações contínuas", desc: "Novos modelos de IA e melhorias sem custo extra dentro do seu plano." },
               ].map((g) => (
                 <div key={g.title} className="flex gap-3 rounded-lg border p-4">
                   <g.icon className="h-5 w-5 text-primary shrink-0 mt-0.5" />
