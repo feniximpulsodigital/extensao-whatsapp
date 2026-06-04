@@ -6,7 +6,7 @@ import { ICON_16_B64, ICON_48_B64, ICON_128_B64 } from "./extension-icons";
 
 // ---------- Extension source files (templates) ----------
 
-const STABLE_DEV_ORIGIN = "https://project--173c2d84-8a91-43b6-ab61-251aff9c5b40-dev.lovable.app";
+const PREVIEW_ORIGIN = "https://173c2d84-8a91-43b6-ab61-251aff9c5b40.lovableproject.com";
 
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
@@ -363,7 +363,7 @@ export const buildMyExtension = createServerFn({ method: "POST" })
     const brandName = brandRow?.brand_name || "Argos";
 
     // Endpoint público da API de resposta
-    const origin = data.origin.includes("lovable") ? STABLE_DEV_ORIGIN : data.origin;
+    const origin = data.origin.includes("lovable") ? PREVIEW_ORIGIN : data.origin;
     const endpoint = `${origin}/api/public/ai-reply`;
 
     const safeCompany = (tenant.company_name || "cliente")
