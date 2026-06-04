@@ -2,11 +2,18 @@
 FROM oven/bun:1.2-alpine AS builder
 WORKDIR /app
 
-# Public Vite env vars baked at build time (passed via EasyPanel build args)
+# Public Supabase env vars baked at build time (passed via EasyPanel build args)
+# Accept both plain names and Vite names for self-hosted builds.
+ARG SUPABASE_URL
+ARG SUPABASE_PUBLISHABLE_KEY
+ARG SUPABASE_PROJECT_ID
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_PUBLISHABLE_KEY
 ARG VITE_SUPABASE_PROJECT_ID
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+ENV SUPABASE_URL=$SUPABASE_URL \
+    SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY \
+    SUPABASE_PROJECT_ID=$SUPABASE_PROJECT_ID \
+    VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
     VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY \
     VITE_SUPABASE_PROJECT_ID=$VITE_SUPABASE_PROJECT_ID
 
@@ -14,7 +21,10 @@ COPY package.json bun.lock bunfig.toml ./
 RUN bun install --frozen-lockfile
 
 COPY . .
-RUN bun run build
+RUN VITE_SUPABASE_URL="${VITE_SUPABASE_URL:-$SUPABASE_URL}" \
+    VITE_SUPABASE_PUBLISHABLE_KEY="${VITE_SUPABASE_PUBLISHABLE_KEY:-$SUPABASE_PUBLISHABLE_KEY}" \
+    VITE_SUPABASE_PROJECT_ID="${VITE_SUPABASE_PROJECT_ID:-$SUPABASE_PROJECT_ID}" \
+    bun run build
 
 # ---------- Runtime stage ----------
 FROM node:22-alpine AS runner
