@@ -13,7 +13,7 @@ const MANIFEST = (brandName: string, apiOrigin: string) => ({
   name: `${brandName} — IA WhatsApp`,
   version: "1.0.3",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
-  permissions: ["storage", "activeTab", "clipboardWrite"],
+  permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
   action: {
     default_popup: "popup.html",
@@ -68,6 +68,9 @@ const BACKGROUND_JS = `// Service worker — mantém estado e ouve mensagens do 
 chrome.runtime.onInstalled.addListener(()=>{
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true,active:false});
+  });
+  chrome.tabs.query({url:"https://web.whatsapp.com/*"},(tabs)=>{
+    for(const tab of tabs){ if(tab.id) chrome.tabs.reload(tab.id); }
   });
 });
 chrome.runtime.onMessage.addListener((msg,_s,send)=>{
