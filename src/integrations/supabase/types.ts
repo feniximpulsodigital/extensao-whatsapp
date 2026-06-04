@@ -69,10 +69,12 @@ export type Database = {
           created_at: string
           default_max_tokens: number
           default_model: string
+          default_monthly_usd: number
           default_temperature: number
           enabled: boolean
           id: string
           master_system_prompt: string
+          provider: string
           singleton: boolean
           updated_at: string
         }
@@ -80,10 +82,12 @@ export type Database = {
           created_at?: string
           default_max_tokens?: number
           default_model?: string
+          default_monthly_usd?: number
           default_temperature?: number
           enabled?: boolean
           id?: string
           master_system_prompt?: string
+          provider?: string
           singleton?: boolean
           updated_at?: string
         }
@@ -91,10 +95,12 @@ export type Database = {
           created_at?: string
           default_max_tokens?: number
           default_model?: string
+          default_monthly_usd?: number
           default_temperature?: number
           enabled?: boolean
           id?: string
           master_system_prompt?: string
+          provider?: string
           singleton?: boolean
           updated_at?: string
         }

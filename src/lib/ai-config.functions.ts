@@ -11,7 +11,7 @@ async function requireAdmin(supabase: any, userId: string) {
   if (!isAdmin) throw new Error("Apenas admin");
 }
 
-// ---------- Global config (admin) ----------
+// ---------- Global config (admin only) ----------
 
 export const adminGetAiGlobalConfig = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -31,10 +31,12 @@ export const adminUpdateAiGlobalConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
     z.object({
-      default_model: z.string().min(3).max(100),
+      provider: z.enum(["groq", "openai", "anthropic"]),
+      default_model: z.string().min(2).max(100),
       master_system_prompt: z.string().min(1).max(8000),
       default_temperature: z.number().min(0).max(2),
       default_max_tokens: z.number().int().min(50).max(8000),
+      default_monthly_usd: z.number().min(0).max(1000),
       enabled: z.boolean(),
     }).parse(input)
   )
@@ -49,7 +51,7 @@ export const adminUpdateAiGlobalConfig = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ---------- Per-tenant config ----------
+// ---------- Per-tenant config (client side: NO global/admin fields exposed) ----------
 
 export const getMyAiConfig = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -82,7 +84,6 @@ export const updateMyAiConfig = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
     z.object({
-      model: z.string().optional(),
       temperature: z.number().min(0).max(2).optional(),
       max_tokens: z.number().int().min(50).max(8000).optional(),
       auto_reply_enabled: z.boolean().optional(),
@@ -101,7 +102,6 @@ export const updateMyAiConfig = createServerFn({ method: "POST" })
     if (!tenant) throw new Error("Tenant não encontrado");
 
     const cfgPatch: any = {};
-    if (data.model !== undefined) cfgPatch.model = data.model;
     if (data.temperature !== undefined) cfgPatch.temperature = data.temperature;
     if (data.max_tokens !== undefined) cfgPatch.max_tokens = data.max_tokens;
     if (data.auto_reply_enabled !== undefined) cfgPatch.auto_reply_enabled = data.auto_reply_enabled;
