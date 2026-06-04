@@ -64,7 +64,7 @@ function CheckoutPage() {
     const i = setInterval(async () => {
       try {
         const r = await checkStatus({ data: { paymentId: pixModal.paymentId } });
-        if (r.status === "paid" || r.status === "confirmed") {
+        if (r.status === "confirmed") {
           clearInterval(i);
           toast.success("Pagamento confirmado!");
           await qc.invalidateQueries();

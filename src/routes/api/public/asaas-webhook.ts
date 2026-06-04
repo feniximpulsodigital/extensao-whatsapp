@@ -63,7 +63,7 @@ export const Route = createFileRoute("/api/public/asaas-webhook")({
               plan_id: tenant?.plan_id ?? null,
               asaas_payment_id: payment.id,
               amount_cents: Math.round(payment.value * 100),
-              status: "paid",
+              status: "confirmed",
               billing_type: "CREDIT_CARD",
               billing_cycle: tenant?.billing_cycle ?? "monthly",
               paid_at: new Date().toISOString(),
@@ -76,7 +76,7 @@ export const Route = createFileRoute("/api/public/asaas-webhook")({
         if (row && isPaid) {
           await supabaseAdmin
             .from("payments")
-            .update({ status: "paid", paid_at: new Date().toISOString() })
+            .update({ status: "confirmed", paid_at: new Date().toISOString() })
             .eq("id", row.id);
 
           // Activate tenant + credit
