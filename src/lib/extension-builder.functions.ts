@@ -147,10 +147,16 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   }
 
   function findSendButton(){
-    return document.querySelector('button[aria-label="Enviar"]')
+    const byLabel = Array.from(document.querySelectorAll('button[aria-label]')).find((b)=>{
+      const label = (b.getAttribute('aria-label') || '').toLowerCase();
+      return label.includes('enviar') || label.includes('send');
+    });
+    return byLabel
+        || document.querySelector('button[aria-label="Enviar"]')
         || document.querySelector('button[aria-label="Send"]')
         || document.querySelector('span[data-icon="send"]')?.closest('button')
-        || document.querySelector('span[data-icon="wds-ic-send-filled"]')?.closest('button');
+        || document.querySelector('span[data-icon="wds-ic-send-filled"]')?.closest('button')
+        || Array.from(document.querySelectorAll('span[data-icon*="send"]')).map((s)=>s.closest('button')).find(Boolean);
   }
 
   async function sendReply(text){
