@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.9",
+  version: "1.0.10",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -157,13 +157,42 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   // ---------- Seletor de mensagens recebidas ----------
   function incomingSelector(){
-    return '#main [data-id^="false_"], #main div.message-in';
+    return '#main [data-id]';
+  }
+  function isIncomingBubble(el){
+    if(!el) return false;
+
+    // 1. data-id prefix (quando disponível)
+    const id = el.getAttribute('data-id') || '';
+    if(id.startsWith('true_')) return false;
+    if(id.startsWith('false_')) return true;
+
+    // 2. Ícone de status de envio = mensagem minha (enviada)
+    if(el.querySelector('span[data-icon*="msg-check"], span[data-icon*="msg-dblcheck"], span[data-icon*="msg-time"]')){
+      return false;
+    }
+
+    // 3. Alinhamento geométrico: recebidas ficam à esquerda (<30% da largura do pai)
+    const rect = el.getBoundingClientRect();
+    const parentRect = el.parentElement?.getBoundingClientRect();
+    if(parentRect && rect.left - parentRect.left < parentRect.width * 0.3){
+      return true;
+    }
+
+    // 4. Tail da bolha: tail-right ou tail-out = enviada por mim
+    if(el.querySelector('span[data-icon*="tail-right"], span[data-icon*="tail-out"]')){
+      return false;
+    }
+
+    return true;
   }
   function getIncomingBubbles(root){
     const r = root || document;
     return Array.from(r.querySelectorAll(incomingSelector()))
       .map((el)=> el.closest('[data-id]') || el)
-      .filter((el, idx, arr)=>arr.indexOf(el) === idx);
+      .filter(Boolean)
+      .filter((el, idx, arr)=>arr.indexOf(el) === idx)
+      .filter(isIncomingBubble);
   }
 
   // ---------- Timestamps ----------
