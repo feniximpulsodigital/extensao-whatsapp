@@ -191,14 +191,26 @@ export const adminAddCredits = createServerFn({ method: "POST" })
 
 export const adminGeneratePasswordLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ email: z.string().email() }).parse(input))
+  .inputValidator((input) => z.object({ tenantId: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: tenant } = await supabaseAdmin
+      .from("tenants")
+      .select("owner_id")
+      .eq("id", data.tenantId)
+      .maybeSingle();
+    if (!tenant) throw new Error("Tenant não encontrado");
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("email")
+      .eq("id", tenant.owner_id)
+      .maybeSingle();
+    if (!profile?.email) throw new Error("E-mail do cliente não encontrado");
     const r = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
-      email: data.email,
+      email: profile.email,
     });
     if (r.error) throw new Error(r.error.message);
     return { actionLink: r.data.properties?.action_link };

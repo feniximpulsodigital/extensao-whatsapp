@@ -110,7 +110,7 @@ function TenantsPage() {
                       <Button size="icon" variant="ghost" title="Ajustar créditos" onClick={() => setCreditModal({ id: t.id, name: t.company_name })}><Coins className="h-4 w-4" /></Button>
                       <Button size="icon" variant="ghost" title="Reset senha" onClick={async () => {
                         try {
-                          const r = await resetPwd({ data: { email: t.profiles?.email ?? "" } });
+                          const r = await resetPwd({ data: { tenantId: t.id } });
                           if (r.actionLink) {
                             await navigator.clipboard.writeText(r.actionLink);
                             toast.success("Link de reset copiado!");
