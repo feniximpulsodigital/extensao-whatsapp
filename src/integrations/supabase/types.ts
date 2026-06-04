@@ -64,6 +64,86 @@ export type Database = {
           },
         ]
       }
+      ai_pricing_config: {
+        Row: {
+          created_at: string
+          credits_per_usd: number
+          global_markup_multiplier: number
+          id: string
+          model_cost_overrides: Json
+          singleton: boolean
+          updated_at: string
+          usd_to_brl: number
+        }
+        Insert: {
+          created_at?: string
+          credits_per_usd?: number
+          global_markup_multiplier?: number
+          id?: string
+          model_cost_overrides?: Json
+          singleton?: boolean
+          updated_at?: string
+          usd_to_brl?: number
+        }
+        Update: {
+          created_at?: string
+          credits_per_usd?: number
+          global_markup_multiplier?: number
+          id?: string
+          model_cost_overrides?: Json
+          singleton?: boolean
+          updated_at?: string
+          usd_to_brl?: number
+        }
+        Relationships: []
+      }
+      ai_usage_log: {
+        Row: {
+          cost_usd_real: number
+          created_at: string
+          credits_charged: number
+          endpoint: string | null
+          id: string
+          input_tokens: number
+          metadata: Json
+          model: string
+          output_tokens: number
+          tenant_id: string
+        }
+        Insert: {
+          cost_usd_real?: number
+          created_at?: string
+          credits_charged?: number
+          endpoint?: string | null
+          id?: string
+          input_tokens?: number
+          metadata?: Json
+          model: string
+          output_tokens?: number
+          tenant_id: string
+        }
+        Update: {
+          cost_usd_real?: number
+          created_at?: string
+          credits_charged?: number
+          endpoint?: string | null
+          id?: string
+          input_tokens?: number
+          metadata?: Json
+          model?: string
+          output_tokens?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_settings: {
         Row: {
           asaas_api_key_production: string | null
@@ -141,35 +221,116 @@ export type Database = {
           },
         ]
       }
+      client_invites: {
+        Row: {
+          accepted_at: string | null
+          amount_cents: number
+          billing_cycle: string
+          company_name: string | null
+          created_at: string
+          custom_allowance: number | null
+          email: string
+          expires_at: string
+          full_name: string | null
+          id: string
+          phone: string | null
+          plan_id: string | null
+          status: string
+          tenant_id: string
+          token: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          amount_cents?: number
+          billing_cycle?: string
+          company_name?: string | null
+          created_at?: string
+          custom_allowance?: number | null
+          email: string
+          expires_at?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          plan_id?: string | null
+          status?: string
+          tenant_id: string
+          token: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          amount_cents?: number
+          billing_cycle?: string
+          company_name?: string | null
+          created_at?: string
+          custom_allowance?: number | null
+          email?: string
+          expires_at?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          plan_id?: string | null
+          status?: string
+          tenant_id?: string
+          token?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_invites_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_invites_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_packages: {
         Row: {
+          bonus_credits: number
           created_at: string
           credits: number
           description: string | null
           id: string
           is_active: boolean
+          markup_multiplier: number | null
           name: string
           price_cents: number
           sort_order: number
           updated_at: string
         }
         Insert: {
+          bonus_credits?: number
           created_at?: string
           credits: number
           description?: string | null
           id?: string
           is_active?: boolean
+          markup_multiplier?: number | null
           name: string
           price_cents: number
           sort_order?: number
           updated_at?: string
         }
         Update: {
+          bonus_credits?: number
           created_at?: string
           credits?: number
           description?: string | null
           id?: string
           is_active?: boolean
+          markup_multiplier?: number | null
           name?: string
           price_cents?: number
           sort_order?: number
@@ -269,7 +430,9 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          invite_id: string | null
           invoice_url: string | null
+          kind: string
           metadata: Json
           package_id: string | null
           paid_at: string | null
@@ -289,7 +452,9 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          invite_id?: string | null
           invoice_url?: string | null
+          kind?: string
           metadata?: Json
           package_id?: string | null
           paid_at?: string | null
@@ -309,7 +474,9 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          invite_id?: string | null
           invoice_url?: string | null
+          kind?: string
           metadata?: Json
           package_id?: string | null
           paid_at?: string | null
@@ -321,6 +488,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "payments_invite_id_fkey"
+            columns: ["invite_id"]
+            isOneToOne: false
+            referencedRelation: "client_invites"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payments_package_id_fkey"
             columns: ["package_id"]
@@ -353,6 +527,8 @@ export type Database = {
           features: Json
           id: string
           is_active: boolean
+          is_custom: boolean
+          low_balance_threshold_pct: number
           max_knowledge_entries: number
           monthly_credits: number
           name: string
@@ -369,6 +545,8 @@ export type Database = {
           features?: Json
           id?: string
           is_active?: boolean
+          is_custom?: boolean
+          low_balance_threshold_pct?: number
           max_knowledge_entries?: number
           monthly_credits?: number
           name: string
@@ -385,6 +563,8 @@ export type Database = {
           features?: Json
           id?: string
           is_active?: boolean
+          is_custom?: boolean
+          low_balance_threshold_pct?: number
           max_knowledge_entries?: number
           monthly_credits?: number
           name?: string
@@ -473,10 +653,15 @@ export type Database = {
           billing_cycle: string | null
           company_name: string
           created_at: string
+          created_by_admin: boolean
           credits_balance: number
+          credits_monthly_allowance: number
+          credits_rollover: boolean
+          custom_plan_expires_at: string | null
           document: string | null
           extension_api_key: string
           id: string
+          last_credits_renewed_at: string | null
           notes: string | null
           owner_id: string
           plan_id: string | null
@@ -491,10 +676,15 @@ export type Database = {
           billing_cycle?: string | null
           company_name: string
           created_at?: string
+          created_by_admin?: boolean
           credits_balance?: number
+          credits_monthly_allowance?: number
+          credits_rollover?: boolean
+          custom_plan_expires_at?: string | null
           document?: string | null
           extension_api_key?: string
           id?: string
+          last_credits_renewed_at?: string | null
           notes?: string | null
           owner_id: string
           plan_id?: string | null
@@ -509,10 +699,15 @@ export type Database = {
           billing_cycle?: string | null
           company_name?: string
           created_at?: string
+          created_by_admin?: boolean
           credits_balance?: number
+          credits_monthly_allowance?: number
+          credits_rollover?: boolean
+          custom_plan_expires_at?: string | null
           document?: string | null
           extension_api_key?: string
           id?: string
+          last_credits_renewed_at?: string | null
           notes?: string | null
           owner_id?: string
           plan_id?: string | null
