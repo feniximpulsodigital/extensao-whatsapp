@@ -214,6 +214,10 @@ function PlanFormEditor({
           <Switch checked={form.is_active} onCheckedChange={(c) => onChange({ ...form, is_active: c })} />
           <Label>Ativo</Label>
         </div>
+        <div className="flex items-center gap-2 pt-6 col-span-2">
+          <Switch checked={form.is_custom} onCheckedChange={(c) => onChange({ ...form, is_custom: c })} />
+          <Label>Plano custom (oculto do checkout público — só atribuído por convite)</Label>
+        </div>
       </div>
       <Button onClick={onSave} disabled={saving} className="w-full">
         {saving ? "Salvando..." : "Salvar"}
