@@ -480,17 +480,13 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       await waitFor(()=>{ const c = getChatId(); return c && c !== before; }, 4000);
       await new Promise(r=>setTimeout(r, 450));
 
-      // Se o usuário voltou a interagir durante a abertura, aborta e restaura.
-      const userInterrupted = isUserComposing() || (Date.now() - lastUserActivity < 600);
-      if(!userInterrupted){
-        const chat = getChatId();
-        if(chat && (await getChatEnabled(chat))){
-          const bubbles = getIncomingBubbles(document).filter(isRecentIncoming);
-          const last = bubbles[bubbles.length-1];
-          if(last){
-            currentChat = chat; history = [];
-            await processIncoming(last);
-          }
+      const chat = getChatId();
+      if(chat && (await getChatEnabled(chat))){
+        const bubbles = getIncomingBubbles(document).filter(isRecentIncoming);
+        const last = bubbles[bubbles.length-1];
+        if(last){
+          currentChat = chat; history = [];
+          await processIncoming(last);
         }
       }
 
