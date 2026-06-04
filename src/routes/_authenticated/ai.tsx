@@ -129,11 +129,7 @@ function AiPage() {
               <Switch checked={form.auto_reply_enabled} onCheckedChange={(c) => setForm({ ...form, auto_reply_enabled: c })} />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <div>
-                <Label>Modelo (opcional)</Label>
-                <Input placeholder="usar padrão do sistema" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
-              </div>
+            <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <Label>Max tokens</Label>
                 <Input type="number" value={form.max_tokens} onChange={(e) => setForm({ ...form, max_tokens: parseInt(e.target.value || "0") })} />
@@ -143,6 +139,7 @@ function AiPage() {
                 <Input type="number" value={form.response_delay_ms} onChange={(e) => setForm({ ...form, response_delay_ms: parseInt(e.target.value || "0") })} />
               </div>
             </div>
+
 
             <div>
               <Label>Temperatura ({form.temperature.toFixed(2)})</Label>
