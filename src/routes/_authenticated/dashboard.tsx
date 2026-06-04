@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyCreditsSummary } from "@/lib/ai-credits.functions";
+import { getMyExtensionApiKey } from "@/lib/billing.functions";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Argos" }] }),
@@ -19,13 +20,14 @@ function Dashboard() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const summary = useServerFn(getMyCreditsSummary);
+  const extKeyFn = useServerFn(getMyExtensionApiKey);
 
   const { data: tenant } = useQuery({
     queryKey: ["my-tenant"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tenants")
-        .select("*, plans(name)")
+        .select("id, status, credits_balance, plan_id, plans(name)")
         .eq("owner_id", user.id)
         .maybeSingle();
       if (error) throw error;
@@ -33,6 +35,7 @@ function Dashboard() {
     },
   });
   const { data: credits } = useQuery({ queryKey: ["credits-summary"], queryFn: () => summary() });
+  const { data: extKey } = useQuery({ queryKey: ["extension-key"], queryFn: () => extKeyFn() });
 
   const handleLogout = async () => {
     const { invalidateAuthGate } = await import("./route");
@@ -131,7 +134,7 @@ function Dashboard() {
           </CardHeader>
           <CardContent>
             <code className="block rounded bg-muted p-3 text-sm break-all">
-              {tenant?.extension_api_key ?? "—"}
+              {extKey?.extensionApiKey ?? "—"}
             </code>
           </CardContent>
         </Card>
