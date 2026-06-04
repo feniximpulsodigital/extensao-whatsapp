@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { LogOut, Settings, AlertTriangle, Zap, Brain } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,6 +56,7 @@ function Dashboard() {
             <Logo size={32} />
           </Link>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button asChild variant="outline" size="sm">
               <Link to="/ai"><Brain className="h-4 w-4 mr-2" />Minha IA</Link>
             </Button>

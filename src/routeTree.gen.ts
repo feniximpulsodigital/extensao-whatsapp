@@ -27,6 +27,7 @@ import { Route as AuthenticatedAdminTenantsRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin.settings'
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin.plans'
 import { Route as AuthenticatedAdminInvitesRouteImport } from './routes/_authenticated/admin.invites'
+import { Route as AuthenticatedAdminBrandingRouteImport } from './routes/_authenticated/admin.branding'
 import { Route as AuthenticatedAdminAiCreditsRouteImport } from './routes/_authenticated/admin.ai-credits'
 import { Route as AuthenticatedAdminAiConfigRouteImport } from './routes/_authenticated/admin.ai-config'
 
@@ -123,6 +124,12 @@ const AuthenticatedAdminInvitesRoute =
     path: '/invites',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminBrandingRoute =
+  AuthenticatedAdminBrandingRouteImport.update({
+    id: '/branding',
+    path: '/branding',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAiCreditsRoute =
   AuthenticatedAdminAiCreditsRouteImport.update({
     id: '/ai-credits',
@@ -147,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/invite/$token': typeof InviteTokenRoute
   '/admin/ai-config': typeof AuthenticatedAdminAiConfigRoute
   '/admin/ai-credits': typeof AuthenticatedAdminAiCreditsRoute
+  '/admin/branding': typeof AuthenticatedAdminBrandingRoute
   '/admin/invites': typeof AuthenticatedAdminInvitesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
@@ -167,6 +175,7 @@ export interface FileRoutesByTo {
   '/invite/$token': typeof InviteTokenRoute
   '/admin/ai-config': typeof AuthenticatedAdminAiConfigRoute
   '/admin/ai-credits': typeof AuthenticatedAdminAiCreditsRoute
+  '/admin/branding': typeof AuthenticatedAdminBrandingRoute
   '/admin/invites': typeof AuthenticatedAdminInvitesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
@@ -190,6 +199,7 @@ export interface FileRoutesById {
   '/invite/$token': typeof InviteTokenRoute
   '/_authenticated/admin/ai-config': typeof AuthenticatedAdminAiConfigRoute
   '/_authenticated/admin/ai-credits': typeof AuthenticatedAdminAiCreditsRoute
+  '/_authenticated/admin/branding': typeof AuthenticatedAdminBrandingRoute
   '/_authenticated/admin/invites': typeof AuthenticatedAdminInvitesRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
@@ -213,6 +223,7 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/admin/ai-config'
     | '/admin/ai-credits'
+    | '/admin/branding'
     | '/admin/invites'
     | '/admin/plans'
     | '/admin/settings'
@@ -233,6 +244,7 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/admin/ai-config'
     | '/admin/ai-credits'
+    | '/admin/branding'
     | '/admin/invites'
     | '/admin/plans'
     | '/admin/settings'
@@ -255,6 +267,7 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/_authenticated/admin/ai-config'
     | '/_authenticated/admin/ai-credits'
+    | '/_authenticated/admin/branding'
     | '/_authenticated/admin/invites'
     | '/_authenticated/admin/plans'
     | '/_authenticated/admin/settings'
@@ -404,6 +417,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminInvitesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/branding': {
+      id: '/_authenticated/admin/branding'
+      path: '/branding'
+      fullPath: '/admin/branding'
+      preLoaderRoute: typeof AuthenticatedAdminBrandingRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/ai-credits': {
       id: '/_authenticated/admin/ai-credits'
       path: '/ai-credits'
@@ -424,6 +444,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAiConfigRoute: typeof AuthenticatedAdminAiConfigRoute
   AuthenticatedAdminAiCreditsRoute: typeof AuthenticatedAdminAiCreditsRoute
+  AuthenticatedAdminBrandingRoute: typeof AuthenticatedAdminBrandingRoute
   AuthenticatedAdminInvitesRoute: typeof AuthenticatedAdminInvitesRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
@@ -435,6 +456,7 @@ interface AuthenticatedAdminRouteChildren {
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAiConfigRoute: AuthenticatedAdminAiConfigRoute,
   AuthenticatedAdminAiCreditsRoute: AuthenticatedAdminAiCreditsRoute,
+  AuthenticatedAdminBrandingRoute: AuthenticatedAdminBrandingRoute,
   AuthenticatedAdminInvitesRoute: AuthenticatedAdminInvitesRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
