@@ -134,7 +134,7 @@ function Dashboard() {
           </CardHeader>
           <CardContent>
             <code className="block rounded bg-muted p-3 text-sm break-all">
-              {tenant?.extension_api_key ?? "—"}
+              {extKey?.extensionApiKey ?? "—"}
             </code>
           </CardContent>
         </Card>
