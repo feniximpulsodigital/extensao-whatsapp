@@ -44,15 +44,18 @@ function AiPage() {
     prompt_content: "",
   });
   useEffect(() => {
-    if (cfg?.config) setForm((f) => ({
-      ...f,
-      model: cfg.config.model ?? "",
-      temperature: Number(cfg.config.temperature ?? 0.7),
-      max_tokens: cfg.config.max_tokens ?? 500,
-      auto_reply_enabled: cfg.config.auto_reply_enabled ?? false,
-      response_delay_ms: cfg.config.response_delay_ms ?? 1500,
-      prompt_content: cfg.prompt?.content ?? "",
-    }));
+    if (cfg?.config) {
+      const c = cfg.config;
+      setForm((f) => ({
+        ...f,
+        model: c.model ?? "",
+        temperature: Number(c.temperature ?? 0.7),
+        max_tokens: c.max_tokens ?? 500,
+        auto_reply_enabled: c.auto_reply_enabled ?? false,
+        response_delay_ms: c.response_delay_ms ?? 1500,
+        prompt_content: cfg.prompt?.content ?? "",
+      }));
+    }
   }, [cfg]);
 
   const save = useMutation({
