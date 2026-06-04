@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { zipSync, strToU8 } from "fflate";
+import { ICON_16_B64, ICON_48_B64, ICON_128_B64 } from "./extension-icons";
 
 // ---------- Extension source files (templates) ----------
 
@@ -12,9 +13,12 @@ const MANIFEST = (brandName: string) => ({
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab"],
   host_permissions: ["https://web.whatsapp.com/*"],
-  action: { default_popup: "popup.html", default_icon: "icon.png" },
+  action: {
+    default_popup: "popup.html",
+    default_icon: { "16": "icon-16.png", "48": "icon-48.png", "128": "icon-128.png" },
+  },
   background: { service_worker: "background.js" },
-  icons: { "16": "icon.png", "48": "icon.png", "128": "icon.png" },
+  icons: { "16": "icon-16.png", "48": "icon-48.png", "128": "icon-128.png" },
   content_scripts: [
     {
       matches: ["https://web.whatsapp.com/*"],
@@ -134,9 +138,6 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 })();
 `;
 
-// 1x1 PNG transparente (placeholder mínimo válido — usuário pode trocar depois)
-const ICON_PNG_B64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9ZbQDQwAAAAASUVORK5CYII=";
 
 function b64ToU8(b64: string): Uint8Array {
   const bin = atob(b64);
@@ -192,7 +193,9 @@ export const buildMyExtension = createServerFn({ method: "POST" })
       "background.js": strToU8(BACKGROUND_JS),
       "popup.html": strToU8(POPUP_HTML(brandName)),
       "popup.js": strToU8(POPUP_JS),
-      "icon.png": b64ToU8(ICON_PNG_B64),
+      "icon-16.png": b64ToU8(ICON_16_B64),
+      "icon-48.png": b64ToU8(ICON_48_B64),
+      "icon-128.png": b64ToU8(ICON_128_B64),
       "README.txt": strToU8(
         [
           `${brandName} — Extensão personalizada`,
