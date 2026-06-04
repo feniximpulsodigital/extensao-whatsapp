@@ -112,10 +112,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         body: JSON.stringify({ messages }),
       });
       const j = await r.json().catch(()=>({}));
-      if(!r.ok){warn("API erro", r.status, j); setButtonStatus("⚠️ IA ERRO", false); return null;}
+      if(!r.ok){warn("API erro", r.status, j); setButtonStatus("⚠️ " + (j.error || r.status), false); return null;}
       log("IA respondeu:", j.reply);
       return j.reply || null;
-    }catch(e){warn("fetch erro", e); setButtonStatus("⚠️ IA ERRO", false); return null;}
+    }catch(e){warn("fetch erro", e); setButtonStatus("⚠️ SEM API", false); return null;}
   }
 
   function getEnabled(){
