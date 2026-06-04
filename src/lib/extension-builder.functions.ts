@@ -11,9 +11,9 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.0",
+  version: "1.0.3",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
-  permissions: ["storage", "activeTab"],
+  permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
   action: {
     default_popup: "popup.html",
@@ -68,6 +68,9 @@ const BACKGROUND_JS = `// Service worker — mantém estado e ouve mensagens do 
 chrome.runtime.onInstalled.addListener(()=>{
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true,active:false});
+  });
+  chrome.tabs.query({url:"https://web.whatsapp.com/*"},(tabs)=>{
+    for(const tab of tabs){ if(tab.id) chrome.tabs.reload(tab.id); }
   });
 });
 chrome.runtime.onMessage.addListener((msg,_s,send)=>{
@@ -135,33 +138,48 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   }
 
   function findInputBox(){
-    // tenta vários seletores conhecidos do WhatsApp Web
-    return document.querySelector('footer div[contenteditable="true"][data-tab="10"]')
-        || document.querySelector('footer div[contenteditable="true"][role="textbox"]')
-        || document.querySelector('div[contenteditable="true"][data-lexical-editor="true"]')
-        || document.querySelector('footer div[contenteditable="true"]');
+    // WhatsApp muda seletores com frequência; prioriza sempre a caixa do rodapé do chat ativo.
+    const footer = document.querySelector('#main footer') || document.querySelector('footer');
+    const boxes = Array.from((footer || document).querySelectorAll('div[contenteditable="true"], [role="textbox"][contenteditable="true"]'));
+    return boxes.find((el)=>!el.closest('[aria-hidden="true"]') && !el.getAttribute('aria-label')?.toLowerCase().includes('pesquisar'))
+        || document.querySelector('#main footer div[contenteditable="true"]')
+        || document.querySelector('div[contenteditable="true"][data-lexical-editor="true"]');
   }
 
   function findSendButton(){
-    return document.querySelector('button[aria-label="Enviar"]')
+    const byLabel = Array.from(document.querySelectorAll('button[aria-label]')).find((b)=>{
+      const label = (b.getAttribute('aria-label') || '').toLowerCase();
+      return label.includes('enviar') || label.includes('send');
+    });
+    return byLabel
+        || document.querySelector('button[aria-label="Enviar"]')
         || document.querySelector('button[aria-label="Send"]')
         || document.querySelector('span[data-icon="send"]')?.closest('button')
-        || document.querySelector('span[data-icon="wds-ic-send-filled"]')?.closest('button');
+        || document.querySelector('span[data-icon="wds-ic-send-filled"]')?.closest('button')
+        || Array.from(document.querySelectorAll('span[data-icon*="send"]')).map((s)=>s.closest('button')).find(Boolean);
   }
 
   async function sendReply(text){
     const box = findInputBox();
     if(!box){warn("caixa de texto não encontrada"); return false;}
     box.focus();
+    box.click();
     try{
       const data = new DataTransfer();
       data.setData("text/plain", text);
       box.dispatchEvent(new ClipboardEvent("paste", {clipboardData:data,bubbles:true,cancelable:true}));
     }catch(_e){}
     if(!box.innerText?.includes(text)) document.execCommand("insertText", false, text);
+    if(!box.innerText?.includes(text)){
+      try{
+        await navigator.clipboard.writeText(text);
+        box.dispatchEvent(new KeyboardEvent("keydown",{key:"v",code:"KeyV",ctrlKey:true,bubbles:true}));
+        box.dispatchEvent(new KeyboardEvent("keyup",{key:"v",code:"KeyV",ctrlKey:true,bubbles:true}));
+      }catch(_e){}
+    }
     box.dispatchEvent(new InputEvent("input",{bubbles:true,inputType:"insertText",data:text}));
     let btn = null;
-    for(let i=0;i<10;i++){
+    for(let i=0;i<16;i++){
       await new Promise(r=>setTimeout(r,250));
       btn = findSendButton();
       if(btn) break;
@@ -182,7 +200,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   function extractText(bubble){
     // Texto principal da mensagem
-    const span = bubble.querySelector('span.selectable-text, span._ao3e, div.copyable-text span');
+    const span = bubble.querySelector('span.selectable-text, span._ao3e, div.copyable-text span, [data-pre-plain-text] span');
     return (span?.innerText || bubble.innerText || "").trim();
   }
 
@@ -224,7 +242,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   function scanForNewIncoming(root){
     // Pega APENAS a última mensagem recebida visível (não envia respostas a mensagens antigas no scroll)
-    const all = (root||document).querySelectorAll('div.message-in');
+    const all = (root||document).querySelectorAll('div.message-in, div[class*="message-in"]');
     if(!all.length) return;
     const last = all[all.length-1];
     processIncoming(last);
@@ -234,8 +252,8 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     for(const m of muts){
       for(const n of m.addedNodes){
         if(!(n instanceof HTMLElement)) continue;
-        if(n.matches?.('div.message-in')) { processIncoming(n); continue; }
-        const inner = n.querySelector?.('div.message-in');
+        if(n.matches?.('div.message-in, div[class*="message-in"]')) { processIncoming(n); continue; }
+        const inner = n.querySelector?.('div.message-in, div[class*="message-in"]');
         if(inner) scanForNewIncoming(n);
       }
     }
@@ -249,7 +267,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   // Marca mensagens já existentes como vistas, para não responder histórico antigo ao abrir um chat
   function markExistingAsSeen(){
-    document.querySelectorAll('div.message-in').forEach(b=>{
+    document.querySelectorAll('div.message-in, div[class*="message-in"]').forEach(b=>{
       SEEN.add(b);
       const id = b.getAttribute("data-id") || b.closest("[data-id]")?.getAttribute("data-id");
       if(id) PROCESSED_IDS.add(id);
@@ -309,6 +327,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
 
   setInterval(()=>{ attach(); ensureToggleButton(); }, 1500);
+  setInterval(()=>{ scanForNewIncoming(document); }, 2000);
   setInterval(()=>{
     const chat = getChatId();
     if(chat && chat !== currentChat){
@@ -321,6 +340,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   attach();
   setTimeout(()=>{ markExistingAsSeen(); ensureToggleButton(); }, 1500);
+  setTimeout(()=>{ scanForNewIncoming(document); }, 3500);
   log("extensão ativa. Botão IA aparece no topo de cada conversa.");
 })();
 `;
