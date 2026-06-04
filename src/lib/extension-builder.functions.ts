@@ -363,7 +363,7 @@ export const buildMyExtension = createServerFn({ method: "POST" })
     const brandName = brandRow?.brand_name || "Argos";
 
     // Endpoint público da API de resposta
-    const origin = data.origin.includes("lovable") ? STABLE_DEV_ORIGIN : data.origin;
+    const origin = data.origin.includes("lovable") ? PRODUCTION_ORIGIN : data.origin;
     const endpoint = `${origin}/api/public/ai-reply`;
 
     const safeCompany = (tenant.company_name || "cliente")
