@@ -90,22 +90,37 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
   log("inicializando. endpoint =", CFG.endpoint);
 
-  // Garante enabled=true por padrão na primeira execução
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
   });
   chrome.runtime.sendMessage({type:"setActive",value:true});
 
-  const SEEN = new WeakSet();        // dedupe por elemento DOM
-  const PROCESSED_IDS = new Set();   // dedupe por data-id quando disponível
-  let currentChat = null;
-  let history = [];
-  let busy = false;
+  const PROCESSED_IDS = new Set();     // dedupe por data-id
+  const SEEN_BUBBLES = new WeakSet();  // dedupe DOM
+  const HISTORY = new Map();           // chat -> messages[]
+  const MAX_AGE_MS = 10 * 60 * 1000;
   const BTN_ID = "argos-toggle-btn";
+  const IDLE_REQUIRED_MS = 3000;
+
+  let busy = false;
+  let bgBusy = false;
+  let lastUserActivity = Date.now();
   let statusOverrideText = null;
   let statusOverrideOk = true;
   let statusOverrideUntil = 0;
-  const RECENT_INCOMING_WINDOW_MS = 10 * 60 * 1000;
+
+  ["mousemove","mousedown","keydown","wheel","touchstart","focusin"].forEach((ev)=>{
+    try{ window.addEventListener(ev, ()=>{ lastUserActivity = Date.now(); }, { passive:true, capture:true }); }catch(_e){}
+  });
+  function isUserIdle(){ return Date.now() - lastUserActivity >= IDLE_REQUIRED_MS; }
+  function isUserComposing(){
+    const el = document.activeElement;
+    if(!el) return false;
+    const tag = (el.tagName||"").toLowerCase();
+    if(tag==="input"||tag==="textarea") return true;
+    if(el.getAttribute && el.getAttribute("contenteditable")==="true") return true;
+    return false;
+  }
 
   function setButtonStatus(text, ok, ms){
     statusOverrideText = text;
@@ -117,49 +132,105 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     btn.style.background = ok ? "#16a34a" : "#dc2626";
   }
 
-  async function askAI(messages){
-    try{
-      log("chamando IA com", messages.length, "mensagens");
-      const r = await fetch(CFG.endpoint, {
-        method:"POST",
-        headers:{"Content-Type":"application/json","x-api-key":CFG.apiKey},
-        body: JSON.stringify({ messages }),
-      });
-      const j = await r.json().catch(()=>({}));
-      if(!r.ok){warn("API erro", r.status, j); setButtonStatus("⚠️ " + (j.error || r.status), false); return null;}
-      log("IA respondeu:", j.reply);
-      return j.reply || null;
-    }catch(e){warn("fetch erro", e); setButtonStatus("⚠️ SEM API", false); return null;}
-  }
-
   function getEnabled(){
     return new Promise((res)=>chrome.storage.local.get(["enabled"],(r)=>res(r.enabled!==false)));
   }
-
-  // ---- Estado por contato (lead) ----
   function chatKey(chat){ return "chat:"+chat; }
   function getChatEnabled(chat){
     return new Promise((res)=>chrome.storage.local.get([chatKey(chat)],(r)=>{
-      const v = r[chatKey(chat)];
-      res(v !== false); // default: ativo
+      res(r[chatKey(chat)] !== false);
     }));
   }
   function setChatEnabled(chat, val){
     return new Promise((res)=>chrome.storage.local.set({[chatKey(chat)]: !!val}, ()=>res()));
   }
 
+  function getChatId(){
+    const header = document.querySelector('#main header');
+    if(!header) return null;
+    return header.innerText?.split("\\n")[0]?.trim() || null;
+  }
+
+  // ---------- Seletor de mensagens recebidas ----------
+  function incomingSelector(){
+    return '#main [data-id^="false_"], #main div.message-in';
+  }
+  function getIncomingBubbles(root){
+    const r = root || document;
+    return Array.from(r.querySelectorAll(incomingSelector()))
+      .map((el)=> el.closest('[data-id]') || el)
+      .filter((el, idx, arr)=>arr.indexOf(el) === idx);
+  }
+
+  // ---------- Timestamps ----------
+  function parseWaTimeToTodayMinutes(raw){
+    const m = (raw||"").trim().match(/([0-9]{1,2}):([0-9]{2})/);
+    if(!m) return null;
+    const h = Number(m[1]), min = Number(m[2]);
+    if(!Number.isFinite(h)||!Number.isFinite(min)) return null;
+    return h*60+min;
+  }
+  function getBubbleTimestampMs(bubble){
+    const pre = bubble.querySelector('[data-pre-plain-text]')?.getAttribute('data-pre-plain-text')
+              || bubble.getAttribute('data-pre-plain-text') || "";
+    const fromPre = parseWaTimeToTodayMinutes(pre);
+    const fromText = fromPre ?? parseWaTimeToTodayMinutes(bubble.innerText||"");
+    if(fromText==null) return Date.now();
+    const now = new Date();
+    const msg = new Date(now);
+    msg.setHours(Math.floor(fromText/60), fromText%60, 0, 0);
+    if(msg.getTime() - now.getTime() > 60*60*1000) msg.setDate(msg.getDate()-1);
+    return msg.getTime();
+  }
+  function isRecent(bubble){ return Date.now() - getBubbleTimestampMs(bubble) <= MAX_AGE_MS; }
+
+  // ---------- Extração de texto ----------
+  function extractText(bubble){
+    let pieces = [];
+    const pre = bubble.querySelector('[data-pre-plain-text]');
+    if(pre){
+      pre.querySelectorAll('span[class*="selectable-text"]').forEach((s)=>{
+        const t = (s.innerText||s.textContent||"").trim();
+        if(t) pieces.push(t);
+      });
+    }
+    if(!pieces.length){
+      bubble.querySelectorAll('span[class*="selectable-text"]').forEach((s)=>{
+        const t = (s.innerText||s.textContent||"").trim();
+        if(t) pieces.push(t);
+      });
+    }
+    let raw = pieces.join("\\n");
+    if(!raw) raw = bubble.innerText || "";
+    return raw.split("\\n")
+      .map((t)=>t.trim())
+      .filter(Boolean)
+      .filter((t)=>!/^[0-9]{1,2}:[0-9]{2}$/.test(t))
+      .join("\\n").trim();
+  }
+
+  // ---------- Marcar histórico como visto ao abrir chat ----------
+  function markExistingAsSeen(){
+    // Marca TODAS as mensagens atualmente visíveis (recentes ou não)
+    // para não responder histórico ao abrir uma conversa.
+    getIncomingBubbles(document).forEach((b)=>{
+      SEEN_BUBBLES.add(b);
+      const id = b.getAttribute("data-id");
+      if(id) PROCESSED_IDS.add(id);
+    });
+  }
+
+  // ---------- Caixa de envio ----------
   function findInputBox(){
-    // WhatsApp muda seletores com frequência; prioriza sempre a caixa do rodapé do chat ativo.
     const footer = document.querySelector('#main footer') || document.querySelector('footer');
-    const boxes = Array.from((footer || document).querySelectorAll('div[contenteditable="true"], [role="textbox"][contenteditable="true"]'));
+    const boxes = Array.from((footer||document).querySelectorAll('div[contenteditable="true"], [role="textbox"][contenteditable="true"]'));
     return boxes.find((el)=>!el.closest('[aria-hidden="true"]') && !el.getAttribute('aria-label')?.toLowerCase().includes('pesquisar'))
         || document.querySelector('#main footer div[contenteditable="true"]')
         || document.querySelector('div[contenteditable="true"][data-lexical-editor="true"]');
   }
-
   function findSendButton(){
     const byLabel = Array.from(document.querySelectorAll('button[aria-label]')).find((b)=>{
-      const label = (b.getAttribute('aria-label') || '').toLowerCase();
+      const label = (b.getAttribute('aria-label')||'').toLowerCase();
       return label.includes('enviar') || label.includes('send');
     });
     return byLabel
@@ -169,18 +240,21 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         || document.querySelector('span[data-icon="wds-ic-send-filled"]')?.closest('button')
         || Array.from(document.querySelectorAll('span[data-icon*="send"]')).map((s)=>s.closest('button')).find(Boolean);
   }
-
   async function sendReply(text){
     const box = findInputBox();
-    if(!box){warn("caixa de texto não encontrada"); return false;}
-    box.focus();
-    box.click();
+    if(!box){warn("caixa não encontrada"); return false;}
+    box.focus(); box.click();
+    // 1) ClipboardEvent paste
     try{
       const data = new DataTransfer();
       data.setData("text/plain", text);
-      box.dispatchEvent(new ClipboardEvent("paste", {clipboardData:data,bubbles:true,cancelable:true}));
+      box.dispatchEvent(new ClipboardEvent("paste",{clipboardData:data,bubbles:true,cancelable:true}));
     }catch(_e){}
-    if(!box.innerText?.includes(text)) document.execCommand("insertText", false, text);
+    // 2) execCommand
+    if(!box.innerText?.includes(text)){
+      try{ document.execCommand("insertText", false, text); }catch(_e){}
+    }
+    // 3) clipboard + Ctrl+V
     if(!box.innerText?.includes(text)){
       try{
         await navigator.clipboard.writeText(text);
@@ -195,154 +269,156 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       btn = findSendButton();
       if(btn) break;
     }
-    if(btn){btn.click(); log("enviado via botão"); return true;}
-    // fallback: tecla Enter
+    if(btn){btn.click(); log("enviado"); return true;}
     box.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",code:"Enter",keyCode:13,which:13,bubbles:true}));
-    log("enviado via Enter (fallback)");
     return true;
   }
 
-  function getChatId(){
-    // Cabeçalho do chat ativo
-    const header = document.querySelector('#main header');
-    if(!header) return null;
-    return header.innerText?.split("\\n")[0]?.trim() || null;
-  }
-
-  function parseWaTimeToTodayMinutes(raw){
-    const text = (raw || "").trim();
-    const m = text.match(/([0-9]{1,2}):([0-9]{2})/);
-    if(!m) return null;
-    const h = Number(m[1]);
-    const min = Number(m[2]);
-    if(!Number.isFinite(h) || !Number.isFinite(min)) return null;
-    return h * 60 + min;
-  }
-
-  function getBubbleTimestampMs(bubble){
-    const pre = bubble.querySelector('[data-pre-plain-text]')?.getAttribute('data-pre-plain-text') || bubble.getAttribute('data-pre-plain-text') || "";
-    const fromPre = parseWaTimeToTodayMinutes(pre);
-    const fromText = fromPre ?? parseWaTimeToTodayMinutes(bubble.innerText || "");
-    if(fromText == null) return Date.now();
-    const now = new Date();
-    const msg = new Date(now);
-    msg.setHours(Math.floor(fromText / 60), fromText % 60, 0, 0);
-    if(msg.getTime() - now.getTime() > 60 * 60 * 1000) msg.setDate(msg.getDate() - 1);
-    return msg.getTime();
-  }
-
-  function isRecentIncoming(bubble){
-    return Date.now() - getBubbleTimestampMs(bubble) <= RECENT_INCOMING_WINDOW_MS;
-  }
-
-  function incomingSelector(){
-    return '#main [data-id^="false_"], #main [data-id*="false_"], #main div.message-in, #main div[class*="message-in"]';
-  }
-
-  function normalizeIncomingBubble(el){
-    if(!el || !(el instanceof HTMLElement)) return null;
-    const byId = el.matches?.('[data-id^="false_"], [data-id*="false_"]') ? el : el.querySelector?.('[data-id^="false_"], [data-id*="false_"]');
-    if(byId) return byId.closest('[data-id]') || byId;
-    if(el.matches?.('div.message-in, div[class*="message-in"]')) return el;
-    return el.querySelector?.('div.message-in, div[class*="message-in"]') || null;
-  }
-
-  function getIncomingBubbles(root){
-    return Array.from((root||document).querySelectorAll(incomingSelector()))
-      .map(normalizeIncomingBubble)
-      .filter(Boolean)
-      .filter((el, idx, arr)=>arr.indexOf(el) === idx);
-  }
-
-  function extractText(bubble){
-    // Texto principal da mensagem
-    const nodes = Array.from(bubble.querySelectorAll('span[class*="selectable-text"], span.selectable-text, span._ao3e, [dir="ltr"], [dir="auto"]'));
-    const pieces = nodes.map((el)=>el.innerText || el.textContent || "")
-      .map((t)=>t.trim())
-      .filter(Boolean)
-      .filter((t)=>!/^[0-9]{1,2}:[0-9]{2}$/.test(t));
-    const raw = pieces.length ? pieces.join("\\n") : (bubble.innerText || "");
-    return raw.split("\\n").map((t)=>t.trim()).filter(Boolean).filter((t)=>!/^[0-9]{1,2}:[0-9]{2}$/.test(t)).join("\\n").trim();
-  }
-
-  async function processIncoming(bubble){
-    if(SEEN.has(bubble)) return;
-    SEEN.add(bubble);
-
-    if(!isRecentIncoming(bubble)){log("mensagem antiga ignorada"); return;}
-
-    const dataId = bubble.getAttribute("data-id") || bubble.closest("[data-id]")?.getAttribute("data-id");
-    if(dataId){
-      if(PROCESSED_IDS.has(dataId)) return;
-      PROCESSED_IDS.add(dataId);
-    }
-
-    const text = extractText(bubble);
-    if(!text){return;}
-
-    if(!(await getEnabled())){log("desativado (global), ignorando:", text); return;}
-    const chatNow = getChatId();
-    if(chatNow && !(await getChatEnabled(chatNow))){log("desativado para este contato:", chatNow); return;}
-    if(busy){log("ocupado, ignorando:", text); return;}
-
-    // Reseta histórico se mudou de conversa
-    const chat = getChatId();
-    if(chat !== currentChat){currentChat = chat; history = []; log("novo chat:", chat);}
-
-    log("nova mensagem recebida:", text);
-    setButtonStatus("🤖 LENDO...", true, 4000);
-    busy = true;
+  // ---------- Chamada à IA ----------
+  async function askAI(messages){
     try{
-      history.push({role:"user", content:text});
-      if(history.length>20) history = history.slice(-20);
-      const reply = await askAI(history);
-      if(reply){
-        history.push({role:"assistant", content:reply});
-        setButtonStatus("🤖 ENVIANDO...", true, 4000);
-        await new Promise(r=>setTimeout(r, 800 + Math.random()*1200)); // pequeno delay humano
-        const sent = await sendReply(reply);
-        setButtonStatus(sent ? "🤖 RESPONDIDO" : "⚠️ NÃO ENVIOU", sent, 7000);
-      }
-    } finally { busy = false; }
+      log("IA <-", messages.length, "msgs");
+      const r = await fetch(CFG.endpoint, {
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":CFG.apiKey},
+        body: JSON.stringify({ messages }),
+      });
+      const j = await r.json().catch(()=>({}));
+      if(!r.ok){warn("API erro", r.status, j); setButtonStatus("⚠️ " + (j.error||r.status), false); return null;}
+      log("IA ->", j.reply);
+      return j.reply || null;
+    }catch(e){warn("fetch erro", e); setButtonStatus("⚠️ SEM API", false); return null;}
   }
 
-  function scanForNewIncoming(root){
-    // Pega APENAS a última mensagem recebida visível (não envia respostas a mensagens antigas no scroll)
-    const all = getIncomingBubbles(root||document);
-    if(!all.length) return;
-    const recent = Array.from(all).filter(isRecentIncoming);
-    if(!recent.length) return;
-    processIncoming(recent[recent.length-1]);
-  }
-
-  const obs = new MutationObserver((muts)=>{
-    for(const m of muts){
-      for(const n of m.addedNodes){
-        if(!(n instanceof HTMLElement)) continue;
-        const incoming = normalizeIncomingBubble(n);
-        if(incoming) { processIncoming(incoming); continue; }
-        scanForNewIncoming(n);
-      }
+  // ---------- Processa uma bubble (chat já aberto) ----------
+  async function processBubble(bubble, chat){
+    if(SEEN_BUBBLES.has(bubble)) return false;
+    SEEN_BUBBLES.add(bubble);
+    if(!isRecent(bubble)){ return false; }
+    const id = bubble.getAttribute("data-id");
+    if(id){
+      if(PROCESSED_IDS.has(id)) return false;
+      PROCESSED_IDS.add(id);
     }
-  });
+    const text = extractText(bubble);
+    if(!text) return false;
+    if(!(await getEnabled())){log("global off"); return false;}
+    if(chat && !(await getChatEnabled(chat))){log("chat off:", chat); return false;}
 
-  function attach(){
-    const main = document.querySelector('#main') || document.body;
-    obs.disconnect();
-    obs.observe(main, {childList:true, subtree:true});
+    const hist = HISTORY.get(chat) || [];
+    hist.push({role:"user", content:text});
+    while(hist.length>20) hist.shift();
+    HISTORY.set(chat, hist);
+
+    setButtonStatus("🤖 LENDO...", true, 4000);
+    const reply = await askAI(hist);
+    if(!reply) return false;
+    hist.push({role:"assistant", content:reply});
+    HISTORY.set(chat, hist);
+    setButtonStatus("🤖 ENVIANDO...", true, 4000);
+    await new Promise(r=>setTimeout(r, 700 + Math.random()*1000));
+    const sent = await sendReply(reply);
+    setButtonStatus(sent ? "🤖 RESPONDIDO" : "⚠️ NÃO ENVIOU", sent, 6000);
+    return sent;
   }
 
-  // Marca mensagens já existentes como vistas, para não responder histórico antigo ao abrir um chat
-  function markExistingAsSeen(){
-    getIncomingBubbles(document).forEach(b=>{
-      if(isRecentIncoming(b)) return;
-      SEEN.add(b);
-      const id = b.getAttribute("data-id") || b.closest("[data-id]")?.getAttribute("data-id");
-      if(id) PROCESSED_IDS.add(id);
+  // ---------- Scan do chat atualmente aberto (apenas dedupe; NÃO responde sozinho) ----------
+  // O fluxo principal de resposta é o background queue. Aqui só registramos IDs vistos
+  // para evitar reprocessar quando o background abrir o mesmo chat.
+  function trackOpenChatBubbles(){
+    getIncomingBubbles(document).forEach((b)=>{
+      const id = b.getAttribute("data-id");
+      if(id) {
+        // não marca como processado — apenas garante existência no SEEN para evitar loops
+      }
     });
   }
 
-  // ---- Botão "IA: ON/OFF" no cabeçalho do chat ----
+  // ---------- Sidebar / unread detection ----------
+  function getSidebarRows(){
+    return Array.from(document.querySelectorAll('#pane-side [role="listitem"]'));
+  }
+  function findUnreadChatRows(){
+    return getSidebarRows().filter((row)=>{
+      const badges = row.querySelectorAll('span[aria-label]');
+      for(const b of badges){
+        const l = (b.getAttribute('aria-label')||'').toLowerCase();
+        if(/\\d/.test(l) && /(não lida|nao lida|unread)/.test(l)) return true;
+      }
+      return false;
+    });
+  }
+  function getSelectedRow(){
+    return getSidebarRows().find((r)=> r.querySelector('[aria-selected="true"]') || r.getAttribute('aria-selected')==='true') || null;
+  }
+  function rowKey(row){
+    if(!row) return null;
+    return (row.innerText||"").split("\\n")[0].trim() || null;
+  }
+  function findRowByKey(key){
+    if(!key) return null;
+    return getSidebarRows().find((r)=> rowKey(r)===key) || null;
+  }
+  function clickRow(row){
+    if(!row) return;
+    const target = row.querySelector('[role="button"], [tabindex]') || row;
+    target.click();
+  }
+  async function waitFor(pred, ms){
+    const start = Date.now();
+    while(Date.now()-start < (ms||4000)){
+      try{ if(pred()) return true; }catch(_e){}
+      await new Promise(r=>setTimeout(r,120));
+    }
+    return false;
+  }
+
+  // ---------- Background queue ----------
+  async function processOneUnread(){
+    if(bgBusy || busy) return false;
+    if(!(await getEnabled())) return false;
+    if(!isUserIdle() || isUserComposing()) return false;
+
+    const rows = findUnreadChatRows();
+    if(!rows.length) return false;
+
+    bgBusy = true;
+    busy = true;
+    const prevRow = getSelectedRow();
+    const prevKey = rowKey(prevRow);
+    const sidebar = document.querySelector('#pane-side [role="grid"]') || document.querySelector('#pane-side');
+    const prevScroll = sidebar ? sidebar.scrollTop : 0;
+    const beforeChat = getChatId();
+
+    try{
+      const row = rows[0];
+      clickRow(row);
+      await waitFor(()=>{ const c = getChatId(); return c && c !== beforeChat; }, 4000);
+      await new Promise(r=>setTimeout(r, 500));
+
+      const chat = getChatId();
+      if(chat){
+        // só reseta history se chat mudou (não temos history para chats novos)
+        if(!HISTORY.has(chat)) HISTORY.set(chat, []);
+
+        // pega APENAS a última recebida recente do chat
+        const bubbles = getIncomingBubbles(document).filter(isRecent);
+        const last = bubbles[bubbles.length-1];
+        if(last) await processBubble(last, chat);
+      }
+
+      // Voltar para o chat anterior
+      if(prevKey && prevKey !== rowKey(getSelectedRow())){
+        const back = findRowByKey(prevKey);
+        if(back) clickRow(back);
+      }
+      if(sidebar){ try{ sidebar.scrollTop = prevScroll; }catch(_e){} }
+      return true;
+    }catch(e){ warn("BG erro", e); return false; }
+    finally{ bgBusy = false; busy = false; }
+  }
+
+  // ---------- Botão ON/OFF por contato ----------
   function styleBtn(btn, on){
     const hasOverride = statusOverrideText && Date.now() < statusOverrideUntil;
     btn.textContent = hasOverride ? statusOverrideText : (on ? "🤖 IA: ON" : "🤖 IA: OFF");
@@ -362,161 +438,49 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     if(!header) return;
     const chat = getChatId();
     if(!chat) return;
-
-    // Remove botões duplicados (fora do header atual ou repetidos)
-    document.querySelectorAll("."+BTN_ID).forEach((el)=>{
-      if(!header.contains(el)) el.remove();
-    });
+    document.querySelectorAll("."+BTN_ID).forEach((el)=>{ if(!header.contains(el)) el.remove(); });
     const existing = header.querySelectorAll("."+BTN_ID);
     for(let i=1;i<existing.length;i++) existing[i].remove();
-
     let btn = header.querySelector("."+BTN_ID);
     const on = await getChatEnabled(chat);
-
     if(!btn){
       btn = document.createElement("button");
       btn.id = BTN_ID;
       btn.className = BTN_ID;
-      btn.title = "Liga/desliga a IA para este contato";
+      btn.title = "Liga/desliga IA para este contato";
       const target = header.querySelector('div[role="button"]')?.parentElement || header;
       target.insertBefore(btn, target.firstChild);
       btn.addEventListener("click", async ()=>{
-        const c = getChatId();
-        if(!c) return;
+        const c = getChatId(); if(!c) return;
         const cur = await getChatEnabled(c);
         await setChatEnabled(c, !cur);
         styleBtn(btn, !cur);
-        log(!cur ? "IA ligada para" : "IA desligada para", c);
       });
     }
     styleBtn(btn, on);
     btn.dataset.chat = chat;
   }
 
-  // ---- Varredura em segundo plano da lista lateral ----
-  // Só age quando o usuário está OCIOSO (sem digitar e sem mexer no mouse),
-  // para nunca atrapalhar o que ele está fazendo. Restaura a conversa
-  // anterior e a posição da lista após responder.
-  let bgBusy = false;
-  let lastUserActivity = Date.now();
-  const IDLE_REQUIRED_MS = 3500;
-
-  function markUserActive(){ lastUserActivity = Date.now(); }
-  ["mousemove","mousedown","keydown","wheel","touchstart","focusin"].forEach((ev)=>{
-    try{ window.addEventListener(ev, markUserActive, { passive: true, capture: true }); }catch(_e){}
-  });
-
-  function isUserComposing(){
-    const el = document.activeElement;
-    if(!el) return false;
-    const tag = (el.tagName || "").toLowerCase();
-    if(tag === "input" || tag === "textarea") return true;
-    if(el.getAttribute && el.getAttribute("contenteditable") === "true") return true;
-    return false;
-  }
-
-  function getSidebarRows(){
-    return Array.from(document.querySelectorAll('#pane-side [role="listitem"], #pane-side div[role="row"], #pane-side [data-testid="cell-frame-container"]'));
-  }
-
-  function findUnreadChatRows(){
-    const rows = getSidebarRows();
-    return rows.filter((row)=>{
-      const badges = row.querySelectorAll('span[aria-label]');
-      for(const b of badges){
-        const l = (b.getAttribute('aria-label') || '').toLowerCase();
-        if(/^\\s*\\d+\\s*(não lidas|nao lidas|unread|mensagens? não lidas|mensagens? nao lidas)/.test(l)) return true;
-        if(/(não lida|nao lida|unread)/.test(l) && /\\d/.test(l)) return true;
-      }
-      return false;
-    });
-  }
-
-  function getSelectedRow(){
-    return getSidebarRows().find((r)=> r.querySelector('[aria-selected="true"]') || r.getAttribute('aria-selected') === 'true') || null;
-  }
-  function rowKey(row){
-    if(!row) return null;
-    const t = (row.innerText || "").split("\\n")[0].trim();
-    return t || null;
-  }
-  function findRowByKey(key){
-    if(!key) return null;
-    return getSidebarRows().find((r)=> rowKey(r) === key) || null;
-  }
-
-  function clickRow(row){
-    if(!row) return;
-    const clickable = row.querySelector('[role="button"], [tabindex]') || row;
-    clickable.click();
-  }
-
-  async function waitFor(predicate, timeoutMs){
-    const start = Date.now();
-    while(Date.now() - start < (timeoutMs || 4000)){
-      try{ if(predicate()) return true; }catch(_e){}
-      await new Promise(r=>setTimeout(r, 120));
-    }
-    return false;
-  }
-
-  async function processOneUnread(){
-    if(bgBusy || busy) return false;
-    if(!(await getEnabled())) return false;
-
-    const rows = findUnreadChatRows();
-    if(!rows.length) return false;
-
-    bgBusy = true;
-    const prevRow = getSelectedRow();
-    const prevKey = rowKey(prevRow);
-    const sidebar = document.querySelector('#pane-side [data-tab="4"]') || document.querySelector('#pane-side [role="grid"]') || document.querySelector('#pane-side');
-    const prevScroll = sidebar ? sidebar.scrollTop : 0;
-
-    try{
-      const row = rows[0];
-      const before = getChatId();
-      clickRow(row);
-      await waitFor(()=>{ const c = getChatId(); return c && c !== before; }, 4000);
-      await new Promise(r=>setTimeout(r, 450));
-
-      const chat = getChatId();
-      if(chat && (await getChatEnabled(chat))){
-        const bubbles = getIncomingBubbles(document).filter(isRecentIncoming);
-        const last = bubbles[bubbles.length-1];
-        if(last){
-          currentChat = chat; history = [];
-          await processIncoming(last);
-        }
-      }
-
-      if(prevKey && prevKey !== rowKey(getSelectedRow())){
-        const back = findRowByKey(prevKey);
-        if(back) clickRow(back);
-      }
-      if(sidebar) { try{ sidebar.scrollTop = prevScroll; }catch(_e){} }
-      return true;
-    }catch(e){ warn("BG erro", e); return false; }
-    finally{ bgBusy = false; }
-  }
-
-  setInterval(()=>{ attach(); ensureToggleButton(); }, 1500);
-  setInterval(()=>{ scanForNewIncoming(document); }, 2000);
-  setInterval(()=>{ processOneUnread().catch((e)=>warn("BG loop", e)); }, 3000);
-  setInterval(()=>{
-    const chat = getChatId();
-    if(chat && chat !== currentChat){
-      currentChat = chat; history = [];
+  // ---------- Chat change detection: marca histórico ao abrir ----------
+  let lastSeenChat = null;
+  function onChatMaybeChanged(){
+    const c = getChatId();
+    if(c && c !== lastSeenChat){
+      lastSeenChat = c;
+      // ao abrir/trocar chat, marca tudo que está visível como já visto
       markExistingAsSeen();
       ensureToggleButton();
-      log("chat ativo:", chat);
+      log("chat ativo:", c);
     }
-  }, 1500);
+  }
 
-  attach();
-  setTimeout(()=>{ markExistingAsSeen(); ensureToggleButton(); }, 1500);
-  setTimeout(()=>{ scanForNewIncoming(document); }, 3500);
-  log("extensão ativa. Botão IA aparece no topo de cada conversa.");
+  // ---------- Loops ----------
+  setInterval(()=>{ ensureToggleButton(); onChatMaybeChanged(); }, 1500);
+  setInterval(()=>{ processOneUnread().catch((e)=>warn("BG loop", e)); }, 3500);
+
+  // boot
+  setTimeout(()=>{ markExistingAsSeen(); ensureToggleButton(); lastSeenChat = getChatId(); }, 1500);
+  log("extensão ativa (modo background). Botão IA aparece no topo de cada conversa.");
 })();
 `;
 
