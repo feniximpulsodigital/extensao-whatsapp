@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { zipSync, strToU8 } from "fflate";
+import { ICON_16_B64, ICON_48_B64, ICON_128_B64 } from "./extension-icons";
 
 // ---------- Extension source files (templates) ----------
 
