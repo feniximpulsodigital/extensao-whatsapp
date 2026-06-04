@@ -275,7 +275,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
               <Link to="/login">Quero assinar agora <ArrowRight className="h-4 w-4" /></Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link to="/vendas">Ver página de vendas</Link>
+              <a href="#pricing">Ver planos</a>
             </Button>
           </div>
           <p className="mt-4 text-xs text-muted-foreground">Sem fidelidade. Cancele quando quiser.</p>
