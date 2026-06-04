@@ -12,4 +12,11 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Build Node.js server bundle for self-hosting (Docker / EasyPanel / VPS).
+  // Lovable preview/sandbox is unaffected — nitro auto-detects sandbox context.
+  // Output: dist/server/index.mjs (Node server) + dist/client (static assets).
+  nitro: {
+    preset: "node-server",
+  },
 });
+
