@@ -145,7 +145,7 @@ function SalesPage() {
           Em 5 minutos sua IA está ativa. Em 1 dia você sente a diferença no caixa.
         </p>
         <Button size="lg" className="mt-8" asChild>
-          <Link to="/login">Começar grátis agora <ArrowRight className="h-4 w-4" /></Link>
+          <Link to="/login">Quero assinar agora <ArrowRight className="h-4 w-4" /></Link>
         </Button>
       </section>
 
