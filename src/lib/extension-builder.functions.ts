@@ -6,13 +6,15 @@ import { ICON_16_B64, ICON_48_B64, ICON_128_B64 } from "./extension-icons";
 
 // ---------- Extension source files (templates) ----------
 
-const MANIFEST = (brandName: string) => ({
+const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
+
+const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
   version: "1.0.0",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab"],
-  host_permissions: ["https://web.whatsapp.com/*"],
+  host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
   action: {
     default_popup: "popup.html",
     default_icon: { "16": "icon-16.png", "48": "icon-48.png", "128": "icon-128.png" },
@@ -94,6 +96,13 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   let history = [];
   let busy = false;
 
+  function setButtonStatus(text, ok){
+    const btn = document.getElementById(BTN_ID);
+    if(!btn) return;
+    btn.textContent = text;
+    btn.style.background = ok ? "#16a34a" : "#dc2626";
+  }
+
   async function askAI(messages){
     try{
       log("chamando IA com", messages.length, "mensagens");
@@ -103,10 +112,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         body: JSON.stringify({ messages }),
       });
       const j = await r.json().catch(()=>({}));
-      if(!r.ok){warn("API erro", r.status, j);return null;}
+      if(!r.ok){warn("API erro", r.status, j); setButtonStatus("⚠️ IA ERRO", false); return null;}
       log("IA respondeu:", j.reply);
       return j.reply || null;
-    }catch(e){warn("fetch erro", e);return null;}
+    }catch(e){warn("fetch erro", e); setButtonStatus("⚠️ IA ERRO", false); return null;}
   }
 
   function getEnabled(){
@@ -144,10 +153,19 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     const box = findInputBox();
     if(!box){warn("caixa de texto não encontrada"); return false;}
     box.focus();
-    // Lexical/WhatsApp aceita execCommand("insertText")
-    document.execCommand("insertText", false, text);
-    await new Promise(r=>setTimeout(r,400));
-    let btn = findSendButton();
+    try{
+      const data = new DataTransfer();
+      data.setData("text/plain", text);
+      box.dispatchEvent(new ClipboardEvent("paste", {clipboardData:data,bubbles:true,cancelable:true}));
+    }catch(_e){}
+    if(!box.innerText?.includes(text)) document.execCommand("insertText", false, text);
+    box.dispatchEvent(new InputEvent("input",{bubbles:true,inputType:"insertText",data:text}));
+    let btn = null;
+    for(let i=0;i<10;i++){
+      await new Promise(r=>setTimeout(r,250));
+      btn = findSendButton();
+      if(btn) break;
+    }
     if(btn){btn.click(); log("enviado via botão"); return true;}
     // fallback: tecla Enter
     box.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",code:"Enter",keyCode:13,which:13,bubbles:true}));
@@ -337,7 +355,7 @@ export const buildMyExtension = createServerFn({ method: "POST" })
     const brandName = brandRow?.brand_name || "Argos";
 
     // Endpoint público da API de resposta
-    const origin = data.origin;
+    const origin = data.origin.includes("lovable") ? PRODUCTION_ORIGIN : data.origin;
     const endpoint = `${origin}/api/public/ai-reply`;
 
     const safeCompany = (tenant.company_name || "cliente")
@@ -349,7 +367,7 @@ export const buildMyExtension = createServerFn({ method: "POST" })
       .slice(0, 40) || "cliente";
 
     const files: Record<string, Uint8Array> = {
-      "manifest.json": strToU8(JSON.stringify(MANIFEST(brandName), null, 2)),
+      "manifest.json": strToU8(JSON.stringify(MANIFEST(brandName, origin), null, 2)),
       "config.js": strToU8(CONFIG_JS(tenant.extension_api_key, endpoint)),
       "content.js": strToU8(CONTENT_JS),
       "background.js": strToU8(BACKGROUND_JS),
