@@ -72,7 +72,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
               { icon: Brain, title: "Aprende com a sua empresa", desc: "Você cadastra perguntas, respostas e o tom de voz. A IA usa isso em cada conversa." },
               { icon: MessageSquare, title: "Responde como gente", desc: "Conversas naturais, sem aquele jeito robotizado. Seu cliente nem percebe que é IA." },
               { icon: Sparkles, title: "Resposta em segundos", desc: "Enquanto seu concorrente demora 4 horas, a Argos responde em 4 segundos. Você ganha a venda." },
-              { icon: Shield, title: "Você no controle", desc: "Liga e desliga quando quiser. Edita as respostas. Você decide quando a IA assume." },
+              { icon: Monitor, title: "Zero mudança de hábito", desc: "Você continua no WhatsApp Web que já usa. A Argos entra por uma extensão no Chrome. Funciona em quantos computadores quiser, sem interferir no seu fluxo." },
             ].map((s) => (
               <div key={s.title} className="flex gap-4 rounded-lg border bg-background p-6">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -163,7 +163,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
           {[
             { n: "1", icon: Rocket, title: "Crie sua conta", desc: "Cadastro em segundos. Escolha um plano e libere o acesso." },
             { n: "2", icon: Brain, title: "Ensine sua IA", desc: "Cole perguntas frequentes, preços e o jeito de falar da sua marca." },
-            { n: "3", icon: Zap, title: "Conecte o WhatsApp", desc: "Instale a extensão Chrome, escaneie o QR e pronto: ela já responde." },
+            { n: "3", icon: Zap, title: "Conecte o WhatsApp", desc: "Instale a extensão no Chrome do computador que usar. Continua usando o WhatsApp Web normalmente — a Argos entra por extensão e funciona em quantos PCs quiser." },
           ].map((step) => (
             <div key={step.n} className="relative rounded-lg border p-6">
               <div className="absolute -top-3 -left-3 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-bold">

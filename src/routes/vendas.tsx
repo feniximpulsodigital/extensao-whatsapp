@@ -98,7 +98,8 @@ function SalesPage() {
                   "Equipe foca em casos complexos e vendas grandes",
                   "Cliente recebe atenção na hora e fecha contigo",
                   "Vende dormindo, no domingo e no feriado",
-                  "Atendimento profissional, sem caos",
+                  "Usa seu WhatsApp Web normal, só instala a extensão no Chrome",
+                  "Funciona em quantos computadores quiser, sem complicação",
                 ].map((i) => (
                   <li key={i} className="flex gap-2"><Check className="h-4 w-4 text-primary shrink-0 mt-0.5" />{i}</li>
                 ))}
@@ -123,6 +124,7 @@ function SalesPage() {
               { q: "E se eu quiser assumir a conversa?", a: "É só responder. A Argos entende e devolve o controle para você. Liga e desliga quando quiser." },
               { q: "Funciona no celular?", a: "A IA roda no WhatsApp Web (computador). As mensagens chegam normalmente no celular, mas é o desktop que mantém ela ativa." },
               { q: "Posso cancelar a qualquer momento?", a: "Pode. Sem multa, sem fidelidade, sem ligação de retenção. Um clique e acabou." },
+              { q: "Preciso instalar algo complicado?", a: "Não. É uma extensão do Chrome que instala em 1 clique. Você continua usando o WhatsApp Web normalmente e pode ativar em quantos computadores quiser." },
             ].map((f) => (
               <details key={f.q} className="rounded-lg border bg-background p-4 group">
                 <summary className="cursor-pointer font-semibold list-none flex items-center justify-between">
