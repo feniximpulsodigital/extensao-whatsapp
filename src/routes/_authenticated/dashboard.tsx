@@ -191,7 +191,6 @@ function AiSection() {
   const save = useMutation({
     mutationFn: () => updCfg({ data: {
       temperature: form.temperature,
-      max_tokens: form.max_tokens,
       auto_reply_enabled: form.auto_reply_enabled,
       response_delay_ms: form.response_delay_ms,
       prompt_content: form.prompt_content || undefined,
@@ -199,6 +198,7 @@ function AiSection() {
     onSuccess: () => { toast.success("Salvo"); qc.invalidateQueries({ queryKey: ["my-ai-config"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
+
 
   const [editing, setEditing] = useState<any | null>(null);
   const saveKB = useMutation({
