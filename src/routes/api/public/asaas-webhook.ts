@@ -6,7 +6,6 @@ export const Route = createFileRoute("/api/public/asaas-webhook")({
       POST: async ({ request }) => {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-        // Read configured webhook token
         const { data: settings } = await supabaseAdmin
           .from("app_settings")
           .select("asaas_webhook_token")
@@ -34,10 +33,9 @@ export const Route = createFileRoute("/api/public/asaas-webhook")({
         const payment = body.payment;
         if (!event || !payment) return new Response("ok");
 
-        // Find our payment row by asaas_payment_id, or create one from the externalReference (subscription renewals)
         let { data: row } = await supabaseAdmin
           .from("payments")
-          .select("id, tenant_id, plan_id, status, billing_cycle, amount_cents")
+          .select("id, tenant_id, plan_id, status, billing_cycle, amount_cents, kind, invite_id, package_id")
           .eq("asaas_payment_id", payment.id)
           .maybeSingle();
 
@@ -49,8 +47,8 @@ export const Route = createFileRoute("/api/public/asaas-webhook")({
         const isPaid = event === "PAYMENT_CONFIRMED" || event === "PAYMENT_RECEIVED";
         const isFailed = event === "PAYMENT_OVERDUE" || event === "PAYMENT_DELETED" || event === "PAYMENT_REFUNDED";
 
+        // Subscription renewal — synthesize a payments row
         if (!row && tenantId && isPaid) {
-          // Subscription renewal — create a payments row
           const { data: tenant } = await supabaseAdmin
             .from("tenants")
             .select("plan_id, billing_cycle")
@@ -66,9 +64,10 @@ export const Route = createFileRoute("/api/public/asaas-webhook")({
               status: "confirmed",
               billing_type: "CREDIT_CARD",
               billing_cycle: tenant?.billing_cycle ?? "monthly",
+              kind: "subscription",
               paid_at: new Date().toISOString(),
             })
-            .select("id, tenant_id, plan_id, billing_cycle")
+            .select("id, tenant_id, plan_id, billing_cycle, kind, invite_id, package_id, amount_cents, status")
             .single();
           row = ins.data as typeof row;
         }
@@ -79,20 +78,52 @@ export const Route = createFileRoute("/api/public/asaas-webhook")({
             .update({ status: "confirmed", paid_at: new Date().toISOString() })
             .eq("id", row.id);
 
-          // Activate tenant + credit
-          const { data: plan } = await supabaseAdmin
-            .from("plans")
-            .select("monthly_credits")
-            .eq("id", row.plan_id!)
-            .maybeSingle();
-          const credits = plan?.monthly_credits ?? 0;
+          // ===== CREDIT PACKAGE =====
+          if (row.kind === "credit_pack" && row.package_id) {
+            const { data: pkg } = await supabaseAdmin
+              .from("credit_packages")
+              .select("credits, bonus_credits, name")
+              .eq("id", row.package_id)
+              .maybeSingle();
+            const total = (pkg?.credits ?? 0) + (pkg?.bonus_credits ?? 0);
+            const { data: t } = await supabaseAdmin
+              .from("tenants")
+              .select("credits_balance")
+              .eq("id", row.tenant_id)
+              .maybeSingle();
+            const newBalance = (t?.credits_balance ?? 0) + total;
+            await supabaseAdmin.from("tenants").update({ credits_balance: newBalance }).eq("id", row.tenant_id);
+            await supabaseAdmin.from("credit_transactions").insert({
+              tenant_id: row.tenant_id,
+              type: "purchase" as any,
+              amount: total,
+              balance_after: newBalance,
+              description: `Pacote: ${pkg?.name ?? "créditos"}`,
+              reference_id: row.id,
+            });
+            return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+          }
 
+          // ===== INVITE / SUBSCRIPTION (activate tenant + credit plan allowance) =====
+          let credits = 0;
+          if (row.plan_id) {
+            const { data: plan } = await supabaseAdmin
+              .from("plans")
+              .select("monthly_credits")
+              .eq("id", row.plan_id)
+              .maybeSingle();
+            credits = plan?.monthly_credits ?? 0;
+          }
+          // Custom allowance on tenant overrides plan if set
           const { data: tenant } = await supabaseAdmin
             .from("tenants")
-            .select("credits_balance")
+            .select("credits_balance, credits_monthly_allowance")
             .eq("id", row.tenant_id)
             .maybeSingle();
-          const newBalance = (tenant?.credits_balance ?? 0) + credits;
+          const allowance = (tenant?.credits_monthly_allowance ?? 0) > 0
+            ? tenant!.credits_monthly_allowance
+            : credits;
+          const newBalance = (tenant?.credits_balance ?? 0) + allowance;
 
           const renewsAt = new Date();
           if (row.billing_cycle === "annual") renewsAt.setFullYear(renewsAt.getFullYear() + 1);
@@ -101,23 +132,33 @@ export const Route = createFileRoute("/api/public/asaas-webhook")({
           await supabaseAdmin
             .from("tenants")
             .update({
-              status: "active",
+              status: "active" as any,
               plan_id: row.plan_id,
               credits_balance: newBalance,
               billing_cycle: row.billing_cycle,
               subscription_started_at: new Date().toISOString(),
               subscription_renews_at: renewsAt.toISOString(),
+              last_credits_renewed_at: new Date().toISOString(),
             })
             .eq("id", row.tenant_id);
 
-          await supabaseAdmin.from("credit_transactions").insert({
-            tenant_id: row.tenant_id,
-            type: "purchase",
-            amount: credits,
-            balance_after: newBalance,
-            description: `Pagamento confirmado (${row.billing_cycle})`,
-            reference_id: row.id,
-          });
+          if (allowance > 0) {
+            await supabaseAdmin.from("credit_transactions").insert({
+              tenant_id: row.tenant_id,
+              type: "purchase" as any,
+              amount: allowance,
+              balance_after: newBalance,
+              description: row.kind === "invite" ? "Ativação via convite" : `Pagamento confirmado (${row.billing_cycle})`,
+              reference_id: row.id,
+            });
+          }
+
+          if (row.invite_id) {
+            await supabaseAdmin
+              .from("client_invites")
+              .update({ status: "paid" })
+              .eq("id", row.invite_id);
+          }
         }
 
         if (row && isFailed) {
