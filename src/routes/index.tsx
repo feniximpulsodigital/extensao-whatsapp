@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bot, MessageSquare, Shield, Zap, Check, ArrowRight } from "lucide-react";
+import { Logo } from "@/components/brand/Logo";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -28,12 +29,8 @@ function Landing() {
       {/* Header */}
       <header className="border-b border-border">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Bot className="h-5 w-5" />
-            </div>
-            <span className="text-lg font-bold">Argos</span>
-          </div>
+          <Logo size={36} className="text-lg" />
+
           <nav className="hidden items-center gap-6 md:flex">
             <a href="#features" className="text-sm text-muted-foreground hover:text-foreground">
               Recursos
@@ -172,12 +169,8 @@ function Landing() {
       {/* Footer */}
       <footer className="border-t border-border">
         <div className="container mx-auto flex flex-col items-center justify-between gap-4 px-4 py-8 md:flex-row">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Bot className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-medium">Argos</span>
-          </div>
+          <Logo size={28} className="text-sm" />
+
           <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()} Argos. Todos os direitos reservados.
           </p>
