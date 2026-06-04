@@ -59,7 +59,11 @@ e.addEventListener("change",()=>chrome.storage.local.set({enabled:e.checked}));
 `;
 
 const BACKGROUND_JS = `// Service worker — mantém estado e ouve mensagens do content script.
-chrome.runtime.onInstalled.addListener(()=>{chrome.storage.local.set({enabled:false,active:false})});
+chrome.runtime.onInstalled.addListener(()=>{
+  chrome.storage.local.get(["enabled"],(r)=>{
+    if(r.enabled===undefined) chrome.storage.local.set({enabled:true,active:false});
+  });
+});
 chrome.runtime.onMessage.addListener((msg,_s,send)=>{
   if(msg?.type==="setActive"){chrome.storage.local.set({active:!!msg.value});send({ok:true})}
   return true;
@@ -69,61 +73,136 @@ chrome.runtime.onMessage.addListener((msg,_s,send)=>{
 const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e responde via API Argos.
 (function(){
   const CFG = window.__ARGOS_CONFIG__ || {};
-  if(!CFG.apiKey || !CFG.endpoint){console.warn("[Argos] config ausente");return;}
+  const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
+  const warn = (...a)=>console.warn("[Argos]", ...a);
+  if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
+  log("inicializando. endpoint =", CFG.endpoint);
+
+  // Garante enabled=true por padrão na primeira execução
+  chrome.storage.local.get(["enabled"],(r)=>{
+    if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
+  });
   chrome.runtime.sendMessage({type:"setActive",value:true});
 
-  const SEEN = new Set();
-  let history = []; // últimas mensagens da conversa atual
+  const SEEN = new WeakSet();        // dedupe por elemento DOM
+  const PROCESSED_IDS = new Set();   // dedupe por data-id quando disponível
+  let currentChat = null;
+  let history = [];
+  let busy = false;
 
   async function askAI(messages){
     try{
+      log("chamando IA com", messages.length, "mensagens");
       const r = await fetch(CFG.endpoint, {
         method:"POST",
         headers:{"Content-Type":"application/json","x-api-key":CFG.apiKey},
         body: JSON.stringify({ messages }),
       });
-      const j = await r.json();
-      if(!r.ok){console.warn("[Argos]",j);return null;}
+      const j = await r.json().catch(()=>({}));
+      if(!r.ok){warn("API erro", r.status, j);return null;}
+      log("IA respondeu:", j.reply);
       return j.reply || null;
-    }catch(e){console.warn("[Argos] erro",e);return null;}
+    }catch(e){warn("fetch erro", e);return null;}
   }
 
   function getEnabled(){
-    return new Promise((res)=>chrome.storage.local.get(["enabled"],(r)=>res(!!r.enabled)));
+    return new Promise((res)=>chrome.storage.local.get(["enabled"],(r)=>res(r.enabled!==false)));
+  }
+
+  function findInputBox(){
+    // tenta vários seletores conhecidos do WhatsApp Web
+    return document.querySelector('footer div[contenteditable="true"][data-tab="10"]')
+        || document.querySelector('footer div[contenteditable="true"][role="textbox"]')
+        || document.querySelector('div[contenteditable="true"][data-lexical-editor="true"]')
+        || document.querySelector('footer div[contenteditable="true"]');
+  }
+
+  function findSendButton(){
+    return document.querySelector('button[aria-label="Enviar"]')
+        || document.querySelector('button[aria-label="Send"]')
+        || document.querySelector('span[data-icon="send"]')?.closest('button')
+        || document.querySelector('span[data-icon="wds-ic-send-filled"]')?.closest('button');
   }
 
   async function sendReply(text){
-    const box = document.querySelector('div[contenteditable="true"][data-tab="10"]')
-              || document.querySelector('footer div[contenteditable="true"]');
-    if(!box) return;
+    const box = findInputBox();
+    if(!box){warn("caixa de texto não encontrada"); return false;}
     box.focus();
+    // Lexical/WhatsApp aceita execCommand("insertText")
     document.execCommand("insertText", false, text);
-    await new Promise(r=>setTimeout(r,300));
-    const btn = document.querySelector('button[aria-label="Enviar"], button[data-testid="send"]');
-    if(btn) btn.click();
+    await new Promise(r=>setTimeout(r,400));
+    let btn = findSendButton();
+    if(btn){btn.click(); log("enviado via botão"); return true;}
+    // fallback: tecla Enter
+    box.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",code:"Enter",keyCode:13,which:13,bubbles:true}));
+    log("enviado via Enter (fallback)");
+    return true;
   }
 
-  async function onNewIncoming(text){
-    if(!text || SEEN.has(text)) return;
-    SEEN.add(text);
-    if(!(await getEnabled())) return;
-    history.push({role:"user", content:text});
-    if(history.length>20) history = history.slice(-20);
-    const reply = await askAI(history);
-    if(reply){
-      history.push({role:"assistant", content:reply});
-      await sendReply(reply);
+  function getChatId(){
+    // Cabeçalho do chat ativo
+    const header = document.querySelector('#main header');
+    if(!header) return null;
+    return header.innerText?.split("\\n")[0]?.trim() || null;
+  }
+
+  function extractText(bubble){
+    // Texto principal da mensagem
+    const span = bubble.querySelector('span.selectable-text, span._ao3e, div.copyable-text span');
+    return (span?.innerText || bubble.innerText || "").trim();
+  }
+
+  async function processIncoming(bubble){
+    if(SEEN.has(bubble)) return;
+    SEEN.add(bubble);
+
+    const dataId = bubble.getAttribute("data-id") || bubble.closest("[data-id]")?.getAttribute("data-id");
+    if(dataId){
+      if(PROCESSED_IDS.has(dataId)) return;
+      PROCESSED_IDS.add(dataId);
     }
+
+    const text = extractText(bubble);
+    if(!text){return;}
+
+    if(!(await getEnabled())){log("desativado, ignorando:", text); return;}
+    if(busy){log("ocupado, ignorando:", text); return;}
+
+    // Reseta histórico se mudou de conversa
+    const chat = getChatId();
+    if(chat !== currentChat){currentChat = chat; history = []; log("novo chat:", chat);}
+
+    log("nova mensagem recebida:", text);
+    busy = true;
+    try{
+      history.push({role:"user", content:text});
+      if(history.length>20) history = history.slice(-20);
+      const reply = await askAI(history);
+      if(reply){
+        history.push({role:"assistant", content:reply});
+        await new Promise(r=>setTimeout(r, 800 + Math.random()*1200)); // pequeno delay humano
+        await sendReply(reply);
+      }
+    } finally { busy = false; }
   }
 
-  // Observa novas mensagens no painel atual
-  const obs = new MutationObserver(()=>{
-    const incoming = document.querySelectorAll('div.message-in span.selectable-text span');
-    if(!incoming.length) return;
-    const last = incoming[incoming.length-1];
-    if(!last) return;
-    const txt = (last.textContent||"").trim();
-    if(txt) onNewIncoming(txt);
+  function scanForNewIncoming(root){
+    // Pega APENAS a última mensagem recebida visível (não envia respostas a mensagens antigas no scroll)
+    const all = (root||document).querySelectorAll('div.message-in');
+    if(!all.length) return;
+    const last = all[all.length-1];
+    processIncoming(last);
+  }
+
+  const obs = new MutationObserver((muts)=>{
+    for(const m of muts){
+      for(const n of m.addedNodes){
+        if(!(n instanceof HTMLElement)) continue;
+        if(n.matches?.('div.message-in')) { processIncoming(n); continue; }
+        const inner = n.querySelector?.('div.message-in');
+        if(inner) scanForNewIncoming(n);
+      }
+    }
   });
 
   function attach(){
@@ -132,11 +211,32 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     obs.observe(main, {childList:true, subtree:true});
   }
 
-  setInterval(attach, 4000);
+  // Marca mensagens já existentes como vistas, para não responder histórico antigo ao abrir um chat
+  function markExistingAsSeen(){
+    document.querySelectorAll('div.message-in').forEach(b=>{
+      SEEN.add(b);
+      const id = b.getAttribute("data-id") || b.closest("[data-id]")?.getAttribute("data-id");
+      if(id) PROCESSED_IDS.add(id);
+    });
+  }
+
+  setInterval(()=>{ attach(); }, 4000);
+  setInterval(()=>{
+    // Detecta troca de conversa e marca histórico como visto
+    const chat = getChatId();
+    if(chat && chat !== currentChat){
+      currentChat = chat; history = [];
+      markExistingAsSeen();
+      log("chat ativo:", chat);
+    }
+  }, 2000);
+
   attach();
-  console.log("[Argos] extensão ativa");
+  setTimeout(markExistingAsSeen, 1500);
+  log("extensão ativa. Abra uma conversa e envie uma mensagem para testar.");
 })();
 `;
+
 
 
 function b64ToU8(b64: string): Uint8Array {
