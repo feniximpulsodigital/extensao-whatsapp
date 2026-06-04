@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VendasRouteImport } from './routes/vendas'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -30,6 +31,11 @@ import { Route as AuthenticatedAdminBrandingRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminAiCreditsRouteImport } from './routes/_authenticated/admin.ai-credits'
 import { Route as AuthenticatedAdminAiConfigRouteImport } from './routes/_authenticated/admin.ai-config'
 
+const VendasRoute = VendasRouteImport.update({
+  id: '/vendas',
+  path: '/vendas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -140,6 +146,7 @@ const AuthenticatedAdminAiConfigRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/vendas': typeof VendasRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/buy-credits': typeof AuthenticatedBuyCreditsRoute
   '/checkout': typeof AuthenticatedCheckoutRoute
@@ -161,6 +168,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/vendas': typeof VendasRoute
   '/buy-credits': typeof AuthenticatedBuyCreditsRoute
   '/checkout': typeof AuthenticatedCheckoutRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -183,6 +191,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/login': typeof LoginRoute
+  '/vendas': typeof VendasRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/buy-credits': typeof AuthenticatedBuyCreditsRoute
   '/_authenticated/checkout': typeof AuthenticatedCheckoutRoute
@@ -206,6 +215,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/vendas'
     | '/admin'
     | '/buy-credits'
     | '/checkout'
@@ -227,6 +237,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/vendas'
     | '/buy-credits'
     | '/checkout'
     | '/dashboard'
@@ -248,6 +259,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/login'
+    | '/vendas'
     | '/_authenticated/admin'
     | '/_authenticated/buy-credits'
     | '/_authenticated/checkout'
@@ -271,6 +283,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   LoginRoute: typeof LoginRoute
+  VendasRoute: typeof VendasRoute
   InviteTokenRoute: typeof InviteTokenRoute
   ApiPublicAiReplyRoute: typeof ApiPublicAiReplyRoute
   ApiPublicAsaasWebhookRoute: typeof ApiPublicAsaasWebhookRoute
@@ -279,6 +292,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/vendas': {
+      id: '/vendas'
+      path: '/vendas'
+      fullPath: '/vendas'
+      preLoaderRoute: typeof VendasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -470,6 +490,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   LoginRoute: LoginRoute,
+  VendasRoute: VendasRoute,
   InviteTokenRoute: InviteTokenRoute,
   ApiPublicAiReplyRoute: ApiPublicAiReplyRoute,
   ApiPublicAsaasWebhookRoute: ApiPublicAsaasWebhookRoute,
