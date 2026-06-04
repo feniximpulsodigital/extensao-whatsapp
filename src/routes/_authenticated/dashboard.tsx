@@ -30,11 +30,14 @@ function Dashboard() {
   });
 
   const handleLogout = async () => {
+    const { invalidateAuthGate } = await import("./route");
+    invalidateAuthGate();
     await qc.cancelQueries();
     qc.clear();
     await supabase.auth.signOut();
     navigate({ to: "/login", replace: true });
   };
+
 
   return (
     <div className="min-h-screen bg-background">
