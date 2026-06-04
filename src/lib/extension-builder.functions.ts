@@ -138,9 +138,6 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 })();
 `;
 
-// 1x1 PNG transparente (placeholder mínimo válido — usuário pode trocar depois)
-const ICON_PNG_B64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9ZbQDQwAAAAASUVORK5CYII=";
 
 function b64ToU8(b64: string): Uint8Array {
   const bin = atob(b64);
