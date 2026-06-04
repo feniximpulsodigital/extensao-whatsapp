@@ -6,7 +6,7 @@ import { ICON_16_B64, ICON_48_B64, ICON_128_B64 } from "./extension-icons";
 
 // ---------- Extension source files (templates) ----------
 
-const STABLE_DEV_ORIGIN = "https://project--173c2d84-8a91-43b6-ab61-251aff9c5b40-dev.lovable.app";
+const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
