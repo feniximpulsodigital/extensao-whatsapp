@@ -33,9 +33,12 @@ function AdminLayout() {
               variant="ghost"
               size="sm"
               onClick={async () => {
+                const { invalidateAuthGate } = await import("./route");
+                invalidateAuthGate();
                 await supabase.auth.signOut();
                 navigate({ to: "/login", replace: true });
               }}
+
             >
               <LogOut className="h-4 w-4 mr-2" />Sair
             </Button>
