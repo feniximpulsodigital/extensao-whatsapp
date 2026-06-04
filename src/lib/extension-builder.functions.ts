@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.10",
+  version: "1.0.11",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -153,6 +153,25 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     const header = document.querySelector('#main header');
     if(!header) return null;
     return header.innerText?.split("\\n")[0]?.trim() || null;
+  }
+
+  // ---------- Detecção de grupo ----------
+  function isGroupChat(){
+    const header = document.querySelector('#main header');
+    if(!header) return false;
+    if(header.querySelector('span[data-icon*="group"], span[data-icon*="default-group"]')) return true;
+    const spans = header.querySelectorAll('span');
+    const subtitleText = (spans[1]?.innerText || '').toLowerCase();
+    if(subtitleText.includes('participante') || subtitleText.includes('participant')) return true;
+    const senderNames = document.querySelectorAll('#main [data-pre-plain-text]');
+    const names = new Set();
+    senderNames.forEach((el)=>{
+      const pre = el.getAttribute('data-pre-plain-text') || '';
+      const match = pre.match(/\\] (.+):$/);
+      if(match) names.add(match[1].trim());
+    });
+    if(names.size > 1) return true;
+    return false;
   }
 
   // ---------- Seletor de mensagens recebidas ----------
@@ -336,6 +355,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     const text = extractText(bubble);
     if(!text) return false;
     if(!(await getEnabled())){log("global off"); return false;}
+    if(isGroupChat()){log("grupo ignorado:", chat); return false;}
     if(chat && !(await getChatEnabled(chat))){log("chat off:", chat); return false;}
 
     const hist = HISTORY.get(chat) || [];
@@ -431,6 +451,15 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
       const chat = getChatId();
       if(chat){
+        if(isGroupChat()){
+          log("grupo ignorado na sidebar:", chat);
+          if(prevKey){
+            const back = findRowByKey(prevKey) || getSidebarRows().find((r)=>(r.innerText||'').includes(prevKey));
+            if(back){ clickRow(back); await new Promise(r=>setTimeout(r, 300)); }
+          }
+          if(sidebar){ try{ sidebar.scrollTop = prevScroll; }catch(_e){} }
+          return false;
+        }
         // só reseta history se chat mudou (não temos history para chats novos)
         if(!HISTORY.has(chat)) HISTORY.set(chat, []);
 
