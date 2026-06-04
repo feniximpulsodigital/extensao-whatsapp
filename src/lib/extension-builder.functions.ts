@@ -452,13 +452,14 @@ export const buildMyExtension = createServerFn({ method: "POST" })
     const origin = data.origin.includes("lovable") ? PRODUCTION_ORIGIN : data.origin;
     const endpoint = `${origin}/api/public/ai-reply`;
 
-    const safeCompany = (tenant.company_name || "cliente")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "")
-      .slice(0, 40) || "cliente";
+    const safeCompany =
+      (tenant.company_name || "cliente")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+        .slice(0, 40) || "cliente";
 
     const files: Record<string, Uint8Array> = {
       "manifest.json": strToU8(JSON.stringify(MANIFEST(brandName, origin), null, 2)),
@@ -486,7 +487,7 @@ export const buildMyExtension = createServerFn({ method: "POST" })
           ``,
           `A IA só funciona enquanto este computador estiver com o Chrome aberto`,
           `e o WhatsApp Web logado.`,
-        ].join("\n")
+        ].join("\n"),
       ),
     };
 
