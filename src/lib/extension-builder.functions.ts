@@ -30,7 +30,10 @@ const MANIFEST = (brandName: string, apiOrigin: string) => ({
   ],
 });
 
-const CONFIG_JS = (apiKey: string, endpoint: string) => `// AUTO-GERADO — chave exclusiva do seu cliente. NÃO COMPARTILHE.
+const CONFIG_JS = (
+  apiKey: string,
+  endpoint: string,
+) => `// AUTO-GERADO — chave exclusiva do seu cliente. NÃO COMPARTILHE.
 window.__ARGOS_CONFIG__ = {
   apiKey: ${JSON.stringify(apiKey)},
   endpoint: ${JSON.stringify(endpoint)},
@@ -409,8 +412,6 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   log("extensão ativa. Botão IA aparece no topo de cada conversa.");
 })();
 `;
-
-
 
 function b64ToU8(b64: string): Uint8Array {
   const bin = atob(b64);
