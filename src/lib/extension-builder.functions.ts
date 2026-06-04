@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.4",
+  version: "1.0.5",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -393,9 +393,82 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     btn.dataset.chat = chat;
   }
 
+  // ---- Varredura em segundo plano da lista lateral ----
+  // Procura conversas com badge de mensagens não lidas, abre cada uma,
+  // responde, e volta para o chat que estava aberto.
+  let bgBusy = false;
+
+  function findUnreadChatRows(){
+    const list = document.querySelector('#pane-side [role="grid"], #pane-side [aria-label]') || document.querySelector('#pane-side');
+    if(!list) return [];
+    const rows = Array.from(list.querySelectorAll('[role="listitem"], div[role="row"], [data-testid="cell-frame-container"]'));
+    const candidates = rows.length ? rows : Array.from(list.querySelectorAll('div')).filter((d)=>d.querySelector('span[aria-label]'));
+    return candidates.filter((row)=>{
+      const badges = row.querySelectorAll('span[aria-label]');
+      for(const b of badges){
+        const l = (b.getAttribute('aria-label') || '').toLowerCase();
+        if(/^\\s*\\d+\\s*(não lidas|nao lidas|unread|mensagens? não lidas|mensagens? nao lidas)/.test(l)) return true;
+        if(/(não lida|nao lida|unread)/.test(l) && /\\d/.test(l)) return true;
+      }
+      return false;
+    });
+  }
+
+  function clickRow(row){
+    const clickable = row.querySelector('[role="button"], [tabindex]') || row;
+    clickable.click();
+  }
+
+  async function waitFor(predicate, timeoutMs){
+    const start = Date.now();
+    while(Date.now() - start < (timeoutMs || 4000)){
+      try{ if(predicate()) return true; }catch(_e){}
+      await new Promise(r=>setTimeout(r, 150));
+    }
+    return false;
+  }
+
+  async function processOneUnread(){
+    if(bgBusy || busy) return false;
+    if(!(await getEnabled())) return false;
+    const rows = findUnreadChatRows();
+    if(!rows.length) return false;
+
+    bgBusy = true;
+    const previousChat = getChatId();
+    try{
+      const row = rows[0];
+      const before = getChatId();
+      clickRow(row);
+      await waitFor(()=>{ const c = getChatId(); return c && c !== before; }, 4000);
+      await new Promise(r=>setTimeout(r, 600)); // deixa as bolhas renderizarem
+
+      const chat = getChatId();
+      if(chat && !(await getChatEnabled(chat))){ log("BG: chat desativado", chat); return false; }
+
+      // Pega a última mensagem recebida visível
+      const bubbles = getIncomingBubbles(document).filter(isRecentIncoming);
+      const last = bubbles[bubbles.length-1];
+      if(!last){ log("BG: nenhuma mensagem recente"); return false; }
+
+      // Trata como nova conversa: reseta histórico
+      currentChat = chat; history = [];
+      await processIncoming(last);
+
+      // Volta para a conversa anterior, se havia uma diferente
+      if(previousChat && previousChat !== getChatId()){
+        const allRows = Array.from(document.querySelectorAll('#pane-side [role="listitem"], #pane-side div[role="row"], #pane-side [data-testid="cell-frame-container"]'));
+        const back = allRows.find((r)=>(r.innerText||"").split("\\n")[0].trim() === previousChat);
+        if(back){ clickRow(back); }
+      }
+      return true;
+    }catch(e){ warn("BG erro", e); return false; }
+    finally{ bgBusy = false; }
+  }
 
   setInterval(()=>{ attach(); ensureToggleButton(); }, 1500);
   setInterval(()=>{ scanForNewIncoming(document); }, 2000);
+  setInterval(()=>{ processOneUnread().catch((e)=>warn("BG loop", e)); }, 4000);
   setInterval(()=>{
     const chat = getChatId();
     if(chat && chat !== currentChat){
