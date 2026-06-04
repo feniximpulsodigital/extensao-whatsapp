@@ -121,6 +121,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     if(el.getAttribute && el.getAttribute("contenteditable")==="true") return true;
     return false;
   }
+  function isUserTyping(){
+    const box = findInputBox();
+    return !!(box && (box.innerText || box.textContent || '').trim().length > 0);
+  }
 
   function setButtonStatus(text, ok, ms){
     statusOverrideText = text;
