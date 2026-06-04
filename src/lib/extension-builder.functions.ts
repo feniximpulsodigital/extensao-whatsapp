@@ -206,10 +206,41 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     return header.innerText?.split("\\n")[0]?.trim() || null;
   }
 
+  function parseWaTimeToTodayMinutes(raw){
+    const text = (raw || "").trim();
+    const m = text.match(/(\d{1,2}):(\d{2})/);
+    if(!m) return null;
+    const h = Number(m[1]);
+    const min = Number(m[2]);
+    if(!Number.isFinite(h) || !Number.isFinite(min)) return null;
+    return h * 60 + min;
+  }
+
+  function getBubbleTimestampMs(bubble){
+    const pre = bubble.querySelector('[data-pre-plain-text]')?.getAttribute('data-pre-plain-text') || bubble.getAttribute('data-pre-plain-text') || "";
+    const fromPre = parseWaTimeToTodayMinutes(pre);
+    const fromText = fromPre ?? parseWaTimeToTodayMinutes(bubble.innerText || "");
+    if(fromText == null) return Date.now();
+    const now = new Date();
+    const msg = new Date(now);
+    msg.setHours(Math.floor(fromText / 60), fromText % 60, 0, 0);
+    if(msg.getTime() - now.getTime() > 60 * 60 * 1000) msg.setDate(msg.getDate() - 1);
+    return msg.getTime();
+  }
+
+  function isRecentIncoming(bubble){
+    return Date.now() - getBubbleTimestampMs(bubble) <= RECENT_INCOMING_WINDOW_MS;
+  }
+
   function extractText(bubble){
     // Texto principal da mensagem
-    const span = bubble.querySelector('span.selectable-text, span._ao3e, div.copyable-text span, [data-pre-plain-text] span');
-    return (span?.innerText || bubble.innerText || "").trim();
+    const nodes = Array.from(bubble.querySelectorAll('span.selectable-text, span._ao3e, [dir="ltr"], [dir="auto"]'));
+    const pieces = nodes.map((el)=>el.innerText || el.textContent || "")
+      .map((t)=>t.trim())
+      .filter(Boolean)
+      .filter((t)=>!/^\d{1,2}:\d{2}$/.test(t));
+    const raw = pieces.length ? pieces.join("\\n") : (bubble.innerText || "");
+    return raw.split("\\n").map((t)=>t.trim()).filter(Boolean).filter((t)=>!/^\d{1,2}:\d{2}$/.test(t)).join("\\n").trim();
   }
 
   async function processIncoming(bubble){
