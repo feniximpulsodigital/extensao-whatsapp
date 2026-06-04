@@ -1,17 +1,7 @@
 // Server-only helper to debit AI usage from a tenant's credit balance.
 // Import inside server fn / server route handlers only.
 
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/integrations/supabase/types";
-import process from "node:process";
-
-function admin() {
-  return createClient<Database>(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } }
-  );
-}
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export type ChargeInput = {
   tenantId: string;
@@ -27,8 +17,7 @@ export type ChargeResult =
   | { ok: false; error: "INSUFFICIENT_CREDITS"; balance: number; required: number };
 
 export async function chargeAiUsage(input: ChargeInput): Promise<ChargeResult> {
-  const supa = admin();
-  const { data: cfg } = await supa
+  const { data: cfg } = await supabaseAdmin
     .from("ai_pricing_config")
     .select("usd_to_brl, credits_per_usd, global_markup_multiplier, model_cost_overrides")
     .limit(1)
@@ -44,7 +33,7 @@ export async function chargeAiUsage(input: ChargeInput): Promise<ChargeResult> {
   const creditsPerUsd = Number(cfg?.credits_per_usd ?? 1000);
   const credits = Math.max(1, Math.ceil(costUsd * multiplier * creditsPerUsd));
 
-  const { data: tenant } = await supa
+  const { data: tenant } = await supabaseAdmin
     .from("tenants")
     .select("credits_balance")
     .eq("id", input.tenantId)
@@ -54,15 +43,15 @@ export async function chargeAiUsage(input: ChargeInput): Promise<ChargeResult> {
     return { ok: false, error: "INSUFFICIENT_CREDITS", balance, required: credits };
   }
   const newBalance = balance - credits;
-  await supa.from("tenants").update({ credits_balance: newBalance }).eq("id", input.tenantId);
-  await supa.from("credit_transactions").insert({
+  await supabaseAdmin.from("tenants").update({ credits_balance: newBalance }).eq("id", input.tenantId);
+  await supabaseAdmin.from("credit_transactions").insert({
     tenant_id: input.tenantId,
     type: "consumption" as any,
     amount: -credits,
     balance_after: newBalance,
     description: `IA · ${input.model}`,
   });
-  await supa.from("ai_usage_log").insert({
+  await supabaseAdmin.from("ai_usage_log").insert({
     tenant_id: input.tenantId,
     model: input.model,
     input_tokens: input.inputTokens,
