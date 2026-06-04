@@ -57,7 +57,7 @@ export async function chargeAiUsage(input: ChargeInput): Promise<ChargeResult> {
   await supa.from("tenants").update({ credits_balance: newBalance }).eq("id", input.tenantId);
   await supa.from("credit_transactions").insert({
     tenant_id: input.tenantId,
-    type: "usage" as any,
+    type: "consumption" as any,
     amount: -credits,
     balance_after: newBalance,
     description: `IA · ${input.model}`,
