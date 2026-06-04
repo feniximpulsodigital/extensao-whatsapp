@@ -113,6 +113,18 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     return new Promise((res)=>chrome.storage.local.get(["enabled"],(r)=>res(r.enabled!==false)));
   }
 
+  // ---- Estado por contato (lead) ----
+  function chatKey(chat){ return "chat:"+chat; }
+  function getChatEnabled(chat){
+    return new Promise((res)=>chrome.storage.local.get([chatKey(chat)],(r)=>{
+      const v = r[chatKey(chat)];
+      res(v !== false); // default: ativo
+    }));
+  }
+  function setChatEnabled(chat, val){
+    return new Promise((res)=>chrome.storage.local.set({[chatKey(chat)]: !!val}, ()=>res()));
+  }
+
   function findInputBox(){
     // tenta vários seletores conhecidos do WhatsApp Web
     return document.querySelector('footer div[contenteditable="true"][data-tab="10"]')
@@ -169,7 +181,9 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     const text = extractText(bubble);
     if(!text){return;}
 
-    if(!(await getEnabled())){log("desativado, ignorando:", text); return;}
+    if(!(await getEnabled())){log("desativado (global), ignorando:", text); return;}
+    const chatNow = getChatId();
+    if(chatNow && !(await getChatEnabled(chatNow))){log("desativado para este contato:", chatNow); return;}
     if(busy){log("ocupado, ignorando:", text); return;}
 
     // Reseta histórico se mudou de conversa
@@ -224,20 +238,64 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     });
   }
 
-  setInterval(()=>{ attach(); }, 4000);
+  // ---- Botão "IA: ON/OFF" no cabeçalho do chat ----
+  const BTN_ID = "argos-toggle-btn";
+  function styleBtn(btn, on){
+    btn.textContent = on ? "🤖 IA: ON" : "🤖 IA: OFF";
+    btn.style.background = on ? "#16a34a" : "#dc2626";
+    btn.style.color = "#fff";
+    btn.style.border = "none";
+    btn.style.padding = "6px 12px";
+    btn.style.borderRadius = "999px";
+    btn.style.fontSize = "12px";
+    btn.style.fontWeight = "600";
+    btn.style.cursor = "pointer";
+    btn.style.marginRight = "8px";
+    btn.style.boxShadow = "0 2px 6px rgba(0,0,0,.15)";
+  }
+  async function ensureToggleButton(){
+    const header = document.querySelector('#main header');
+    if(!header) return;
+    const chat = getChatId();
+    if(!chat) return;
+
+    let btn = header.querySelector("#"+BTN_ID);
+    const on = await getChatEnabled(chat);
+
+    if(!btn){
+      btn = document.createElement("button");
+      btn.id = BTN_ID;
+      btn.title = "Liga/desliga a IA para este contato";
+      // Insere antes do primeiro grupo de ações do header
+      const target = header.querySelector('div[role="button"]')?.parentElement || header;
+      target.insertBefore(btn, target.firstChild);
+      btn.addEventListener("click", async ()=>{
+        const c = getChatId();
+        if(!c) return;
+        const cur = await getChatEnabled(c);
+        await setChatEnabled(c, !cur);
+        styleBtn(btn, !cur);
+        log(!cur ? "IA ligada para" : "IA desligada para", c);
+      });
+    }
+    styleBtn(btn, on);
+    btn.dataset.chat = chat;
+  }
+
+  setInterval(()=>{ attach(); ensureToggleButton(); }, 1500);
   setInterval(()=>{
-    // Detecta troca de conversa e marca histórico como visto
     const chat = getChatId();
     if(chat && chat !== currentChat){
       currentChat = chat; history = [];
       markExistingAsSeen();
+      ensureToggleButton();
       log("chat ativo:", chat);
     }
-  }, 2000);
+  }, 1500);
 
   attach();
-  setTimeout(markExistingAsSeen, 1500);
-  log("extensão ativa. Abra uma conversa e envie uma mensagem para testar.");
+  setTimeout(()=>{ markExistingAsSeen(); ensureToggleButton(); }, 1500);
+  log("extensão ativa. Botão IA aparece no topo de cada conversa.");
 })();
 `;
 
