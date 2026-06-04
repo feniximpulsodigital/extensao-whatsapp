@@ -35,9 +35,36 @@ async function callProvider(opts: {
 }): Promise<{ ok: true; reply: string; inputTokens: number; outputTokens: number } | { ok: false; status: number; error: string }> {
   const { provider, model, temperature, maxTokens, system, messages } = opts;
 
+  async function callLovableGateway() {
+    const key = process.env.LOVABLE_API_KEY;
+    if (!key) return { ok: false as const, status: 500, error: "Falta o secret LOVABLE_API_KEY" };
+    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        temperature,
+        max_tokens: maxTokens,
+        messages: [{ role: "system", content: system }, ...messages],
+      }),
+    });
+    if (!r.ok) {
+      const t = await r.text();
+      console.error("lovable gateway error", r.status, t);
+      return { ok: false as const, status: r.status === 429 ? 429 : 502, error: r.status === 429 ? "Limite de uso atingido" : "Erro no provedor de IA" };
+    }
+    const j: any = await r.json();
+    return {
+      ok: true as const,
+      reply: j?.choices?.[0]?.message?.content ?? "",
+      inputTokens: Number(j?.usage?.prompt_tokens ?? 0),
+      outputTokens: Number(j?.usage?.completion_tokens ?? 0),
+    };
+  }
+
   if (provider === "groq" || provider === "openai") {
     const key = provider === "groq" ? process.env.GROQ_API_KEY : process.env.OPENAI_API_KEY;
-    if (!key) return { ok: false, status: 500, error: `Falta o secret ${provider === "groq" ? "GROQ_API_KEY" : "OPENAI_API_KEY"}` };
+    if (!key) return callLovableGateway();
     const url = provider === "groq"
       ? "https://api.groq.com/openai/v1/chat/completions"
       : "https://api.openai.com/v1/chat/completions";
@@ -66,7 +93,7 @@ async function callProvider(opts: {
 
   // anthropic
   const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return { ok: false, status: 500, error: "Falta o secret ANTHROPIC_API_KEY" };
+  if (!key) return callLovableGateway();
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
