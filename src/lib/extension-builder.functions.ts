@@ -277,14 +277,21 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     const chat = getChatId();
     if(!chat) return;
 
-    let btn = header.querySelector("#"+BTN_ID);
+    // Remove botões duplicados (fora do header atual ou repetidos)
+    document.querySelectorAll("."+BTN_ID).forEach((el)=>{
+      if(!header.contains(el)) el.remove();
+    });
+    const existing = header.querySelectorAll("."+BTN_ID);
+    for(let i=1;i<existing.length;i++) existing[i].remove();
+
+    let btn = header.querySelector("."+BTN_ID);
     const on = await getChatEnabled(chat);
 
     if(!btn){
       btn = document.createElement("button");
       btn.id = BTN_ID;
+      btn.className = BTN_ID;
       btn.title = "Liga/desliga a IA para este contato";
-      // Insere antes do primeiro grupo de ações do header
       const target = header.querySelector('div[role="button"]')?.parentElement || header;
       target.insertBefore(btn, target.firstChild);
       btn.addEventListener("click", async ()=>{
@@ -299,6 +306,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     styleBtn(btn, on);
     btn.dataset.chat = chat;
   }
+
 
   setInterval(()=>{ attach(); ensureToggleButton(); }, 1500);
   setInterval(()=>{
