@@ -67,6 +67,8 @@ function CheckoutPage() {
         if (r.status === "confirmed" || r.status === "received") {
           clearInterval(i);
           toast.success("Pagamento confirmado!");
+          const { invalidateAuthGate } = await import("./route");
+          invalidateAuthGate();
           await qc.invalidateQueries();
           navigate({ to: "/dashboard", replace: true });
         }
@@ -78,9 +80,12 @@ function CheckoutPage() {
   }, [pixModal, checkStatus, navigate, qc]);
 
   const logout = async () => {
+    const { invalidateAuthGate } = await import("./route");
+    invalidateAuthGate();
     await supabase.auth.signOut();
     navigate({ to: "/login", replace: true });
   };
+
 
   return (
     <div className="min-h-screen bg-muted/30">
