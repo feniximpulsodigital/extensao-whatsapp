@@ -1,5 +1,5 @@
 # ---------- Build stage ----------
-FROM oven/bun:1.1 AS builder
+FROM oven/bun:1.2-alpine AS builder
 WORKDIR /app
 
 # Public Vite env vars baked at build time (passed via EasyPanel build args)
