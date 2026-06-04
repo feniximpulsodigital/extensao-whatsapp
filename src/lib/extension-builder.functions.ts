@@ -233,7 +233,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   function scanForNewIncoming(root){
     // Pega APENAS a última mensagem recebida visível (não envia respostas a mensagens antigas no scroll)
-    const all = (root||document).querySelectorAll('div.message-in');
+    const all = (root||document).querySelectorAll('div.message-in, div[class*="message-in"]');
     if(!all.length) return;
     const last = all[all.length-1];
     processIncoming(last);
@@ -243,8 +243,8 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     for(const m of muts){
       for(const n of m.addedNodes){
         if(!(n instanceof HTMLElement)) continue;
-        if(n.matches?.('div.message-in')) { processIncoming(n); continue; }
-        const inner = n.querySelector?.('div.message-in');
+        if(n.matches?.('div.message-in, div[class*="message-in"]')) { processIncoming(n); continue; }
+        const inner = n.querySelector?.('div.message-in, div[class*="message-in"]');
         if(inner) scanForNewIncoming(n);
       }
     }
@@ -318,6 +318,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
 
   setInterval(()=>{ attach(); ensureToggleButton(); }, 1500);
+  setInterval(()=>{ scanForNewIncoming(document); }, 2000);
   setInterval(()=>{
     const chat = getChatId();
     if(chat && chat !== currentChat){
@@ -330,6 +331,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   attach();
   setTimeout(()=>{ markExistingAsSeen(); ensureToggleButton(); }, 1500);
+  setTimeout(()=>{ scanForNewIncoming(document); }, 3500);
   log("extensão ativa. Botão IA aparece no topo de cada conversa.");
 })();
 `;
