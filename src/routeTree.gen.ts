@@ -18,6 +18,7 @@ import { Route as AuthenticatedCheckoutRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedBuyCreditsRouteImport } from './routes/_authenticated/buy-credits'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as ApiPublicCronCreditsRenewRouteImport } from './routes/api/public/cron-credits-renew'
 import { Route as ApiPublicAsaasWebhookRouteImport } from './routes/api/public/asaas-webhook'
 import { Route as AuthenticatedAdminUsageRouteImport } from './routes/_authenticated/admin.usage'
 import { Route as AuthenticatedAdminTenantsRouteImport } from './routes/_authenticated/admin.tenants'
@@ -70,6 +71,12 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const ApiPublicCronCreditsRenewRoute =
+  ApiPublicCronCreditsRenewRouteImport.update({
+    id: '/api/public/cron-credits-renew',
+    path: '/api/public/cron-credits-renew',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicAsaasWebhookRoute = ApiPublicAsaasWebhookRouteImport.update({
   id: '/api/public/asaas-webhook',
   path: '/api/public/asaas-webhook',
@@ -125,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/admin/tenants': typeof AuthenticatedAdminTenantsRoute
   '/admin/usage': typeof AuthenticatedAdminUsageRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
+  '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesByTo {
@@ -141,6 +149,7 @@ export interface FileRoutesByTo {
   '/admin/tenants': typeof AuthenticatedAdminTenantsRoute
   '/admin/usage': typeof AuthenticatedAdminUsageRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
+  '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesById {
@@ -160,6 +169,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/tenants': typeof AuthenticatedAdminTenantsRoute
   '/_authenticated/admin/usage': typeof AuthenticatedAdminUsageRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
+  '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRouteTypes {
@@ -179,6 +189,7 @@ export interface FileRouteTypes {
     | '/admin/tenants'
     | '/admin/usage'
     | '/api/public/asaas-webhook'
+    | '/api/public/cron-credits-renew'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/admin/tenants'
     | '/admin/usage'
     | '/api/public/asaas-webhook'
+    | '/api/public/cron-credits-renew'
     | '/admin'
   id:
     | '__root__'
@@ -213,6 +225,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/tenants'
     | '/_authenticated/admin/usage'
     | '/api/public/asaas-webhook'
+    | '/api/public/cron-credits-renew'
     | '/_authenticated/admin/'
   fileRoutesById: FileRoutesById
 }
@@ -222,6 +235,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   InviteTokenRoute: typeof InviteTokenRoute
   ApiPublicAsaasWebhookRoute: typeof ApiPublicAsaasWebhookRoute
+  ApiPublicCronCreditsRenewRoute: typeof ApiPublicCronCreditsRenewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -288,6 +302,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/api/public/cron-credits-renew': {
+      id: '/api/public/cron-credits-renew'
+      path: '/api/public/cron-credits-renew'
+      fullPath: '/api/public/cron-credits-renew'
+      preLoaderRoute: typeof ApiPublicCronCreditsRenewRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/asaas-webhook': {
       id: '/api/public/asaas-webhook'
@@ -387,7 +408,18 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   InviteTokenRoute: InviteTokenRoute,
   ApiPublicAsaasWebhookRoute: ApiPublicAsaasWebhookRoute,
+  ApiPublicCronCreditsRenewRoute: ApiPublicCronCreditsRenewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
