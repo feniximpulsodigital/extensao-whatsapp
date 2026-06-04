@@ -170,7 +170,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
             <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
               Cabe no bolso. Paga sozinho na primeira venda extra.
             </h2>
-            <p className="mt-4 text-muted-foreground">Comece grátis. Sem fidelidade. Cancele quando quiser.</p>
+            <p className="mt-4 text-muted-foreground">Sem fidelidade. Cancele quando quiser.</p>
           </div>
           <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-2">
             {[
@@ -178,13 +178,13 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
                 name: "Starter",
                 price: "R$ 97",
                 tagline: "Pra começar a responder rápido hoje.",
-                features: ["1.000 créditos/mês", "1 número de WhatsApp", "Base de conhecimento ilimitada", "Suporte por e-mail"],
+                features: ["1.000 créditos de IA/mês", "1 WhatsApp conectado", "Base de conhecimento ilimitada", "Suporte por e-mail"],
               },
               {
                 name: "Pro",
                 price: "R$ 297",
                 tagline: "Pra quem vende todo dia pelo WhatsApp.",
-                features: ["5.000 créditos/mês", "Até 3 números", "Prompts customizados", "Resposta automática 24/7", "Suporte prioritário"],
+                features: ["5.000 créditos de IA/mês", "1 WhatsApp conectado", "Prompts customizados", "Resposta automática 24/7", "Suporte prioritário"],
                 highlight: true,
               },
             ].map((p) => (
