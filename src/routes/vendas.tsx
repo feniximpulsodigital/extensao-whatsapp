@@ -123,6 +123,7 @@ function SalesPage() {
               { q: "A IA responde do jeito da minha empresa?", a: "Sim. Você cadastra o tom, as informações e as respostas certas. A IA usa tudo isso. Quanto mais você ensina, mais natural fica." },
               { q: "E se eu quiser assumir a conversa?", a: "É só responder. A Argos entende e devolve o controle para você. Liga e desliga quando quiser." },
               { q: "Funciona no celular?", a: "A IA roda no WhatsApp Web (computador). As mensagens chegam normalmente no celular, mas é o desktop que mantém ela ativa." },
+              { q: "Precisa deixar um computador ligado?", a: "Sim. A Argos só responde enquanto pelo menos um computador estiver ligado, com o Chrome aberto, a extensão da Argos instalada e o WhatsApp Web conectado. Se todos forem desligados ou o WhatsApp Web for fechado, a IA pausa até voltar a estar online. Por isso muitos clientes deixam um PC dedicado ligado 24h, ou instalam em vários computadores para garantir disponibilidade." },
               { q: "Posso cancelar a qualquer momento?", a: "Pode. Sem multa, sem fidelidade, sem ligação de retenção. Um clique e acabou." },
               { q: "Preciso instalar algo complicado?", a: "Não. É uma extensão do Chrome que instala em 1 clique. Você continua usando o WhatsApp Web normalmente e pode ativar em quantos computadores quiser." },
             ].map((f) => (

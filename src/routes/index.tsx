@@ -35,7 +35,6 @@ function Landing() {
             <a href="#solucao" className="text-sm text-muted-foreground hover:text-foreground">Solução</a>
             <a href="#como" className="text-sm text-muted-foreground hover:text-foreground">Como funciona</a>
             <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground">Planos</a>
-            <Link to="/vendas" className="text-sm text-muted-foreground hover:text-foreground">Página de vendas</Link>
           </nav>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -64,11 +63,11 @@ function Landing() {
               <Link to="/login">Quero assinar agora <ArrowRight className="h-4 w-4" /></Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link to="/vendas"><MessageCircle className="h-4 w-4 mr-1" />Ver planos e benefícios</Link>
+              <a href="#pricing"><MessageCircle className="h-4 w-4 mr-1" />Ver planos e benefícios</a>
             </Button>
           </div>
           <p className="mt-4 text-xs text-muted-foreground">
-            Sem fidelidade · Cancela em 1 clique · Funciona no WhatsApp Web
+            Sem fidelidade · Cancela em 1 clique · Funciona enquanto houver 1 PC com o WhatsApp Web aberto e a extensão ativa
           </p>
         </div>
       </section>
