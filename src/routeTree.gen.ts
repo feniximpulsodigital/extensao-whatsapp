@@ -12,14 +12,20 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCheckoutRouteImport } from './routes/_authenticated/checkout'
+import { Route as AuthenticatedBuyCreditsRouteImport } from './routes/_authenticated/buy-credits'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as ApiPublicCronCreditsRenewRouteImport } from './routes/api/public/cron-credits-renew'
 import { Route as ApiPublicAsaasWebhookRouteImport } from './routes/api/public/asaas-webhook'
+import { Route as AuthenticatedAdminUsageRouteImport } from './routes/_authenticated/admin.usage'
 import { Route as AuthenticatedAdminTenantsRouteImport } from './routes/_authenticated/admin.tenants'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin.settings'
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin.plans'
+import { Route as AuthenticatedAdminInvitesRouteImport } from './routes/_authenticated/admin.invites'
+import { Route as AuthenticatedAdminAiCreditsRouteImport } from './routes/_authenticated/admin.ai-credits'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -35,6 +41,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -43,6 +54,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
 const AuthenticatedCheckoutRoute = AuthenticatedCheckoutRouteImport.update({
   id: '/checkout',
   path: '/checkout',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedBuyCreditsRoute = AuthenticatedBuyCreditsRouteImport.update({
+  id: '/buy-credits',
+  path: '/buy-credits',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -55,10 +71,21 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const ApiPublicCronCreditsRenewRoute =
+  ApiPublicCronCreditsRenewRouteImport.update({
+    id: '/api/public/cron-credits-renew',
+    path: '/api/public/cron-credits-renew',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicAsaasWebhookRoute = ApiPublicAsaasWebhookRouteImport.update({
   id: '/api/public/asaas-webhook',
   path: '/api/public/asaas-webhook',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAdminUsageRoute = AuthenticatedAdminUsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
+  getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
 const AuthenticatedAdminTenantsRoute =
   AuthenticatedAdminTenantsRouteImport.update({
@@ -77,28 +104,52 @@ const AuthenticatedAdminPlansRoute = AuthenticatedAdminPlansRouteImport.update({
   path: '/plans',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const AuthenticatedAdminInvitesRoute =
+  AuthenticatedAdminInvitesRouteImport.update({
+    id: '/invites',
+    path: '/invites',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminAiCreditsRoute =
+  AuthenticatedAdminAiCreditsRouteImport.update({
+    id: '/ai-credits',
+    path: '/ai-credits',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/buy-credits': typeof AuthenticatedBuyCreditsRoute
   '/checkout': typeof AuthenticatedCheckoutRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/admin/ai-credits': typeof AuthenticatedAdminAiCreditsRoute
+  '/admin/invites': typeof AuthenticatedAdminInvitesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/tenants': typeof AuthenticatedAdminTenantsRoute
+  '/admin/usage': typeof AuthenticatedAdminUsageRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
+  '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/buy-credits': typeof AuthenticatedBuyCreditsRoute
   '/checkout': typeof AuthenticatedCheckoutRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/admin/ai-credits': typeof AuthenticatedAdminAiCreditsRoute
+  '/admin/invites': typeof AuthenticatedAdminInvitesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/tenants': typeof AuthenticatedAdminTenantsRoute
+  '/admin/usage': typeof AuthenticatedAdminUsageRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
+  '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesById {
@@ -107,12 +158,18 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/buy-credits': typeof AuthenticatedBuyCreditsRoute
   '/_authenticated/checkout': typeof AuthenticatedCheckoutRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/invite/$token': typeof InviteTokenRoute
+  '/_authenticated/admin/ai-credits': typeof AuthenticatedAdminAiCreditsRoute
+  '/_authenticated/admin/invites': typeof AuthenticatedAdminInvitesRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/_authenticated/admin/tenants': typeof AuthenticatedAdminTenantsRoute
+  '/_authenticated/admin/usage': typeof AuthenticatedAdminUsageRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
+  '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRouteTypes {
@@ -121,23 +178,35 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/admin'
+    | '/buy-credits'
     | '/checkout'
     | '/dashboard'
+    | '/invite/$token'
+    | '/admin/ai-credits'
+    | '/admin/invites'
     | '/admin/plans'
     | '/admin/settings'
     | '/admin/tenants'
+    | '/admin/usage'
     | '/api/public/asaas-webhook'
+    | '/api/public/cron-credits-renew'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
+    | '/buy-credits'
     | '/checkout'
     | '/dashboard'
+    | '/invite/$token'
+    | '/admin/ai-credits'
+    | '/admin/invites'
     | '/admin/plans'
     | '/admin/settings'
     | '/admin/tenants'
+    | '/admin/usage'
     | '/api/public/asaas-webhook'
+    | '/api/public/cron-credits-renew'
     | '/admin'
   id:
     | '__root__'
@@ -145,12 +214,18 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/_authenticated/admin'
+    | '/_authenticated/buy-credits'
     | '/_authenticated/checkout'
     | '/_authenticated/dashboard'
+    | '/invite/$token'
+    | '/_authenticated/admin/ai-credits'
+    | '/_authenticated/admin/invites'
     | '/_authenticated/admin/plans'
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/tenants'
+    | '/_authenticated/admin/usage'
     | '/api/public/asaas-webhook'
+    | '/api/public/cron-credits-renew'
     | '/_authenticated/admin/'
   fileRoutesById: FileRoutesById
 }
@@ -158,7 +233,9 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   LoginRoute: typeof LoginRoute
+  InviteTokenRoute: typeof InviteTokenRoute
   ApiPublicAsaasWebhookRoute: typeof ApiPublicAsaasWebhookRoute
+  ApiPublicCronCreditsRenewRoute: typeof ApiPublicCronCreditsRenewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -184,6 +261,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -196,6 +280,13 @@ declare module '@tanstack/react-router' {
       path: '/checkout'
       fullPath: '/checkout'
       preLoaderRoute: typeof AuthenticatedCheckoutRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/buy-credits': {
+      id: '/_authenticated/buy-credits'
+      path: '/buy-credits'
+      fullPath: '/buy-credits'
+      preLoaderRoute: typeof AuthenticatedBuyCreditsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin': {
@@ -212,12 +303,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/api/public/cron-credits-renew': {
+      id: '/api/public/cron-credits-renew'
+      path: '/api/public/cron-credits-renew'
+      fullPath: '/api/public/cron-credits-renew'
+      preLoaderRoute: typeof ApiPublicCronCreditsRenewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/asaas-webhook': {
       id: '/api/public/asaas-webhook'
       path: '/api/public/asaas-webhook'
       fullPath: '/api/public/asaas-webhook'
       preLoaderRoute: typeof ApiPublicAsaasWebhookRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin/usage': {
+      id: '/_authenticated/admin/usage'
+      path: '/usage'
+      fullPath: '/admin/usage'
+      preLoaderRoute: typeof AuthenticatedAdminUsageRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/tenants': {
       id: '/_authenticated/admin/tenants'
@@ -240,20 +345,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminPlansRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/invites': {
+      id: '/_authenticated/admin/invites'
+      path: '/invites'
+      fullPath: '/admin/invites'
+      preLoaderRoute: typeof AuthenticatedAdminInvitesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/ai-credits': {
+      id: '/_authenticated/admin/ai-credits'
+      path: '/ai-credits'
+      fullPath: '/admin/ai-credits'
+      preLoaderRoute: typeof AuthenticatedAdminAiCreditsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
   }
 }
 
 interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminAiCreditsRoute: typeof AuthenticatedAdminAiCreditsRoute
+  AuthenticatedAdminInvitesRoute: typeof AuthenticatedAdminInvitesRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRoute
   AuthenticatedAdminTenantsRoute: typeof AuthenticatedAdminTenantsRoute
+  AuthenticatedAdminUsageRoute: typeof AuthenticatedAdminUsageRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminAiCreditsRoute: AuthenticatedAdminAiCreditsRoute,
+  AuthenticatedAdminInvitesRoute: AuthenticatedAdminInvitesRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRoute,
   AuthenticatedAdminTenantsRoute: AuthenticatedAdminTenantsRoute,
+  AuthenticatedAdminUsageRoute: AuthenticatedAdminUsageRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 
@@ -262,12 +387,14 @@ const AuthenticatedAdminRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedBuyCreditsRoute: typeof AuthenticatedBuyCreditsRoute
   AuthenticatedCheckoutRoute: typeof AuthenticatedCheckoutRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedBuyCreditsRoute: AuthenticatedBuyCreditsRoute,
   AuthenticatedCheckoutRoute: AuthenticatedCheckoutRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
 }
@@ -279,7 +406,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   LoginRoute: LoginRoute,
+  InviteTokenRoute: InviteTokenRoute,
   ApiPublicAsaasWebhookRoute: ApiPublicAsaasWebhookRoute,
+  ApiPublicCronCreditsRenewRoute: ApiPublicCronCreditsRenewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

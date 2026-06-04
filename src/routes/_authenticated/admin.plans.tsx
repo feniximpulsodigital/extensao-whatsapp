@@ -25,6 +25,7 @@ type PlanForm = {
   monthly_credits: number;
   max_knowledge_entries: number;
   is_active: boolean;
+  is_custom: boolean;
   sort_order: number;
 };
 
@@ -36,6 +37,7 @@ const empty: PlanForm = {
   monthly_credits: 0,
   max_knowledge_entries: 100,
   is_active: true,
+  is_custom: false,
   sort_order: 0,
 };
 
@@ -60,6 +62,7 @@ function PlansPage() {
           monthly_credits: f.monthly_credits,
           max_knowledge_entries: f.max_knowledge_entries,
           is_active: f.is_active,
+          is_custom: f.is_custom,
           sort_order: f.sort_order,
         },
       }),
@@ -210,6 +213,10 @@ function PlanFormEditor({
         <div className="flex items-center gap-2 pt-6">
           <Switch checked={form.is_active} onCheckedChange={(c) => onChange({ ...form, is_active: c })} />
           <Label>Ativo</Label>
+        </div>
+        <div className="flex items-center gap-2 pt-6 col-span-2">
+          <Switch checked={form.is_custom} onCheckedChange={(c) => onChange({ ...form, is_custom: c })} />
+          <Label>Plano custom (oculto do checkout público — só atribuído por convite)</Label>
         </div>
       </div>
       <Button onClick={onSave} disabled={saving} className="w-full">

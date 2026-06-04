@@ -25,6 +25,7 @@ export const listActivePlans = createServerFn({ method: "GET" })
       .from("plans")
       .select("id, name, description, price_cents, price_cents_annual, monthly_credits, max_knowledge_entries, features, sort_order")
       .eq("is_active", true)
+      .eq("is_custom", false)
       .order("sort_order", { ascending: true });
     if (error) throw new Error(error.message);
     return data ?? [];
@@ -318,6 +319,7 @@ export const adminUpsertPlan = createServerFn({ method: "POST" })
       monthly_credits: z.number().int().min(0),
       max_knowledge_entries: z.number().int().min(0),
       is_active: z.boolean(),
+      is_custom: z.boolean().optional().default(false),
       sort_order: z.number().int(),
     }).parse(input)
   )
