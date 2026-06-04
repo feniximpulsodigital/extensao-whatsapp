@@ -36,6 +36,7 @@ function Dashboard() {
   const qc = useQueryClient();
   const summary = useServerFn(getMyCreditsSummary);
   const extKeyFn = useServerFn(getMyExtensionApiKey);
+  const buildExt = useServerFn(buildMyExtension);
 
   const { data: tenant } = useQuery({
     queryKey: ["my-tenant"],
@@ -51,6 +52,23 @@ function Dashboard() {
   });
   const { data: credits } = useQuery({ queryKey: ["credits-summary"], queryFn: () => summary() });
   const { data: extKey } = useQuery({ queryKey: ["extension-key"], queryFn: () => extKeyFn() });
+
+  const downloadExt = useMutation({
+    mutationFn: async () => buildExt({ data: { origin: window.location.origin } }),
+    onSuccess: (res) => {
+      const bin = atob(res.base64);
+      const u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      const blob = new Blob([u8], { type: "application/zip" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = res.filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast.success("Extensão baixada! Siga as instruções do README.txt para instalar.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const handleLogout = async () => {
     const { invalidateAuthGate } = await import("./route");
