@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,15 +16,33 @@ export const Route = createFileRoute("/_authenticated/admin/ai-config")({
   component: AiConfigPage,
 });
 
-const MODELS = [
-  { v: "google/gemini-3-flash-preview", l: "Gemini 3 Flash (rápido, recomendado)" },
-  { v: "google/gemini-2.5-flash", l: "Gemini 2.5 Flash" },
-  { v: "google/gemini-2.5-flash-lite", l: "Gemini 2.5 Flash Lite (mais barato)" },
-  { v: "google/gemini-2.5-pro", l: "Gemini 2.5 Pro (qualidade alta)" },
-  { v: "openai/gpt-5-nano", l: "GPT-5 Nano (rápido)" },
-  { v: "openai/gpt-5-mini", l: "GPT-5 Mini" },
-  { v: "openai/gpt-5", l: "GPT-5 (qualidade máxima)" },
-];
+type Provider = "groq" | "openai" | "anthropic";
+
+const MODELS: Record<Provider, { v: string; l: string }[]> = {
+  groq: [
+    { v: "llama-3.3-70b-versatile", l: "Llama 3.3 70B (recomendado)" },
+    { v: "llama-3.1-8b-instant", l: "Llama 3.1 8B (mais rápido/barato)" },
+    { v: "openai/gpt-oss-120b", l: "GPT-OSS 120B" },
+    { v: "moonshotai/kimi-k2-instruct", l: "Kimi K2 Instruct" },
+  ],
+  openai: [
+    { v: "gpt-4o-mini", l: "GPT-4o mini (barato e rápido)" },
+    { v: "gpt-4o", l: "GPT-4o" },
+    { v: "gpt-4.1-mini", l: "GPT-4.1 mini" },
+    { v: "gpt-4.1", l: "GPT-4.1" },
+  ],
+  anthropic: [
+    { v: "claude-haiku-4-5", l: "Claude Haiku 4.5 (barato e rápido)" },
+    { v: "claude-sonnet-4-5", l: "Claude Sonnet 4.5 (recomendado)" },
+    { v: "claude-opus-4-5", l: "Claude Opus 4.5 (qualidade máxima)" },
+  ],
+};
+
+const PROVIDER_SECRET: Record<Provider, string> = {
+  groq: "GROQ_API_KEY",
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+};
 
 function AiConfigPage() {
   const get = useServerFn(adminGetAiGlobalConfig);
@@ -33,22 +51,28 @@ function AiConfigPage() {
   const { data, isLoading } = useQuery({ queryKey: ["ai-global-config"], queryFn: () => get() });
 
   const [form, setForm] = useState({
-    default_model: "google/gemini-3-flash-preview",
+    provider: "groq" as Provider,
+    default_model: "llama-3.3-70b-versatile",
     master_system_prompt: "",
     default_temperature: 0.7,
     default_max_tokens: 500,
+    default_monthly_usd: 5,
     enabled: true,
   });
 
   useEffect(() => {
     if (data) setForm({
+      provider: (data.provider as Provider) ?? "groq",
       default_model: data.default_model,
       master_system_prompt: data.master_system_prompt,
       default_temperature: Number(data.default_temperature),
       default_max_tokens: data.default_max_tokens,
+      default_monthly_usd: Number((data as any).default_monthly_usd ?? 5),
       enabled: data.enabled,
     });
   }, [data]);
+
+  const modelOptions = useMemo(() => MODELS[form.provider] ?? [], [form.provider]);
 
   const save = useMutation({
     mutationFn: () => upd({ data: form }),
@@ -58,14 +82,19 @@ function AiConfigPage() {
 
   if (isLoading) return <p>Carregando…</p>;
 
+  const onProviderChange = (p: Provider) => {
+    const first = MODELS[p][0]?.v ?? "";
+    setForm((f) => ({ ...f, provider: p, default_model: first }));
+  };
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Configuração global da IA</CardTitle>
           <CardDescription>
-            Define o modelo padrão e o "prompt mestre" usado em todas as respostas. Cada cliente pode
-            sobrescrever modelo, temperatura e o próprio prompt — mas o mestre sempre é injetado primeiro.
+            Escolha o provedor (Groq, OpenAI/GPT ou Anthropic/Claude), o modelo padrão e o prompt mestre
+            aplicado a todos os clientes. Esta tela é visível apenas para administradores.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -78,32 +107,57 @@ function AiConfigPage() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <Label>Provedor</Label>
+              <Select value={form.provider} onValueChange={(v) => onProviderChange(v as Provider)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="groq">Groq</SelectItem>
+                  <SelectItem value="openai">OpenAI (GPT)</SelectItem>
+                  <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Requer o secret <code>{PROVIDER_SECRET[form.provider]}</code> configurado.
+              </p>
+            </div>
             <div className="md:col-span-2">
               <Label>Modelo padrão</Label>
               <Select value={form.default_model} onValueChange={(v) => setForm({ ...form, default_model: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {MODELS.map((m) => <SelectItem key={m.v} value={m.v}>{m.l}</SelectItem>)}
+                  {modelOptions.map((m) => <SelectItem key={m.v} value={m.v}>{m.l}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">Modelos servidos pelo Lovable AI Gateway.</p>
             </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
             <div>
               <Label>Max tokens</Label>
               <Input type="number" value={form.default_max_tokens}
                 onChange={(e) => setForm({ ...form, default_max_tokens: parseInt(e.target.value || "0") })} />
             </div>
-          </div>
-
-          <div>
-            <Label>Temperatura ({form.default_temperature.toFixed(2)})</Label>
-            <input
-              type="range" min={0} max={1.5} step={0.05}
-              value={form.default_temperature}
-              onChange={(e) => setForm({ ...form, default_temperature: parseFloat(e.target.value) })}
-              className="w-full"
-            />
-            <p className="text-xs text-muted-foreground">Baixa = respostas previsíveis. Alta = mais criativas.</p>
+            <div>
+              <Label>Temperatura ({form.default_temperature.toFixed(2)})</Label>
+              <input
+                type="range" min={0} max={1.5} step={0.05}
+                value={form.default_temperature}
+                onChange={(e) => setForm({ ...form, default_temperature: parseFloat(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <Label>Crédito mensal padrão (USD) — interno</Label>
+              <Input
+                type="number" step="0.5" min={0}
+                value={form.default_monthly_usd}
+                onChange={(e) => setForm({ ...form, default_monthly_usd: parseFloat(e.target.value || "0") })}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Convertido em créditos para cada cliente novo. Não aparece para o cliente.
+              </p>
+            </div>
           </div>
 
           <div>
@@ -115,7 +169,7 @@ function AiConfigPage() {
               placeholder="Regras gerais que valem para todos os clientes…"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Este texto é prefixado em todas as conversas. Use para regras de marca, idioma, restrições.
+              Prefixado em todas as conversas. Use para regras de marca, idioma e restrições.
             </p>
           </div>
 
