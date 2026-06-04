@@ -208,7 +208,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   function parseWaTimeToTodayMinutes(raw){
     const text = (raw || "").trim();
-    const m = text.match(/(\d{1,2}):(\d{2})/);
+    const m = text.match(/(\\d{1,2}):(\\d{2})/);
     if(!m) return null;
     const h = Number(m[1]);
     const min = Number(m[2]);
@@ -238,9 +238,9 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     const pieces = nodes.map((el)=>el.innerText || el.textContent || "")
       .map((t)=>t.trim())
       .filter(Boolean)
-      .filter((t)=>!/^\d{1,2}:\d{2}$/.test(t));
+      .filter((t)=>!/^[0-9]{1,2}:[0-9]{2}$/.test(t));
     const raw = pieces.length ? pieces.join("\\n") : (bubble.innerText || "");
-    return raw.split("\\n").map((t)=>t.trim()).filter(Boolean).filter((t)=>!/^\d{1,2}:\d{2}$/.test(t)).join("\\n").trim();
+    return raw.split("\\n").map((t)=>t.trim()).filter(Boolean).filter((t)=>!/^[0-9]{1,2}:[0-9]{2}$/.test(t)).join("\\n").trim();
   }
 
   async function processIncoming(bubble){
