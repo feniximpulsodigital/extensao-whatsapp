@@ -232,9 +232,28 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     return Date.now() - getBubbleTimestampMs(bubble) <= RECENT_INCOMING_WINDOW_MS;
   }
 
+  function incomingSelector(){
+    return '#main [data-id^="false_"], #main [data-id*="false_"], #main div.message-in, #main div[class*="message-in"]';
+  }
+
+  function normalizeIncomingBubble(el){
+    if(!el || !(el instanceof HTMLElement)) return null;
+    const byId = el.matches?.('[data-id^="false_"], [data-id*="false_"]') ? el : el.querySelector?.('[data-id^="false_"], [data-id*="false_"]');
+    if(byId) return byId.closest('[data-id]') || byId;
+    if(el.matches?.('div.message-in, div[class*="message-in"]')) return el;
+    return el.querySelector?.('div.message-in, div[class*="message-in"]') || null;
+  }
+
+  function getIncomingBubbles(root){
+    return Array.from((root||document).querySelectorAll(incomingSelector()))
+      .map(normalizeIncomingBubble)
+      .filter(Boolean)
+      .filter((el, idx, arr)=>arr.indexOf(el) === idx);
+  }
+
   function extractText(bubble){
     // Texto principal da mensagem
-    const nodes = Array.from(bubble.querySelectorAll('span.selectable-text, span._ao3e, [dir="ltr"], [dir="auto"]'));
+    const nodes = Array.from(bubble.querySelectorAll('span[class*="selectable-text"], span.selectable-text, span._ao3e, [dir="ltr"], [dir="auto"]'));
     const pieces = nodes.map((el)=>el.innerText || el.textContent || "")
       .map((t)=>t.trim())
       .filter(Boolean)
@@ -286,7 +305,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   function scanForNewIncoming(root){
     // Pega APENAS a última mensagem recebida visível (não envia respostas a mensagens antigas no scroll)
-    const all = (root||document).querySelectorAll('#main div.message-in, #main div[class*="message-in"]');
+    const all = getIncomingBubbles(root||document);
     if(!all.length) return;
     const recent = Array.from(all).filter(isRecentIncoming);
     if(!recent.length) return;
@@ -297,9 +316,9 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     for(const m of muts){
       for(const n of m.addedNodes){
         if(!(n instanceof HTMLElement)) continue;
-        if(n.matches?.('div.message-in, div[class*="message-in"]')) { processIncoming(n); continue; }
-        const inner = n.querySelector?.('div.message-in, div[class*="message-in"]');
-        if(inner) scanForNewIncoming(n);
+        const incoming = normalizeIncomingBubble(n);
+        if(incoming) { processIncoming(incoming); continue; }
+        scanForNewIncoming(n);
       }
     }
   });
@@ -312,7 +331,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   // Marca mensagens já existentes como vistas, para não responder histórico antigo ao abrir um chat
   function markExistingAsSeen(){
-    document.querySelectorAll('div.message-in, div[class*="message-in"]').forEach(b=>{
+    getIncomingBubbles(document).forEach(b=>{
       if(isRecentIncoming(b)) return;
       SEEN.add(b);
       const id = b.getAttribute("data-id") || b.closest("[data-id]")?.getAttribute("data-id");
