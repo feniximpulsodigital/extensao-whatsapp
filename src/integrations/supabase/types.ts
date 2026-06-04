@@ -64,6 +64,39 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          asaas_api_key_production: string | null
+          asaas_api_key_sandbox: string | null
+          asaas_env: string
+          asaas_webhook_token: string | null
+          created_at: string
+          id: string
+          singleton: boolean
+          updated_at: string
+        }
+        Insert: {
+          asaas_api_key_production?: string | null
+          asaas_api_key_sandbox?: string | null
+          asaas_env?: string
+          asaas_webhook_token?: string | null
+          created_at?: string
+          id?: string
+          singleton?: boolean
+          updated_at?: string
+        }
+        Update: {
+          asaas_api_key_production?: string | null
+          asaas_api_key_sandbox?: string | null
+          asaas_env?: string
+          asaas_webhook_token?: string | null
+          created_at?: string
+          id?: string
+          singleton?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       brand_config: {
         Row: {
           brand_name: string
