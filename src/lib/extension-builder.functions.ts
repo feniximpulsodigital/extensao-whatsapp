@@ -152,9 +152,10 @@ function u8ToB64(u8: Uint8Array): string {
 
 // ---------- Server function ----------
 
-export const buildMyExtension = createServerFn({ method: "GET" })
+export const buildMyExtension = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context, request }) => {
+  .inputValidator((input) => z.object({ origin: z.string().url() }).parse(input))
+  .handler(async ({ context, data }) => {
     const { userId } = context;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
