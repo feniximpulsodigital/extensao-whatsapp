@@ -10,7 +10,7 @@ type GateCache = {
   expiresAt: number;
 };
 let gateCache: GateCache | null = null;
-const GATE_TTL_MS = 30_000;
+const GATE_TTL_MS = 5 * 60_000;
 
 export function invalidateAuthGate() {
   gateCache = null;
