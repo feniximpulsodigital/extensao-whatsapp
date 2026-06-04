@@ -1,6 +1,7 @@
 import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Bot, LogOut, Settings, Package, Users, Mail, Zap, BarChart3, Brain } from "lucide-react";
+import { LogOut, Settings, Package, Users, Mail, Zap, BarChart3, Brain } from "lucide-react";
+import { Logo } from "@/components/brand/Logo";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -26,10 +27,8 @@ function AdminLayout() {
       <header className="border-b">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link to="/admin/settings" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded bg-primary text-primary-foreground">
-              <Bot className="h-5 w-5" />
-            </div>
-            <span className="font-bold">Argos · Super Admin</span>
+            <Logo size={28} showText={false} />
+            <span className="font-bold">Argos Zap · Super Admin</span>
           </Link>
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm"><Link to="/dashboard">App do cliente</Link></Button>

@@ -2,7 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Bot, LogOut, Settings, AlertTriangle, Zap, Brain } from "lucide-react";
+import { LogOut, Settings, AlertTriangle, Zap, Brain } from "lucide-react";
+import { Logo } from "@/components/brand/Logo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,11 +51,8 @@ function Dashboard() {
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <Link to="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded bg-primary text-primary-foreground">
-              <Bot className="h-5 w-5" />
-            </div>
-            <span className="font-bold">Argos</span>
+          <Link to="/dashboard" className="flex items-center">
+            <Logo size={32} />
           </Link>
           <div className="flex items-center gap-2">
             <Button asChild variant="outline" size="sm">
