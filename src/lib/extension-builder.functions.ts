@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.6",
+  version: "1.0.7",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -463,8 +463,6 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   async function processOneUnread(){
     if(bgBusy || busy) return false;
     if(!(await getEnabled())) return false;
-    if(isUserComposing()) return false;
-    if(Date.now() - lastUserActivity < IDLE_REQUIRED_MS) return false;
 
     const rows = findUnreadChatRows();
     if(!rows.length) return false;
@@ -482,17 +480,13 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       await waitFor(()=>{ const c = getChatId(); return c && c !== before; }, 4000);
       await new Promise(r=>setTimeout(r, 450));
 
-      // Se o usuário voltou a interagir durante a abertura, aborta e restaura.
-      const userInterrupted = isUserComposing() || (Date.now() - lastUserActivity < 600);
-      if(!userInterrupted){
-        const chat = getChatId();
-        if(chat && (await getChatEnabled(chat))){
-          const bubbles = getIncomingBubbles(document).filter(isRecentIncoming);
-          const last = bubbles[bubbles.length-1];
-          if(last){
-            currentChat = chat; history = [];
-            await processIncoming(last);
-          }
+      const chat = getChatId();
+      if(chat && (await getChatEnabled(chat))){
+        const bubbles = getIncomingBubbles(document).filter(isRecentIncoming);
+        const last = bubbles[bubbles.length-1];
+        if(last){
+          currentChat = chat; history = [];
+          await processIncoming(last);
         }
       }
 
