@@ -194,7 +194,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   function extractText(bubble){
     // Texto principal da mensagem
-    const span = bubble.querySelector('span.selectable-text, span._ao3e, div.copyable-text span');
+    const span = bubble.querySelector('span.selectable-text, span._ao3e, div.copyable-text span, [data-pre-plain-text] span');
     return (span?.innerText || bubble.innerText || "").trim();
   }
 
@@ -261,7 +261,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   // Marca mensagens já existentes como vistas, para não responder histórico antigo ao abrir um chat
   function markExistingAsSeen(){
-    document.querySelectorAll('div.message-in').forEach(b=>{
+    document.querySelectorAll('div.message-in, div[class*="message-in"]').forEach(b=>{
       SEEN.add(b);
       const id = b.getAttribute("data-id") || b.closest("[data-id]")?.getAttribute("data-id");
       if(id) PROCESSED_IDS.add(id);
