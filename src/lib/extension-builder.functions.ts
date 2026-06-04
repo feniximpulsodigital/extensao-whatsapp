@@ -442,8 +442,8 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
       // Voltar para o chat anterior
       if(prevKey && prevKey !== rowKey(getSelectedRow())){
-        const back = findRowByKey(prevKey);
-        if(back) clickRow(back);
+        const back = findRowByKey(prevKey) || getSidebarRows().find((r)=>(r.innerText||'').includes(prevKey));
+        if(back){ clickRow(back); await new Promise(r=>setTimeout(r, 300)); }
       }
       if(sidebar){ try{ sidebar.scrollTop = prevScroll; }catch(_e){} }
       return true;
@@ -507,12 +507,36 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     }
   }
 
+  // ---------- Observer em tempo real do chat aberto ----------
+  const obs = new MutationObserver((muts)=>{
+    if(bgBusy) return;
+    for(const m of muts){
+      for(const node of m.addedNodes){
+        if(!(node instanceof HTMLElement)) continue;
+        const candidates = [];
+        if(node.matches?.('[data-id]')) candidates.push(node);
+        node.querySelectorAll?.('[data-id]').forEach((b)=>candidates.push(b));
+        for(const b of candidates){
+          const normalized = b.closest('[data-id]') || b;
+          if(!isIncomingBubble(normalized)) continue;
+          const chat = getChatId();
+          if(chat) processBubble(normalized, chat).catch(()=>{});
+        }
+      }
+    }
+  });
+  function attachObserver(){
+    const main = document.querySelector('#main') || document.body;
+    obs.disconnect();
+    obs.observe(main, { childList:true, subtree:true });
+  }
+
   // ---------- Loops ----------
-  setInterval(()=>{ ensureToggleButton(); onChatMaybeChanged(); }, 1500);
+  setInterval(()=>{ ensureToggleButton(); onChatMaybeChanged(); attachObserver(); }, 1500);
   setInterval(()=>{ processOneUnread().catch((e)=>warn("BG loop", e)); }, 5000);
 
   // boot
-  setTimeout(()=>{ markExistingAsSeen(); ensureToggleButton(); lastSeenChat = getChatId(); }, 1500);
+  setTimeout(()=>{ markExistingAsSeen(); ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
   log("extensão ativa (modo background). Botão IA aparece no topo de cada conversa.");
 })();
 `;
