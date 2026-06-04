@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.5",
+  version: "1.0.6",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -394,16 +394,34 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   }
 
   // ---- Varredura em segundo plano da lista lateral ----
-  // Procura conversas com badge de mensagens não lidas, abre cada uma,
-  // responde, e volta para o chat que estava aberto.
+  // Só age quando o usuário está OCIOSO (sem digitar e sem mexer no mouse),
+  // para nunca atrapalhar o que ele está fazendo. Restaura a conversa
+  // anterior e a posição da lista após responder.
   let bgBusy = false;
+  let lastUserActivity = Date.now();
+  const IDLE_REQUIRED_MS = 3500;
+
+  function markUserActive(){ lastUserActivity = Date.now(); }
+  ["mousemove","mousedown","keydown","wheel","touchstart","focusin"].forEach((ev)=>{
+    try{ window.addEventListener(ev, markUserActive, { passive: true, capture: true }); }catch(_e){}
+  });
+
+  function isUserComposing(){
+    const el = document.activeElement;
+    if(!el) return false;
+    const tag = (el.tagName || "").toLowerCase();
+    if(tag === "input" || tag === "textarea") return true;
+    if(el.getAttribute && el.getAttribute("contenteditable") === "true") return true;
+    return false;
+  }
+
+  function getSidebarRows(){
+    return Array.from(document.querySelectorAll('#pane-side [role="listitem"], #pane-side div[role="row"], #pane-side [data-testid="cell-frame-container"]'));
+  }
 
   function findUnreadChatRows(){
-    const list = document.querySelector('#pane-side [role="grid"], #pane-side [aria-label]') || document.querySelector('#pane-side');
-    if(!list) return [];
-    const rows = Array.from(list.querySelectorAll('[role="listitem"], div[role="row"], [data-testid="cell-frame-container"]'));
-    const candidates = rows.length ? rows : Array.from(list.querySelectorAll('div')).filter((d)=>d.querySelector('span[aria-label]'));
-    return candidates.filter((row)=>{
+    const rows = getSidebarRows();
+    return rows.filter((row)=>{
       const badges = row.querySelectorAll('span[aria-label]');
       for(const b of badges){
         const l = (b.getAttribute('aria-label') || '').toLowerCase();
@@ -414,7 +432,21 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     });
   }
 
+  function getSelectedRow(){
+    return getSidebarRows().find((r)=> r.querySelector('[aria-selected="true"]') || r.getAttribute('aria-selected') === 'true') || null;
+  }
+  function rowKey(row){
+    if(!row) return null;
+    const t = (row.innerText || "").split("\\n")[0].trim();
+    return t || null;
+  }
+  function findRowByKey(key){
+    if(!key) return null;
+    return getSidebarRows().find((r)=> rowKey(r) === key) || null;
+  }
+
   function clickRow(row){
+    if(!row) return;
     const clickable = row.querySelector('[role="button"], [tabindex]') || row;
     clickable.click();
   }
@@ -423,7 +455,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     const start = Date.now();
     while(Date.now() - start < (timeoutMs || 4000)){
       try{ if(predicate()) return true; }catch(_e){}
-      await new Promise(r=>setTimeout(r, 150));
+      await new Promise(r=>setTimeout(r, 120));
     }
     return false;
   }
@@ -431,36 +463,44 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   async function processOneUnread(){
     if(bgBusy || busy) return false;
     if(!(await getEnabled())) return false;
+    if(isUserComposing()) return false;
+    if(Date.now() - lastUserActivity < IDLE_REQUIRED_MS) return false;
+
     const rows = findUnreadChatRows();
     if(!rows.length) return false;
 
     bgBusy = true;
-    const previousChat = getChatId();
+    const prevRow = getSelectedRow();
+    const prevKey = rowKey(prevRow);
+    const sidebar = document.querySelector('#pane-side [data-tab="4"]') || document.querySelector('#pane-side [role="grid"]') || document.querySelector('#pane-side');
+    const prevScroll = sidebar ? sidebar.scrollTop : 0;
+
     try{
       const row = rows[0];
       const before = getChatId();
       clickRow(row);
       await waitFor(()=>{ const c = getChatId(); return c && c !== before; }, 4000);
-      await new Promise(r=>setTimeout(r, 600)); // deixa as bolhas renderizarem
+      await new Promise(r=>setTimeout(r, 450));
 
-      const chat = getChatId();
-      if(chat && !(await getChatEnabled(chat))){ log("BG: chat desativado", chat); return false; }
-
-      // Pega a última mensagem recebida visível
-      const bubbles = getIncomingBubbles(document).filter(isRecentIncoming);
-      const last = bubbles[bubbles.length-1];
-      if(!last){ log("BG: nenhuma mensagem recente"); return false; }
-
-      // Trata como nova conversa: reseta histórico
-      currentChat = chat; history = [];
-      await processIncoming(last);
-
-      // Volta para a conversa anterior, se havia uma diferente
-      if(previousChat && previousChat !== getChatId()){
-        const allRows = Array.from(document.querySelectorAll('#pane-side [role="listitem"], #pane-side div[role="row"], #pane-side [data-testid="cell-frame-container"]'));
-        const back = allRows.find((r)=>(r.innerText||"").split("\\n")[0].trim() === previousChat);
-        if(back){ clickRow(back); }
+      // Se o usuário voltou a interagir durante a abertura, aborta e restaura.
+      const userInterrupted = isUserComposing() || (Date.now() - lastUserActivity < 600);
+      if(!userInterrupted){
+        const chat = getChatId();
+        if(chat && (await getChatEnabled(chat))){
+          const bubbles = getIncomingBubbles(document).filter(isRecentIncoming);
+          const last = bubbles[bubbles.length-1];
+          if(last){
+            currentChat = chat; history = [];
+            await processIncoming(last);
+          }
+        }
       }
+
+      if(prevKey && prevKey !== rowKey(getSelectedRow())){
+        const back = findRowByKey(prevKey);
+        if(back) clickRow(back);
+      }
+      if(sidebar) { try{ sidebar.scrollTop = prevScroll; }catch(_e){} }
       return true;
     }catch(e){ warn("BG erro", e); return false; }
     finally{ bgBusy = false; }
@@ -468,7 +508,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   setInterval(()=>{ attach(); ensureToggleButton(); }, 1500);
   setInterval(()=>{ scanForNewIncoming(document); }, 2000);
-  setInterval(()=>{ processOneUnread().catch((e)=>warn("BG loop", e)); }, 4000);
+  setInterval(()=>{ processOneUnread().catch((e)=>warn("BG loop", e)); }, 3000);
   setInterval(()=>{
     const chat = getChatId();
     if(chat && chat !== currentChat){
