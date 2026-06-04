@@ -54,6 +54,9 @@ function Dashboard() {
             <span className="font-bold">Argos</span>
           </Link>
           <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to="/ai"><Brain className="h-4 w-4 mr-2" />Minha IA</Link>
+            </Button>
             {isAdmin && (
               <Button asChild variant="outline" size="sm">
                 <Link to="/admin/settings"><Settings className="h-4 w-4 mr-2" />Admin</Link>
