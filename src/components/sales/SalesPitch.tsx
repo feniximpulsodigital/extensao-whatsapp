@@ -146,7 +146,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
         </div>
         <div className="mx-auto mt-12 grid max-w-5xl gap-6 md:grid-cols-3">
           {[
-            { n: "1", icon: Rocket, title: "Crie sua conta", desc: "Cadastro grátis em segundos. Sem cartão de crédito para começar." },
+            { n: "1", icon: Rocket, title: "Crie sua conta", desc: "Cadastro em segundos. Escolha um plano e libere o acesso." },
             { n: "2", icon: Brain, title: "Ensine sua IA", desc: "Cole perguntas frequentes, preços e o jeito de falar da sua marca." },
             { n: "3", icon: Zap, title: "Conecte o WhatsApp", desc: "Instale a extensão Chrome, escaneie o QR e pronto: ela já responde." },
           ].map((step) => (
