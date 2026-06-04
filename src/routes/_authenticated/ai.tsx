@@ -36,7 +36,6 @@ function AiPage() {
   const { data: kb } = useQuery({ queryKey: ["my-kb"], queryFn: () => listKB() });
 
   const [form, setForm] = useState({
-    model: "",
     temperature: 0.7,
     max_tokens: 500,
     auto_reply_enabled: false,
@@ -48,7 +47,6 @@ function AiPage() {
       const c = cfg.config;
       setForm((f) => ({
         ...f,
-        model: c.model ?? "",
         temperature: Number(c.temperature ?? 0.7),
         max_tokens: c.max_tokens ?? 500,
         auto_reply_enabled: c.auto_reply_enabled ?? false,
@@ -60,13 +58,13 @@ function AiPage() {
 
   const save = useMutation({
     mutationFn: () => updCfg({ data: {
-      model: form.model || undefined,
       temperature: form.temperature,
       max_tokens: form.max_tokens,
       auto_reply_enabled: form.auto_reply_enabled,
       response_delay_ms: form.response_delay_ms,
       prompt_content: form.prompt_content || undefined,
     }}),
+
     onSuccess: () => { toast.success("Salvo"); qc.invalidateQueries({ queryKey: ["my-ai-config"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -129,11 +127,7 @@ function AiPage() {
               <Switch checked={form.auto_reply_enabled} onCheckedChange={(c) => setForm({ ...form, auto_reply_enabled: c })} />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <div>
-                <Label>Modelo (opcional)</Label>
-                <Input placeholder="usar padrão do sistema" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
-              </div>
+            <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <Label>Max tokens</Label>
                 <Input type="number" value={form.max_tokens} onChange={(e) => setForm({ ...form, max_tokens: parseInt(e.target.value || "0") })} />
@@ -143,6 +137,7 @@ function AiPage() {
                 <Input type="number" value={form.response_delay_ms} onChange={(e) => setForm({ ...form, response_delay_ms: parseInt(e.target.value || "0") })} />
               </div>
             </div>
+
 
             <div>
               <Label>Temperatura ({form.temperature.toFixed(2)})</Label>
