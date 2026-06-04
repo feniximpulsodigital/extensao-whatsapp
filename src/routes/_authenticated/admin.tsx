@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Bot, LogOut, Settings, Package, Users, Mail, Zap, BarChart3 } from "lucide-react";
+import { Bot, LogOut, Settings, Package, Users, Mail, Zap, BarChart3, Brain } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -13,6 +13,7 @@ function AdminLayout() {
   const navigate = useNavigate();
   const tabs = [
     { to: "/admin/settings", label: "Configurações", icon: Settings },
+    { to: "/admin/ai-config", label: "IA / Prompts", icon: Brain },
     { to: "/admin/plans", label: "Planos", icon: Package },
     { to: "/admin/tenants", label: "Clientes", icon: Users },
     { to: "/admin/invites", label: "Convites", icon: Mail },

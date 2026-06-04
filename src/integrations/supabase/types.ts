@@ -64,6 +64,42 @@ export type Database = {
           },
         ]
       }
+      ai_global_config: {
+        Row: {
+          created_at: string
+          default_max_tokens: number
+          default_model: string
+          default_temperature: number
+          enabled: boolean
+          id: string
+          master_system_prompt: string
+          singleton: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_max_tokens?: number
+          default_model?: string
+          default_temperature?: number
+          enabled?: boolean
+          id?: string
+          master_system_prompt?: string
+          singleton?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_max_tokens?: number
+          default_model?: string
+          default_temperature?: number
+          enabled?: boolean
+          id?: string
+          master_system_prompt?: string
+          singleton?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_pricing_config: {
         Row: {
           created_at: string
