@@ -56,6 +56,7 @@ function Dashboard() {
             <Logo size={32} />
           </Link>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button asChild variant="outline" size="sm">
               <Link to="/ai"><Brain className="h-4 w-4 mr-2" />Minha IA</Link>
             </Button>
