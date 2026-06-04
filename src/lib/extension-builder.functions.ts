@@ -385,14 +385,14 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   // ---------- Sidebar / unread detection ----------
   function getSidebarRows(){
-    return Array.from(document.querySelectorAll('#pane-side [role="listitem"]'));
+    return Array.from(document.querySelectorAll('#pane-side [role="row"]'));
   }
   function findUnreadChatRows(){
     return getSidebarRows().filter((row)=>{
       const badges = row.querySelectorAll('span[aria-label]');
       for(const b of badges){
         const l = (b.getAttribute('aria-label')||'').toLowerCase();
-        if(/\\d/.test(l) && /(não lida|nao lida|unread)/.test(l)) return true;
+        if(/(não lida|nao lida|unread|mensagem não lida|mensagens não lidas)/.test(l)) return true;
       }
       return false;
     });
