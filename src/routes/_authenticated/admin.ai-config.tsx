@@ -132,12 +132,8 @@ function AiConfigPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
-              <Label>Max tokens</Label>
-              <Input type="number" value={form.default_max_tokens}
-                onChange={(e) => setForm({ ...form, default_max_tokens: parseInt(e.target.value || "0") })} />
-            </div>
+          <div className="grid gap-4 md:grid-cols-2">
+
             <div>
               <Label>Temperatura ({form.default_temperature.toFixed(2)})</Label>
               <input
