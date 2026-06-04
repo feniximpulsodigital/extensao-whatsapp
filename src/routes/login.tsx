@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Bot } from "lucide-react";
+import { Logo } from "@/components/brand/Logo";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,11 +44,8 @@ function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
       <div className="w-full max-w-md">
-        <Link to="/" className="mb-8 flex items-center justify-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Bot className="h-6 w-6" />
-          </div>
-          <span className="text-xl font-bold">Argos</span>
+        <Link to="/" className="mb-8 flex items-center justify-center">
+          <Logo size={40} className="text-xl" />
         </Link>
 
         <Card>
