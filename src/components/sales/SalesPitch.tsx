@@ -146,7 +146,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
         </div>
         <div className="mx-auto mt-12 grid max-w-5xl gap-6 md:grid-cols-3">
           {[
-            { n: "1", icon: Rocket, title: "Crie sua conta", desc: "Cadastro grátis em segundos. Sem cartão de crédito para começar." },
+            { n: "1", icon: Rocket, title: "Crie sua conta", desc: "Cadastro em segundos. Escolha um plano e libere o acesso." },
             { n: "2", icon: Brain, title: "Ensine sua IA", desc: "Cole perguntas frequentes, preços e o jeito de falar da sua marca." },
             { n: "3", icon: Zap, title: "Conecte o WhatsApp", desc: "Instale a extensão Chrome, escaneie o QR e pronto: ela já responde." },
           ].map((step) => (
@@ -170,7 +170,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
             <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
               Cabe no bolso. Paga sozinho na primeira venda extra.
             </h2>
-            <p className="mt-4 text-muted-foreground">Comece grátis. Sem fidelidade. Cancele quando quiser.</p>
+            <p className="mt-4 text-muted-foreground">Sem fidelidade. Cancele quando quiser.</p>
           </div>
           <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-2">
             {[
@@ -178,13 +178,13 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
                 name: "Starter",
                 price: "R$ 97",
                 tagline: "Pra começar a responder rápido hoje.",
-                features: ["1.000 créditos/mês", "1 número de WhatsApp", "Base de conhecimento ilimitada", "Suporte por e-mail"],
+                features: ["1.000 créditos de IA/mês", "1 WhatsApp conectado", "Base de conhecimento ilimitada", "Suporte por e-mail"],
               },
               {
                 name: "Pro",
                 price: "R$ 297",
                 tagline: "Pra quem vende todo dia pelo WhatsApp.",
-                features: ["5.000 créditos/mês", "Até 3 números", "Prompts customizados", "Resposta automática 24/7", "Suporte prioritário"],
+                features: ["5.000 créditos de IA/mês", "1 WhatsApp conectado", "Prompts customizados", "Resposta automática 24/7", "Suporte prioritário"],
                 highlight: true,
               },
             ].map((p) => (
@@ -257,17 +257,17 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
             Quantos clientes você vai perder esta semana?
           </h2>
           <p className="mt-4 text-muted-foreground">
-            Cada dia sem a Argos é dinheiro saindo pela porta. Comece grátis agora, leva 5 minutos.
+            Cada dia sem a Argos é dinheiro saindo pela porta. Leva 5 minutos pra começar.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button size="lg" asChild>
-              <Link to="/login">Quero começar grátis <ArrowRight className="h-4 w-4" /></Link>
+              <Link to="/login">Quero assinar agora <ArrowRight className="h-4 w-4" /></Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
               <Link to="/vendas">Ver página de vendas</Link>
             </Button>
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">Sem cartão de crédito. Sem fidelidade.</p>
+          <p className="mt-4 text-xs text-muted-foreground">Sem fidelidade. Cancele quando quiser.</p>
         </div>
       </section>
     </>

@@ -40,7 +40,7 @@ function Landing() {
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <Button variant="ghost" size="sm" asChild><Link to="/login">Entrar</Link></Button>
-            <Button size="sm" asChild><Link to="/login">Começar grátis</Link></Button>
+            <Button size="sm" asChild><Link to="/login">Assinar agora</Link></Button>
           </div>
         </div>
       </header>
@@ -61,14 +61,14 @@ function Landing() {
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button size="lg" asChild>
-              <Link to="/login">Começar grátis — leva 5 minutos <ArrowRight className="h-4 w-4" /></Link>
+              <Link to="/login">Quero assinar agora <ArrowRight className="h-4 w-4" /></Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link to="/vendas"><MessageCircle className="h-4 w-4 mr-1" />Ver demonstração</Link>
+              <Link to="/vendas"><MessageCircle className="h-4 w-4 mr-1" />Ver planos e benefícios</Link>
             </Button>
           </div>
           <p className="mt-4 text-xs text-muted-foreground">
-            Sem cartão de crédito · Cancela em 1 clique · Funciona no WhatsApp Web
+            Sem fidelidade · Cancela em 1 clique · Funciona no WhatsApp Web
           </p>
         </div>
       </section>
