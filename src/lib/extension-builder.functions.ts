@@ -196,7 +196,9 @@ export const buildMyExtension = createServerFn({ method: "POST" })
       "background.js": strToU8(BACKGROUND_JS),
       "popup.html": strToU8(POPUP_HTML(brandName)),
       "popup.js": strToU8(POPUP_JS),
-      "icon.png": b64ToU8(ICON_PNG_B64),
+      "icon-16.png": b64ToU8(ICON_16_B64),
+      "icon-48.png": b64ToU8(ICON_48_B64),
+      "icon-128.png": b64ToU8(ICON_128_B64),
       "README.txt": strToU8(
         [
           `${brandName} — Extensão personalizada`,
