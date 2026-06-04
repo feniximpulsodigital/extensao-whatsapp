@@ -355,7 +355,7 @@ export const buildMyExtension = createServerFn({ method: "POST" })
     const brandName = brandRow?.brand_name || "Argos";
 
     // Endpoint público da API de resposta
-    const origin = data.origin;
+    const origin = data.origin.includes("lovable") ? PRODUCTION_ORIGIN : data.origin;
     const endpoint = `${origin}/api/public/ai-reply`;
 
     const safeCompany = (tenant.company_name || "cliente")
@@ -367,7 +367,7 @@ export const buildMyExtension = createServerFn({ method: "POST" })
       .slice(0, 40) || "cliente";
 
     const files: Record<string, Uint8Array> = {
-      "manifest.json": strToU8(JSON.stringify(MANIFEST(brandName), null, 2)),
+      "manifest.json": strToU8(JSON.stringify(MANIFEST(brandName, origin), null, 2)),
       "config.js": strToU8(CONFIG_JS(tenant.extension_api_key, endpoint)),
       "content.js": strToU8(CONTENT_JS),
       "background.js": strToU8(BACKGROUND_JS),
