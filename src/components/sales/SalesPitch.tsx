@@ -238,15 +238,15 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
             <div className="text-center">
               <span className="text-sm font-semibold uppercase tracking-wider text-primary">Sem risco</span>
               <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
-                Você testa antes de pagar
+                Compromisso real, sem letra miúda
               </h2>
             </div>
             <div className="mt-10 grid gap-4 md:grid-cols-2">
               {[
-                { icon: BadgeCheck, title: "7 dias para experimentar", desc: "Use sem cartão. Se não gostar, simplesmente não assina." },
-                { icon: Shield, title: "Seus dados são seus", desc: "Conversas criptografadas. Você é dono da sua base de conhecimento." },
+                { icon: BadgeCheck, title: "Sem fidelidade", desc: "Mensal de verdade. Cancela em um clique, sem multa nem retenção." },
+                { icon: Shield, title: "Seus dados são seus", desc: "A base de conhecimento e as conversas pertencem à sua empresa. Exporte quando quiser." },
                 { icon: Users, title: "Suporte humano", desc: "Time real ajuda você a configurar a IA do jeito do seu negócio." },
-                { icon: Zap, title: "Sem fidelidade", desc: "Cancela em um clique. Nada de multa, nada de letra miúda." },
+                { icon: Zap, title: "Atualizações contínuas", desc: "Novos modelos de IA e melhorias sem custo extra dentro do seu plano." },
               ].map((g) => (
                 <div key={g.title} className="flex gap-3 rounded-lg border p-4">
                   <g.icon className="h-5 w-5 text-primary shrink-0 mt-0.5" />
