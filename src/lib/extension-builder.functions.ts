@@ -169,7 +169,9 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     const text = extractText(bubble);
     if(!text){return;}
 
-    if(!(await getEnabled())){log("desativado, ignorando:", text); return;}
+    if(!(await getEnabled())){log("desativado (global), ignorando:", text); return;}
+    const chatNow = getChatId();
+    if(chatNow && !(await getChatEnabled(chatNow))){log("desativado para este contato:", chatNow); return;}
     if(busy){log("ocupado, ignorando:", text); return;}
 
     // Reseta histórico se mudou de conversa
