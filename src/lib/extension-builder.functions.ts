@@ -186,24 +186,20 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     if(id.startsWith('true_')) return false;
     if(id.startsWith('false_')) return true;
 
-    // 2. Ícone de status de envio = mensagem minha (enviada)
+    // 2. tail-in = recebida, tail-out = enviada (método mais confiável)
+    if(el.querySelector('span[data-icon="tail-in"]')) return true;
+    if(el.querySelector('span[data-icon="tail-out"]')) return false;
+
+    // 3. Ícone de status de envio = enviada por mim
     if(el.querySelector('span[data-icon*="msg-check"], span[data-icon*="msg-dblcheck"], span[data-icon*="msg-time"]')){
       return false;
     }
 
-    // 3. Alinhamento geométrico: recebidas ficam à esquerda (<30% da largura do pai)
-    const rect = el.getBoundingClientRect();
-    const parentRect = el.parentElement?.getBoundingClientRect();
-    if(parentRect && rect.left - parentRect.left < parentRect.width * 0.3){
-      return true;
-    }
+    // 4. Mensagem encaminhada recebida
+    if(el.querySelector('span[data-icon="forward-refreshed"]')) return true;
 
-    // 4. Tail da bolha: tail-right ou tail-out = enviada por mim
-    if(el.querySelector('span[data-icon*="tail-right"], span[data-icon*="tail-out"]')){
-      return false;
-    }
-
-    return true;
+    // 5. Sem identificação clara: assume enviada (evita loop de respostas)
+    return false;
   }
   function getIncomingBubbles(root){
     const r = root || document;
