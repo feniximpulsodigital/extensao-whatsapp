@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Bot, LogOut, Settings, Package, Users } from "lucide-react";
+import { Bot, LogOut, Settings, Package, Users, Mail, Zap, BarChart3 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -15,6 +15,9 @@ function AdminLayout() {
     { to: "/admin/settings", label: "Configurações", icon: Settings },
     { to: "/admin/plans", label: "Planos", icon: Package },
     { to: "/admin/tenants", label: "Clientes", icon: Users },
+    { to: "/admin/invites", label: "Convites", icon: Mail },
+    { to: "/admin/ai-credits", label: "Créditos IA", icon: Zap },
+    { to: "/admin/usage", label: "Uso & Margem", icon: BarChart3 },
   ] as const;
 
   return (

@@ -1,9 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bot, LogOut, Settings } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Bot, LogOut, Settings, AlertTriangle, Zap } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { getMyCreditsSummary } from "@/lib/ai-credits.functions";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Argos" }] }),
@@ -15,6 +18,7 @@ function Dashboard() {
   const { user, isAdmin } = Route.useRouteContext();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const summary = useServerFn(getMyCreditsSummary);
 
   const { data: tenant } = useQuery({
     queryKey: ["my-tenant"],
@@ -28,6 +32,7 @@ function Dashboard() {
       return data;
     },
   });
+  const { data: credits } = useQuery({ queryKey: ["credits-summary"], queryFn: () => summary() });
 
   const handleLogout = async () => {
     const { invalidateAuthGate } = await import("./route");
@@ -37,7 +42,6 @@ function Dashboard() {
     await supabase.auth.signOut();
     navigate({ to: "/login", replace: true });
   };
-
 
   return (
     <div className="min-h-screen bg-background">
@@ -68,12 +72,40 @@ function Dashboard() {
           <p className="text-muted-foreground">Seu painel Argos</p>
         </div>
 
+        {credits?.lowBalance && (
+          <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+            <CardContent className="pt-6 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+                <div>
+                  <p className="font-semibold">Saldo baixo</p>
+                  <p className="text-sm text-muted-foreground">
+                    Você usou {100 - credits.pctRemaining}% da sua cota. Compre mais para não interromper o uso.
+                  </p>
+                </div>
+              </div>
+              <Button asChild><Link to="/buy-credits">Comprar créditos</Link></Button>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardHeader>
               <CardDescription>Créditos disponíveis</CardDescription>
-              <CardTitle className="text-3xl">{tenant?.credits_balance ?? 0}</CardTitle>
+              <CardTitle className="text-3xl">{credits?.balance ?? tenant?.credits_balance ?? 0}</CardTitle>
             </CardHeader>
+            <CardContent>
+              {credits && credits.allowance > 0 && (
+                <>
+                  <Progress value={credits.pctRemaining} className="h-2" />
+                  <p className="text-xs text-muted-foreground mt-2">{credits.pctRemaining}% restante de {credits.allowance}/mês</p>
+                </>
+              )}
+              <Button asChild size="sm" variant="outline" className="mt-3 w-full">
+                <Link to="/buy-credits"><Zap className="h-4 w-4 mr-2" />Comprar mais</Link>
+              </Button>
+            </CardContent>
           </Card>
           <Card>
             <CardHeader>
