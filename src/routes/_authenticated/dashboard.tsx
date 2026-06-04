@@ -159,13 +159,31 @@ function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Chave da extensão</CardTitle>
-            <CardDescription>Use esta chave na extensão Chrome</CardDescription>
+            <CardTitle>Sua extensão personalizada</CardTitle>
+            <CardDescription>
+              Baixe sua extensão exclusiva — já vem com sua chave embutida.
+              Pode instalar em quantos computadores quiser; a IA funciona enquanto
+              pelo menos um deles estiver com o Chrome aberto no WhatsApp Web.
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <code className="block rounded bg-muted p-3 text-sm break-all">
-              {extKey?.extensionApiKey ?? "—"}
-            </code>
+          <CardContent className="space-y-3">
+            <Button onClick={() => downloadExt.mutate()} disabled={downloadExt.isPending} size="lg">
+              <Download className="h-4 w-4 mr-2" />
+              {downloadExt.isPending ? "Gerando…" : "Baixar minha extensão (.zip)"}
+            </Button>
+            <ol className="text-sm text-muted-foreground list-decimal pl-5 space-y-1">
+              <li>Descompacte o arquivo baixado.</li>
+              <li>Abra <code className="px-1 bg-muted rounded">chrome://extensions</code> no Chrome.</li>
+              <li>Ative o <b>Modo do desenvolvedor</b> (canto superior direito).</li>
+              <li>Clique em <b>Carregar sem compactação</b> e selecione a pasta descompactada.</li>
+              <li>Abra <b>web.whatsapp.com</b> e clique no ícone da extensão para ativar.</li>
+            </ol>
+            {extKey?.extensionApiKey && (
+              <details className="text-xs text-muted-foreground">
+                <summary className="cursor-pointer">Ver chave de API (uso avançado)</summary>
+                <code className="block mt-2 rounded bg-muted p-2 break-all">{extKey.extensionApiKey}</code>
+              </details>
+            )}
           </CardContent>
         </Card>
 
