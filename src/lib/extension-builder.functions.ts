@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.3",
+  version: "1.0.4",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -98,8 +98,16 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   let currentChat = null;
   let history = [];
   let busy = false;
+  const BTN_ID = "argos-toggle-btn";
+  let statusOverrideText = null;
+  let statusOverrideOk = true;
+  let statusOverrideUntil = 0;
+  const RECENT_INCOMING_WINDOW_MS = 10 * 60 * 1000;
 
-  function setButtonStatus(text, ok){
+  function setButtonStatus(text, ok, ms){
+    statusOverrideText = text;
+    statusOverrideOk = ok;
+    statusOverrideUntil = Date.now() + (ms || 6000);
     const btn = document.getElementById(BTN_ID);
     if(!btn) return;
     btn.textContent = text;
@@ -198,15 +206,48 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     return header.innerText?.split("\\n")[0]?.trim() || null;
   }
 
+  function parseWaTimeToTodayMinutes(raw){
+    const text = (raw || "").trim();
+    const m = text.match(/([0-9]{1,2}):([0-9]{2})/);
+    if(!m) return null;
+    const h = Number(m[1]);
+    const min = Number(m[2]);
+    if(!Number.isFinite(h) || !Number.isFinite(min)) return null;
+    return h * 60 + min;
+  }
+
+  function getBubbleTimestampMs(bubble){
+    const pre = bubble.querySelector('[data-pre-plain-text]')?.getAttribute('data-pre-plain-text') || bubble.getAttribute('data-pre-plain-text') || "";
+    const fromPre = parseWaTimeToTodayMinutes(pre);
+    const fromText = fromPre ?? parseWaTimeToTodayMinutes(bubble.innerText || "");
+    if(fromText == null) return Date.now();
+    const now = new Date();
+    const msg = new Date(now);
+    msg.setHours(Math.floor(fromText / 60), fromText % 60, 0, 0);
+    if(msg.getTime() - now.getTime() > 60 * 60 * 1000) msg.setDate(msg.getDate() - 1);
+    return msg.getTime();
+  }
+
+  function isRecentIncoming(bubble){
+    return Date.now() - getBubbleTimestampMs(bubble) <= RECENT_INCOMING_WINDOW_MS;
+  }
+
   function extractText(bubble){
     // Texto principal da mensagem
-    const span = bubble.querySelector('span.selectable-text, span._ao3e, div.copyable-text span, [data-pre-plain-text] span');
-    return (span?.innerText || bubble.innerText || "").trim();
+    const nodes = Array.from(bubble.querySelectorAll('span.selectable-text, span._ao3e, [dir="ltr"], [dir="auto"]'));
+    const pieces = nodes.map((el)=>el.innerText || el.textContent || "")
+      .map((t)=>t.trim())
+      .filter(Boolean)
+      .filter((t)=>!/^[0-9]{1,2}:[0-9]{2}$/.test(t));
+    const raw = pieces.length ? pieces.join("\\n") : (bubble.innerText || "");
+    return raw.split("\\n").map((t)=>t.trim()).filter(Boolean).filter((t)=>!/^[0-9]{1,2}:[0-9]{2}$/.test(t)).join("\\n").trim();
   }
 
   async function processIncoming(bubble){
     if(SEEN.has(bubble)) return;
     SEEN.add(bubble);
+
+    if(!isRecentIncoming(bubble)){log("mensagem antiga ignorada"); return;}
 
     const dataId = bubble.getAttribute("data-id") || bubble.closest("[data-id]")?.getAttribute("data-id");
     if(dataId){
@@ -227,6 +268,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     if(chat !== currentChat){currentChat = chat; history = []; log("novo chat:", chat);}
 
     log("nova mensagem recebida:", text);
+    setButtonStatus("🤖 LENDO...", true, 4000);
     busy = true;
     try{
       history.push({role:"user", content:text});
@@ -234,18 +276,21 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       const reply = await askAI(history);
       if(reply){
         history.push({role:"assistant", content:reply});
+        setButtonStatus("🤖 ENVIANDO...", true, 4000);
         await new Promise(r=>setTimeout(r, 800 + Math.random()*1200)); // pequeno delay humano
-        await sendReply(reply);
+        const sent = await sendReply(reply);
+        setButtonStatus(sent ? "🤖 RESPONDIDO" : "⚠️ NÃO ENVIOU", sent, 7000);
       }
     } finally { busy = false; }
   }
 
   function scanForNewIncoming(root){
     // Pega APENAS a última mensagem recebida visível (não envia respostas a mensagens antigas no scroll)
-    const all = (root||document).querySelectorAll('div.message-in, div[class*="message-in"]');
+    const all = (root||document).querySelectorAll('#main div.message-in, #main div[class*="message-in"]');
     if(!all.length) return;
-    const last = all[all.length-1];
-    processIncoming(last);
+    const recent = Array.from(all).filter(isRecentIncoming);
+    if(!recent.length) return;
+    processIncoming(recent[recent.length-1]);
   }
 
   const obs = new MutationObserver((muts)=>{
@@ -268,6 +313,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   // Marca mensagens já existentes como vistas, para não responder histórico antigo ao abrir um chat
   function markExistingAsSeen(){
     document.querySelectorAll('div.message-in, div[class*="message-in"]').forEach(b=>{
+      if(isRecentIncoming(b)) return;
       SEEN.add(b);
       const id = b.getAttribute("data-id") || b.closest("[data-id]")?.getAttribute("data-id");
       if(id) PROCESSED_IDS.add(id);
@@ -275,10 +321,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   }
 
   // ---- Botão "IA: ON/OFF" no cabeçalho do chat ----
-  const BTN_ID = "argos-toggle-btn";
   function styleBtn(btn, on){
-    btn.textContent = on ? "🤖 IA: ON" : "🤖 IA: OFF";
-    btn.style.background = on ? "#16a34a" : "#dc2626";
+    const hasOverride = statusOverrideText && Date.now() < statusOverrideUntil;
+    btn.textContent = hasOverride ? statusOverrideText : (on ? "🤖 IA: ON" : "🤖 IA: OFF");
+    btn.style.background = hasOverride ? (statusOverrideOk ? "#16a34a" : "#dc2626") : (on ? "#16a34a" : "#dc2626");
     btn.style.color = "#fff";
     btn.style.border = "none";
     btn.style.padding = "6px 12px";
