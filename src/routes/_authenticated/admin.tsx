@@ -1,7 +1,8 @@
 import { createFileRoute, Link, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { LogOut, Settings, Package, Users, Mail, Zap, BarChart3, Brain } from "lucide-react";
+import { LogOut, Settings, Package, Users, Mail, Zap, BarChart3, Brain, Palette } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/admin")({
