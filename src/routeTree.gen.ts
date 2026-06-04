@@ -21,6 +21,7 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as ApiPublicCronCreditsRenewRouteImport } from './routes/api/public/cron-credits-renew'
 import { Route as ApiPublicAsaasWebhookRouteImport } from './routes/api/public/asaas-webhook'
+import { Route as ApiPublicAiReplyRouteImport } from './routes/api/public/ai-reply'
 import { Route as AuthenticatedAdminUsageRouteImport } from './routes/_authenticated/admin.usage'
 import { Route as AuthenticatedAdminTenantsRouteImport } from './routes/_authenticated/admin.tenants'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin.settings'
@@ -89,6 +90,11 @@ const ApiPublicAsaasWebhookRoute = ApiPublicAsaasWebhookRouteImport.update({
   path: '/api/public/asaas-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAiReplyRoute = ApiPublicAiReplyRouteImport.update({
+  id: '/api/public/ai-reply',
+  path: '/api/public/ai-reply',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminUsageRoute = AuthenticatedAdminUsageRouteImport.update({
   id: '/usage',
   path: '/usage',
@@ -146,6 +152,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/tenants': typeof AuthenticatedAdminTenantsRoute
   '/admin/usage': typeof AuthenticatedAdminUsageRoute
+  '/api/public/ai-reply': typeof ApiPublicAiReplyRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -165,6 +172,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/admin/tenants': typeof AuthenticatedAdminTenantsRoute
   '/admin/usage': typeof AuthenticatedAdminUsageRoute
+  '/api/public/ai-reply': typeof ApiPublicAiReplyRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -187,6 +195,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
   '/_authenticated/admin/tenants': typeof AuthenticatedAdminTenantsRoute
   '/_authenticated/admin/usage': typeof AuthenticatedAdminUsageRoute
+  '/api/public/ai-reply': typeof ApiPublicAiReplyRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -209,6 +218,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/tenants'
     | '/admin/usage'
+    | '/api/public/ai-reply'
     | '/api/public/asaas-webhook'
     | '/api/public/cron-credits-renew'
     | '/admin/'
@@ -228,6 +238,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/tenants'
     | '/admin/usage'
+    | '/api/public/ai-reply'
     | '/api/public/asaas-webhook'
     | '/api/public/cron-credits-renew'
     | '/admin'
@@ -249,6 +260,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/tenants'
     | '/_authenticated/admin/usage'
+    | '/api/public/ai-reply'
     | '/api/public/asaas-webhook'
     | '/api/public/cron-credits-renew'
     | '/_authenticated/admin/'
@@ -259,6 +271,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   LoginRoute: typeof LoginRoute
   InviteTokenRoute: typeof InviteTokenRoute
+  ApiPublicAiReplyRoute: typeof ApiPublicAiReplyRoute
   ApiPublicAsaasWebhookRoute: typeof ApiPublicAsaasWebhookRoute
   ApiPublicCronCreditsRenewRoute: typeof ApiPublicCronCreditsRenewRoute
 }
@@ -347,6 +360,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/asaas-webhook'
       fullPath: '/api/public/asaas-webhook'
       preLoaderRoute: typeof ApiPublicAsaasWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/ai-reply': {
+      id: '/api/public/ai-reply'
+      path: '/api/public/ai-reply'
+      fullPath: '/api/public/ai-reply'
+      preLoaderRoute: typeof ApiPublicAiReplyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/usage': {
@@ -450,9 +470,20 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   LoginRoute: LoginRoute,
   InviteTokenRoute: InviteTokenRoute,
+  ApiPublicAiReplyRoute: ApiPublicAiReplyRoute,
   ApiPublicAsaasWebhookRoute: ApiPublicAsaasWebhookRoute,
   ApiPublicCronCreditsRenewRoute: ApiPublicCronCreditsRenewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
