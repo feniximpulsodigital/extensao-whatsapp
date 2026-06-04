@@ -54,8 +54,13 @@ const POPUP_HTML = (brandName: string) => `<!doctype html>
 </body></html>`;
 
 const POPUP_JS = `const s=document.getElementById("status");const e=document.getElementById("enabled");
-chrome.storage.local.get(["enabled","active"],(r)=>{e.checked=!!r.enabled;if(r.active){s.textContent="Ativo";s.classList.remove("off")}});
+chrome.storage.local.get(["enabled","active"],(r)=>{
+  const en = r.enabled!==false; // default ON
+  e.checked = en;
+  if(r.active){s.textContent="Ativo";s.classList.remove("off")}
+});
 e.addEventListener("change",()=>chrome.storage.local.set({enabled:e.checked}));
+`;
 `;
 
 const BACKGROUND_JS = `// Service worker — mantém estado e ouve mensagens do content script.
