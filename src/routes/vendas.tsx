@@ -56,11 +56,11 @@ function SalesPage() {
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button size="lg" asChild>
-              <Link to="/login">Começar grátis agora <ArrowRight className="h-4 w-4" /></Link>
+              <Link to="/login">Quero assinar agora <ArrowRight className="h-4 w-4" /></Link>
             </Button>
           </div>
           <p className="mt-4 text-xs text-muted-foreground">
-            ✓ Sem cartão · ✓ Setup em 5 minutos · ✓ Cancela quando quiser
+            ✓ Setup em 5 minutos · ✓ Sem fidelidade · ✓ Cancela quando quiser
           </p>
         </div>
       </section>
