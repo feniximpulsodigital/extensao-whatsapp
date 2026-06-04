@@ -239,8 +239,8 @@ export const checkPaymentStatus = createServerFn({ method: "GET" })
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!payment) throw new Error("Pagamento não encontrado");
-    // @ts-expect-error joined relation
-    if (payment.tenants.owner_id !== userId) throw new Error("Sem acesso");
+    const owner = (payment as unknown as { tenants: { owner_id: string } }).tenants.owner_id;
+    if (owner !== userId) throw new Error("Sem acesso");
     return { status: payment.status };
   });
 
