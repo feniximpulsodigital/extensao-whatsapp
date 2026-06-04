@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { LogOut, Settings, AlertTriangle, Zap, Plus, Pencil, Trash2 } from "lucide-react";
+import { LogOut, Settings, AlertTriangle, Zap, Plus, Pencil, Trash2, Download } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyCreditsSummary } from "@/lib/ai-credits.functions";
 import { getMyExtensionApiKey } from "@/lib/billing.functions";
+import { buildMyExtension } from "@/lib/extension-builder.functions";
 import {
   getMyAiConfig, updateMyAiConfig,
   listMyKnowledge, upsertMyKnowledge, deleteMyKnowledge,
