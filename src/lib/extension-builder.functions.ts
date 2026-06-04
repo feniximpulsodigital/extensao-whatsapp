@@ -313,6 +313,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   // Marca mensagens já existentes como vistas, para não responder histórico antigo ao abrir um chat
   function markExistingAsSeen(){
     document.querySelectorAll('div.message-in, div[class*="message-in"]').forEach(b=>{
+      if(isRecentIncoming(b)) return;
       SEEN.add(b);
       const id = b.getAttribute("data-id") || b.closest("[data-id]")?.getAttribute("data-id");
       if(id) PROCESSED_IDS.add(id);
