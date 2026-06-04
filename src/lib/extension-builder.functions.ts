@@ -135,11 +135,12 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   }
 
   function findInputBox(){
-    // tenta vários seletores conhecidos do WhatsApp Web
-    return document.querySelector('footer div[contenteditable="true"][data-tab="10"]')
-        || document.querySelector('footer div[contenteditable="true"][role="textbox"]')
-        || document.querySelector('div[contenteditable="true"][data-lexical-editor="true"]')
-        || document.querySelector('footer div[contenteditable="true"]');
+    // WhatsApp muda seletores com frequência; prioriza sempre a caixa do rodapé do chat ativo.
+    const footer = document.querySelector('#main footer') || document.querySelector('footer');
+    const boxes = Array.from((footer || document).querySelectorAll('div[contenteditable="true"], [role="textbox"][contenteditable="true"]'));
+    return boxes.find((el)=>!el.closest('[aria-hidden="true"]') && !el.getAttribute('aria-label')?.toLowerCase().includes('pesquisar'))
+        || document.querySelector('#main footer div[contenteditable="true"]')
+        || document.querySelector('div[contenteditable="true"][data-lexical-editor="true"]');
   }
 
   function findSendButton(){
@@ -153,15 +154,23 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     const box = findInputBox();
     if(!box){warn("caixa de texto não encontrada"); return false;}
     box.focus();
+    box.click();
     try{
       const data = new DataTransfer();
       data.setData("text/plain", text);
       box.dispatchEvent(new ClipboardEvent("paste", {clipboardData:data,bubbles:true,cancelable:true}));
     }catch(_e){}
     if(!box.innerText?.includes(text)) document.execCommand("insertText", false, text);
+    if(!box.innerText?.includes(text)){
+      try{
+        await navigator.clipboard.writeText(text);
+        box.dispatchEvent(new KeyboardEvent("keydown",{key:"v",code:"KeyV",ctrlKey:true,bubbles:true}));
+        box.dispatchEvent(new KeyboardEvent("keyup",{key:"v",code:"KeyV",ctrlKey:true,bubbles:true}));
+      }catch(_e){}
+    }
     box.dispatchEvent(new InputEvent("input",{bubbles:true,inputType:"insertText",data:text}));
     let btn = null;
-    for(let i=0;i<10;i++){
+    for(let i=0;i<16;i++){
       await new Promise(r=>setTimeout(r,250));
       btn = findSendButton();
       if(btn) break;
