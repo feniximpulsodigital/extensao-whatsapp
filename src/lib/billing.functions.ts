@@ -17,6 +17,20 @@ export const getMyTenant = createServerFn({ method: "GET" })
     return data;
   });
 
+export const getMyExtensionApiKey = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { userId } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("tenants")
+      .select("extension_api_key")
+      .eq("owner_id", userId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return { extensionApiKey: data?.extension_api_key ?? null };
+  });
+
 export const listActivePlans = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
