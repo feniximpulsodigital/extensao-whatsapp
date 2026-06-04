@@ -40,7 +40,7 @@ function Landing() {
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <Button variant="ghost" size="sm" asChild><Link to="/login">Entrar</Link></Button>
-            <Button size="sm" asChild><Link to="/login">Começar grátis</Link></Button>
+            <Button size="sm" asChild><Link to="/login">Assinar agora</Link></Button>
           </div>
         </div>
       </header>
