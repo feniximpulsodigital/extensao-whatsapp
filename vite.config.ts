@@ -24,7 +24,7 @@ export default defineConfig({
       },
     }),
     nitro({
-      preset: "node-server",
+      preset: "cloudflare-module",
       output: {
         dir: "dist",
         serverDir: "dist/server",
