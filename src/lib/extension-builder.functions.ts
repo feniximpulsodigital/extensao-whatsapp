@@ -174,7 +174,7 @@ export const buildMyExtension = createServerFn({ method: "POST" })
     const brandName = brandRow?.brand_name || "Argos";
 
     // Endpoint público da API de resposta
-    const origin = new URL(request.url).origin;
+    const origin = data.origin;
     const endpoint = `${origin}/api/public/ai-reply`;
 
     const safeCompany = (tenant.company_name || "cliente")
