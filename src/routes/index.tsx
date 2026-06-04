@@ -35,7 +35,6 @@ function Landing() {
             <a href="#solucao" className="text-sm text-muted-foreground hover:text-foreground">Solução</a>
             <a href="#como" className="text-sm text-muted-foreground hover:text-foreground">Como funciona</a>
             <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground">Planos</a>
-            <Link to="/vendas" className="text-sm text-muted-foreground hover:text-foreground">Página de vendas</Link>
           </nav>
           <div className="flex items-center gap-2">
             <ThemeToggle />
