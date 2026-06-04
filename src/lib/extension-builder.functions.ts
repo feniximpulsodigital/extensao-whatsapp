@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.9",
+  version: "1.0.10",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -157,13 +157,42 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
   // ---------- Seletor de mensagens recebidas ----------
   function incomingSelector(){
-    return '#main [data-id^="false_"], #main div.message-in';
+    return '#main [data-id]';
+  }
+  function isIncomingBubble(el){
+    if(!el) return false;
+
+    // 1. data-id prefix (quando disponível)
+    const id = el.getAttribute('data-id') || '';
+    if(id.startsWith('true_')) return false;
+    if(id.startsWith('false_')) return true;
+
+    // 2. Ícone de status de envio = mensagem minha (enviada)
+    if(el.querySelector('span[data-icon*="msg-check"], span[data-icon*="msg-dblcheck"], span[data-icon*="msg-time"]')){
+      return false;
+    }
+
+    // 3. Alinhamento geométrico: recebidas ficam à esquerda (<30% da largura do pai)
+    const rect = el.getBoundingClientRect();
+    const parentRect = el.parentElement?.getBoundingClientRect();
+    if(parentRect && rect.left - parentRect.left < parentRect.width * 0.3){
+      return true;
+    }
+
+    // 4. Tail da bolha: tail-right ou tail-out = enviada por mim
+    if(el.querySelector('span[data-icon*="tail-right"], span[data-icon*="tail-out"]')){
+      return false;
+    }
+
+    return true;
   }
   function getIncomingBubbles(root){
     const r = root || document;
     return Array.from(r.querySelectorAll(incomingSelector()))
       .map((el)=> el.closest('[data-id]') || el)
-      .filter((el, idx, arr)=>arr.indexOf(el) === idx);
+      .filter(Boolean)
+      .filter((el, idx, arr)=>arr.indexOf(el) === idx)
+      .filter(isIncomingBubble);
   }
 
   // ---------- Timestamps ----------
@@ -413,8 +442,8 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
       // Voltar para o chat anterior
       if(prevKey && prevKey !== rowKey(getSelectedRow())){
-        const back = findRowByKey(prevKey);
-        if(back) clickRow(back);
+        const back = findRowByKey(prevKey) || getSidebarRows().find((r)=>(r.innerText||'').includes(prevKey));
+        if(back){ clickRow(back); await new Promise(r=>setTimeout(r, 300)); }
       }
       if(sidebar){ try{ sidebar.scrollTop = prevScroll; }catch(_e){} }
       return true;
@@ -478,12 +507,36 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     }
   }
 
+  // ---------- Observer em tempo real do chat aberto ----------
+  const obs = new MutationObserver((muts)=>{
+    if(bgBusy) return;
+    for(const m of muts){
+      for(const node of m.addedNodes){
+        if(!(node instanceof HTMLElement)) continue;
+        const candidates = [];
+        if(node.matches?.('[data-id]')) candidates.push(node);
+        node.querySelectorAll?.('[data-id]').forEach((b)=>candidates.push(b));
+        for(const b of candidates){
+          const normalized = b.closest('[data-id]') || b;
+          if(!isIncomingBubble(normalized)) continue;
+          const chat = getChatId();
+          if(chat) processBubble(normalized, chat).catch(()=>{});
+        }
+      }
+    }
+  });
+  function attachObserver(){
+    const main = document.querySelector('#main') || document.body;
+    obs.disconnect();
+    obs.observe(main, { childList:true, subtree:true });
+  }
+
   // ---------- Loops ----------
-  setInterval(()=>{ ensureToggleButton(); onChatMaybeChanged(); }, 1500);
+  setInterval(()=>{ ensureToggleButton(); onChatMaybeChanged(); attachObserver(); }, 1500);
   setInterval(()=>{ processOneUnread().catch((e)=>warn("BG loop", e)); }, 5000);
 
   // boot
-  setTimeout(()=>{ markExistingAsSeen(); ensureToggleButton(); lastSeenChat = getChatId(); }, 1500);
+  setTimeout(()=>{ markExistingAsSeen(); ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
   log("extensão ativa (modo background). Botão IA aparece no topo de cada conversa.");
 })();
 `;
