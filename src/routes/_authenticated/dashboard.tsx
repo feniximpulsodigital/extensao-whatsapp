@@ -232,29 +232,21 @@ function AiSection() {
             <Switch checked={form.auto_reply_enabled} onCheckedChange={(c) => setForm({ ...form, auto_reply_enabled: c })} />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <Label>Tamanho máximo da resposta (max tokens)</Label>
-              <Input type="number" value={form.max_tokens} onChange={(e) => setForm({ ...form, max_tokens: parseInt(e.target.value || "0") })} />
-              <p className="text-xs text-muted-foreground mt-1">
-                Limite de tamanho de cada resposta. ~1 token ≈ 4 caracteres. 500 tokens dá em torno de 2 parágrafos curtos. Valores altos custam mais créditos.
-              </p>
-            </div>
-            <div>
-              <Label>Delay antes de responder (ms)</Label>
-              <Input type="number" value={form.response_delay_ms} onChange={(e) => setForm({ ...form, response_delay_ms: parseInt(e.target.value || "0") })} />
-              <p className="text-xs text-muted-foreground mt-1">Pequena espera para parecer mais humano.</p>
-            </div>
+          <div>
+            <Label>Delay antes de responder (ms)</Label>
+            <Input type="number" value={form.response_delay_ms} onChange={(e) => setForm({ ...form, response_delay_ms: parseInt(e.target.value || "0") })} />
+            <p className="text-xs text-muted-foreground mt-1">Pequena espera para parecer mais humano.</p>
           </div>
 
           <div>
-            <Label>Criatividade — temperatura ({form.temperature.toFixed(2)})</Label>
+            <Label>Criatividade da IA ({form.temperature.toFixed(2)})</Label>
             <input type="range" min={0} max={1.5} step={0.05} value={form.temperature}
               onChange={(e) => setForm({ ...form, temperature: parseFloat(e.target.value) })} className="w-full" />
             <p className="text-xs text-muted-foreground mt-1">
-              Controla a liberdade da IA. <strong>0</strong> = respostas previsíveis e diretas (ideal para atendimento). <strong>0.7</strong> = equilibrado. <strong>1.0+</strong> = mais criativo, pode inventar.
+              Controla a liberdade da IA. O ideal para atendimento é <strong>0.7 = equilibrado</strong>. <strong>1.0+ = mais criativo, mas pode inventar</strong>.
             </p>
           </div>
+
 
           <div>
             <Label>Prompt da minha empresa</Label>
