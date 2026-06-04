@@ -381,7 +381,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   async function processOneUnread(){
     if(bgBusy || busy) return false;
     if(!(await getEnabled())) return false;
-    if(!isUserIdle() || isUserComposing()) return false;
+    if(!isUserIdle() || isUserComposing() || isUserTyping()) return false;
 
     const rows = findUnreadChatRows();
     if(!rows.length) return false;
