@@ -7,17 +7,17 @@ Stack: TanStack Start (Vite + Nitro `node-server`) servido por Node 22.
 - Conta EasyPanel com acesso ao repositório GitHub.
 
 ## 2. Conectar GitHub
-1. No Lovable: **+ → GitHub → Connect project** e crie o repositório.
-2. Garanta que `Dockerfile`, `.dockerignore` e `.env.example` foram commitados (já estão no projeto).
+1. Suba este projeto para um repositório GitHub.
+2. Garanta que `Dockerfile`, `.dockerignore` e `.env.example` foram commitados.
 
 ## 3. Criar o app no EasyPanel
 1. **+ Create Service → App**.
 2. **Source**: GitHub → escolha o repo e a branch (`main`).
 3. **Build**: deixe `Dockerfile` (auto-detectado).
 4. **Build Arguments** (necessários para o frontend funcionar):
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_PUBLISHABLE_KEY`
-   - `VITE_SUPABASE_PROJECT_ID`
+   - `SUPABASE_URL` ou `VITE_SUPABASE_URL`
+   - `SUPABASE_PUBLISHABLE_KEY` ou `VITE_SUPABASE_PUBLISHABLE_KEY`
+   - `SUPABASE_PROJECT_ID` ou `VITE_SUPABASE_PROJECT_ID`
 5. **Environment Variables** (runtime — servidor):
    - `SUPABASE_URL`
    - `SUPABASE_PUBLISHABLE_KEY`
@@ -45,6 +45,6 @@ node dist/server/index.mjs
 ```
 
 ## Troubleshooting
-- **Tela em branco no frontend**: faltou alguma `VITE_*` no Build Arguments — elas precisam estar no momento do `bun run build`, não só em runtime.
+- **Tela em branco no frontend/login**: faltou `SUPABASE_URL` e/ou `SUPABASE_PUBLISHABLE_KEY` nos Build Arguments — elas precisam estar no momento do `bun run build`, não só em runtime.
 - **401 nas server functions de IA/pagamento**: faltou `SUPABASE_SERVICE_ROLE_KEY` ou a chave do provedor no runtime env.
 - **OAuth/login redireciona errado**: ajuste Site URL/Redirect URLs no Supabase.
