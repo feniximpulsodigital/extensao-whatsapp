@@ -3,7 +3,7 @@ FROM oven/bun:1.2-alpine AS builder
 WORKDIR /app
 
 # Public Supabase env vars baked at build time (passed via EasyPanel build args)
-# Accept both plain names and Vite names so the self-hosted build is not tied to Lovable Cloud.
+# Accept both plain names and Vite names for self-hosted builds.
 ARG SUPABASE_URL
 ARG SUPABASE_PUBLISHABLE_KEY
 ARG SUPABASE_PROJECT_ID

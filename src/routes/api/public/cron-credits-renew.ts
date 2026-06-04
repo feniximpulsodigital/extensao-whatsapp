@@ -6,7 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 // Configure pg_cron with the project's anon key in the `apikey` header.
 //   SELECT cron.schedule('renew-credits', '0 3 * * *', $$
 //     SELECT net.http_post(
-//       url := 'https://project--<id>.lovable.app/api/public/cron-credits-renew',
+//       url := 'https://seu-dominio.com.br/api/public/cron-credits-renew',
 //       headers := '{"Content-Type":"application/json","apikey":"<ANON_KEY>"}'::jsonb,
 //       body := '{}'::jsonb
 //     );
