@@ -257,17 +257,17 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
             Quantos clientes você vai perder esta semana?
           </h2>
           <p className="mt-4 text-muted-foreground">
-            Cada dia sem a Argos é dinheiro saindo pela porta. Comece grátis agora, leva 5 minutos.
+            Cada dia sem a Argos é dinheiro saindo pela porta. Leva 5 minutos pra começar.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button size="lg" asChild>
-              <Link to="/login">Quero começar grátis <ArrowRight className="h-4 w-4" /></Link>
+              <Link to="/login">Quero assinar agora <ArrowRight className="h-4 w-4" /></Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
               <Link to="/vendas">Ver página de vendas</Link>
             </Button>
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">Sem cartão de crédito. Sem fidelidade.</p>
+          <p className="mt-4 text-xs text-muted-foreground">Sem fidelidade. Cancele quando quiser.</p>
         </div>
       </section>
     </>
