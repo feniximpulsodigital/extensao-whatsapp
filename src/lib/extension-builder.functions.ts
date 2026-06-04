@@ -98,8 +98,16 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   let currentChat = null;
   let history = [];
   let busy = false;
+  const BTN_ID = "argos-toggle-btn";
+  let statusOverrideText = null;
+  let statusOverrideOk = true;
+  let statusOverrideUntil = 0;
+  const RECENT_INCOMING_WINDOW_MS = 10 * 60 * 1000;
 
-  function setButtonStatus(text, ok){
+  function setButtonStatus(text, ok, ms){
+    statusOverrideText = text;
+    statusOverrideOk = ok;
+    statusOverrideUntil = Date.now() + (ms || 6000);
     const btn = document.getElementById(BTN_ID);
     if(!btn) return;
     btn.textContent = text;
