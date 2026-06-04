@@ -15,6 +15,7 @@ function AdminLayout() {
   const navigate = useNavigate();
   const tabs = [
     { to: "/admin/settings", label: "Configurações", icon: Settings },
+    { to: "/admin/branding", label: "Visual", icon: Palette },
     { to: "/admin/ai-config", label: "IA / Prompts", icon: Brain },
     { to: "/admin/plans", label: "Planos", icon: Package },
     { to: "/admin/tenants", label: "Clientes", icon: Users },
@@ -32,6 +33,7 @@ function AdminLayout() {
             <span className="font-bold">Argos Zap · Super Admin</span>
           </Link>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button asChild variant="outline" size="sm"><Link to="/dashboard">App do cliente</Link></Button>
             <Button
               variant="ghost"
