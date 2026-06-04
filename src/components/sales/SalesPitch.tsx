@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   MessageSquare, Clock, TrendingDown, Frown, Check, ArrowRight,
-  Sparkles, Brain, Shield, Zap, Users, Star, BadgeCheck, Rocket,
+  Sparkles, Brain, Shield, Zap, Users, Star, BadgeCheck, Rocket, Monitor,
 } from "lucide-react";
 import { getPublicPlans } from "@/lib/plans.functions";
 
