@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { LogOut, Settings, AlertTriangle, Zap, Plus, Pencil, Trash2 } from "lucide-react";
+import { LogOut, Settings, AlertTriangle, Zap, Plus, Pencil, Trash2, Download } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyCreditsSummary } from "@/lib/ai-credits.functions";
 import { getMyExtensionApiKey } from "@/lib/billing.functions";
+import { buildMyExtension } from "@/lib/extension-builder.functions";
 import {
   getMyAiConfig, updateMyAiConfig,
   listMyKnowledge, upsertMyKnowledge, deleteMyKnowledge,
@@ -35,6 +36,7 @@ function Dashboard() {
   const qc = useQueryClient();
   const summary = useServerFn(getMyCreditsSummary);
   const extKeyFn = useServerFn(getMyExtensionApiKey);
+  const buildExt = useServerFn(buildMyExtension);
 
   const { data: tenant } = useQuery({
     queryKey: ["my-tenant"],
@@ -50,6 +52,23 @@ function Dashboard() {
   });
   const { data: credits } = useQuery({ queryKey: ["credits-summary"], queryFn: () => summary() });
   const { data: extKey } = useQuery({ queryKey: ["extension-key"], queryFn: () => extKeyFn() });
+
+  const downloadExt = useMutation({
+    mutationFn: async () => buildExt({ data: { origin: window.location.origin } }),
+    onSuccess: (res) => {
+      const bin = atob(res.base64);
+      const u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      const blob = new Blob([u8], { type: "application/zip" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = res.filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast.success("Extensão baixada! Siga as instruções do README.txt para instalar.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const handleLogout = async () => {
     const { invalidateAuthGate } = await import("./route");
@@ -140,13 +159,31 @@ function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Chave da extensão</CardTitle>
-            <CardDescription>Use esta chave na extensão Chrome</CardDescription>
+            <CardTitle>Sua extensão personalizada</CardTitle>
+            <CardDescription>
+              Baixe sua extensão exclusiva — já vem com sua chave embutida.
+              Pode instalar em quantos computadores quiser; a IA funciona enquanto
+              pelo menos um deles estiver com o Chrome aberto no WhatsApp Web.
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <code className="block rounded bg-muted p-3 text-sm break-all">
-              {extKey?.extensionApiKey ?? "—"}
-            </code>
+          <CardContent className="space-y-3">
+            <Button onClick={() => downloadExt.mutate()} disabled={downloadExt.isPending} size="lg">
+              <Download className="h-4 w-4 mr-2" />
+              {downloadExt.isPending ? "Gerando…" : "Baixar minha extensão (.zip)"}
+            </Button>
+            <ol className="text-sm text-muted-foreground list-decimal pl-5 space-y-1">
+              <li>Descompacte o arquivo baixado.</li>
+              <li>Abra <code className="px-1 bg-muted rounded">chrome://extensions</code> no Chrome.</li>
+              <li>Ative o <b>Modo do desenvolvedor</b> (canto superior direito).</li>
+              <li>Clique em <b>Carregar sem compactação</b> e selecione a pasta descompactada.</li>
+              <li>Abra <b>web.whatsapp.com</b> e clique no ícone da extensão para ativar.</li>
+            </ol>
+            {extKey?.extensionApiKey && (
+              <details className="text-xs text-muted-foreground">
+                <summary className="cursor-pointer">Ver chave de API (uso avançado)</summary>
+                <code className="block mt-2 rounded bg-muted p-2 break-all">{extKey.extensionApiKey}</code>
+              </details>
+            )}
           </CardContent>
         </Card>
 
