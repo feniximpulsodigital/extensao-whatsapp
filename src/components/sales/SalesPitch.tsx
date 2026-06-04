@@ -187,51 +187,47 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
             </h2>
             <p className="mt-4 text-muted-foreground">Sem fidelidade. Cancele quando quiser.</p>
           </div>
-          <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-2">
-            {[
-              {
-                name: "Starter",
-                price: "R$ 97",
-                tagline: "Pra começar a responder rápido hoje.",
-                features: ["1.000 créditos de IA/mês", "1 WhatsApp conectado", "Base de conhecimento ilimitada", "Suporte por e-mail"],
-              },
-              {
-                name: "Pro",
-                price: "R$ 297",
-                tagline: "Pra quem vende todo dia pelo WhatsApp.",
-                features: ["5.000 créditos de IA/mês", "1 WhatsApp conectado", "Prompts customizados", "Resposta automática 24/7", "Suporte prioritário"],
-                highlight: true,
-              },
-            ].map((p) => (
-              <Card key={p.name} className={p.highlight ? "border-primary shadow-lg relative" : ""}>
-                {p.highlight && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
-                    Mais escolhido
-                  </div>
-                )}
-                <CardHeader>
-                  <CardTitle>{p.name}</CardTitle>
-                  <CardDescription>{p.tagline}</CardDescription>
-                  <div className="mt-2 text-3xl font-bold">
-                    {p.price}
-                    <span className="text-sm font-normal text-muted-foreground">/mês</span>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {p.features.map((feat) => (
-                      <li key={feat} className="flex items-center gap-2 text-sm">
-                        <Check className="h-4 w-4 text-primary shrink-0" /> {feat}
-                      </li>
-                    ))}
-                  </ul>
-                  <Button className="mt-6 w-full" variant={p.highlight ? "default" : "outline"} asChild>
-                    <Link to="/login">Começar agora <ArrowRight className="h-4 w-4" /></Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          {plans.length === 0 ? (
+            <p className="mt-12 text-center text-sm text-muted-foreground">
+              Carregando planos…
+            </p>
+          ) : (
+            <div className={`mx-auto mt-12 grid max-w-5xl gap-6 ${plans.length >= 3 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+              {plans.map((p) => (
+                <Card key={p.id} className={p.highlight ? "border-primary shadow-lg relative" : ""}>
+                  {p.highlight && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                      Mais escolhido
+                    </div>
+                  )}
+                  <CardHeader>
+                    <CardTitle>{p.name}</CardTitle>
+                    {p.description && <CardDescription>{p.description}</CardDescription>}
+                    <div className="mt-2 text-3xl font-bold">
+                      {formatBRL(p.priceCents)}
+                      <span className="text-sm font-normal text-muted-foreground">/mês</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {p.monthlyCredits.toLocaleString("pt-BR")} créditos de IA por mês
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {p.features.map((feat) => (
+                        <li key={feat} className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-primary shrink-0" /> {feat}
+                        </li>
+                      ))}
+                    </ul>
+                    <Button className="mt-6 w-full" variant={p.highlight ? "default" : "outline"} asChild>
+                      <Link to="/login">Assinar agora <ArrowRight className="h-4 w-4" /></Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
         </div>
       </section>
 
