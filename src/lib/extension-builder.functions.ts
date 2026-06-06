@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.12",
+  version: "1.0.14",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -88,43 +88,63 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.14. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
   });
   chrome.runtime.sendMessage({type:"setActive",value:true});
 
-  const PROCESSED_IDS = new Set();     // dedupe por data-id
-  const SEEN_BUBBLES = new WeakSet();  // dedupe DOM
-  const HISTORY = new Map();           // chat -> messages[]
-  const MAX_AGE_MS = 10 * 60 * 1000;
-  const BTN_ID = "argos-toggle-btn";
-  const IDLE_REQUIRED_MS = 3000;
+  // ============================================================
+  // SELETORES EM CASCATA — fáceis de atualizar quando WA muda
+  // ============================================================
+  const SELETORES_INPUT = [
+    'div[contenteditable="true"][data-tab="10"]',
+    'div[contenteditable="true"][aria-label="Digite uma mensagem"]',
+    'div[contenteditable="true"][aria-label="Type a message"]',
+    'footer div[contenteditable="true"][data-lexical-editor="true"]',
+    'footer div[contenteditable="true"]',
+    '[data-testid="conversation-compose-box-input"]',
+  ];
+  const SELETORES_ENVIAR = [
+    'button[aria-label="Enviar"]',
+    'button[aria-label="Send"]',
+    '[data-testid="send"]',
+    'span[data-icon="send"]',
+    'span[data-icon="wds-ic-send-filled"]',
+  ];
+  const SELETORES_HEADER = [
+    'header [data-testid="conversation-info-header"] span[title]',
+    '#main header span[title][dir="auto"]',
+    '#main header span[dir="auto"]',
+  ];
 
-  let busy = false;
-  let bgBusy = false;
-  let lastUserActivity = Date.now();
+  function buscarElemento(lista){
+    for(const sel of lista){
+      const el = document.querySelector(sel);
+      if(el){
+        if(el.tagName === "SPAN" && el.getAttribute("data-icon")){
+          const btn = el.closest("button");
+          if(btn) return btn;
+        }
+        return el;
+      }
+    }
+    return null;
+  }
+  function esperar(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+  // ============================================================
+  // ESTADO
+  // ============================================================
+  const BTN_ID = "argos-toggle-btn";
+  const DEBOUNCE_MS = 3000;
+  const chatsEmProcessamento = new Set();
+  const debounceTimers = new Map(); // chat -> timer id
   let statusOverrideText = null;
   let statusOverrideOk = true;
   let statusOverrideUntil = 0;
-
-  ["mousemove","mousedown","keydown","wheel","touchstart","focusin"].forEach((ev)=>{
-    try{ window.addEventListener(ev, ()=>{ lastUserActivity = Date.now(); }, { passive:true, capture:true }); }catch(_e){}
-  });
-  function isUserIdle(){ return Date.now() - lastUserActivity >= IDLE_REQUIRED_MS; }
-  function isUserComposing(){
-    const el = document.activeElement;
-    if(!el) return false;
-    const tag = (el.tagName||"").toLowerCase();
-    if(tag==="input"||tag==="textarea") return true;
-    if(el.getAttribute && el.getAttribute("contenteditable")==="true") return true;
-    return false;
-  }
-  function isUserTyping(){
-    const box = findInputBox();
-    return !!(box && (box.innerText || box.textContent || '').trim().length > 0);
-  }
+  let lastSeenChat = null;
 
   function setButtonStatus(text, ok, ms){
     statusOverrideText = text;
@@ -135,7 +155,6 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     btn.textContent = text;
     btn.style.background = ok ? "#16a34a" : "#dc2626";
   }
-
   function getEnabled(){
     return new Promise((res)=>chrome.storage.local.get(["enabled"],(r)=>res(r.enabled!==false)));
   }
@@ -149,13 +168,16 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     return new Promise((res)=>chrome.storage.local.set({[chatKey(chat)]: !!val}, ()=>res()));
   }
 
+  // ============================================================
+  // IDENTIFICAÇÃO DE CHAT / GRUPO / USUÁRIO DIGITANDO
+  // ============================================================
   function getChatId(){
+    const el = buscarElemento(SELETORES_HEADER);
+    if(el) return (el.getAttribute("title") || el.innerText || "").trim() || null;
     const header = document.querySelector('#main header');
     if(!header) return null;
-    return header.innerText?.split("\\n")[0]?.trim() || null;
+    return (header.innerText || "").split("\\n")[0].trim() || null;
   }
-
-  // ---------- Detecção de grupo ----------
   function isGroupChat(){
     const header = document.querySelector('#main header');
     if(!header) return false;
@@ -173,314 +195,170 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     if(names.size > 1) return true;
     return false;
   }
-
-  // ---------- Seletor de mensagens recebidas ----------
-  function incomingSelector(){
-    return '#main [data-id]';
-  }
-  function isIncomingBubble(el){
-    if(!el) return false;
-
-    // 1. data-id prefix (quando disponível)
-    const id = el.getAttribute('data-id') || '';
-    if(id.startsWith('true_')) return false;
-    if(id.startsWith('false_')) return true;
-
-    // 2. tail-in = recebida, tail-out = enviada (método mais confiável)
-    if(el.querySelector('span[data-icon="tail-in"]')) return true;
-    if(el.querySelector('span[data-icon="tail-out"]')) return false;
-
-    // 3. Ícone de status de envio = enviada por mim
-    if(el.querySelector('span[data-icon*="msg-check"], span[data-icon*="msg-dblcheck"], span[data-icon*="msg-time"]')){
-      return false;
-    }
-
-    // 4. Mensagem encaminhada recebida
-    if(el.querySelector('span[data-icon="forward-refreshed"]')) return true;
-
-    // 5. Sem identificação clara: assume enviada (evita loop de respostas)
-    return false;
-  }
-  function getIncomingBubbles(root){
-    const r = root || document;
-    return Array.from(r.querySelectorAll(incomingSelector()))
-      .map((el)=> el.closest('[data-id]') || el)
-      .filter(Boolean)
-      .filter((el, idx, arr)=>arr.indexOf(el) === idx)
-      .filter(isIncomingBubble);
+  function isUserTyping(){
+    const box = buscarElemento(SELETORES_INPUT);
+    return !!(box && (box.innerText || box.textContent || '').trim().length > 0);
   }
 
-  // ---------- Timestamps ----------
-  function parseWaTimeToTodayMinutes(raw){
-    const m = (raw||"").trim().match(/([0-9]{1,2}):([0-9]{2})/);
-    if(!m) return null;
-    const h = Number(m[1]), min = Number(m[2]);
-    if(!Number.isFinite(h)||!Number.isFinite(min)) return null;
-    return h*60+min;
-  }
-  function getBubbleTimestampMs(bubble){
-    const pre = bubble.querySelector('[data-pre-plain-text]')?.getAttribute('data-pre-plain-text')
-              || bubble.getAttribute('data-pre-plain-text') || "";
-    const fromPre = parseWaTimeToTodayMinutes(pre);
-    const fromText = fromPre ?? parseWaTimeToTodayMinutes(bubble.innerText||"");
-    if(fromText==null) return Date.now();
-    const now = new Date();
-    const msg = new Date(now);
-    msg.setHours(Math.floor(fromText/60), fromText%60, 0, 0);
-    if(msg.getTime() - now.getTime() > 60*60*1000) msg.setDate(msg.getDate()-1);
-    return msg.getTime();
-  }
-  function isRecent(bubble){ return Date.now() - getBubbleTimestampMs(bubble) <= MAX_AGE_MS; }
-
-  // ---------- Extração de texto ----------
-  function extractText(bubble){
-    let pieces = [];
-    const pre = bubble.querySelector('[data-pre-plain-text]');
-    if(pre){
-      pre.querySelectorAll('span[class*="selectable-text"]').forEach((s)=>{
-        const t = (s.innerText||s.textContent||"").trim();
-        if(t) pieces.push(t);
+  // ============================================================
+  // LEITURA DE MENSAGENS (.message-in / .message-out)
+  // ============================================================
+  function lerMensagens(limite){
+    const max = limite || 20;
+    const out = [];
+    const linhas = document.querySelectorAll('#main .message-in, #main .message-out');
+    linhas.forEach((linha)=>{
+      const ehRecebida = linha.classList.contains('message-in');
+      let texto = "";
+      const spans = linha.querySelectorAll('span.selectable-text, span[class*="selectable-text"]');
+      spans.forEach((s)=>{
+        const t = (s.innerText || s.textContent || "").trim();
+        if(t) texto += (texto ? "\\n" : "") + t;
       });
-    }
-    if(!pieces.length){
-      bubble.querySelectorAll('span[class*="selectable-text"]').forEach((s)=>{
-        const t = (s.innerText||s.textContent||"").trim();
-        if(t) pieces.push(t);
-      });
-    }
-    let raw = pieces.join("\\n");
-    if(!raw) raw = bubble.innerText || "";
-    return raw.split("\\n")
-      .map((t)=>t.trim())
-      .filter(Boolean)
-      .filter((t)=>!/^[0-9]{1,2}:[0-9]{2}$/.test(t))
-      .join("\\n").trim();
+      if(!texto){
+        const raw = (linha.innerText || "").trim();
+        texto = raw.split("\\n").filter((t)=>!/^[0-9]{1,2}:[0-9]{2}$/.test(t.trim())).join("\\n").trim();
+      }
+      if(!texto) return;
+      out.push({ role: ehRecebida ? "user" : "assistant", content: texto });
+    });
+    return out.slice(-max);
   }
 
-  // ---------- Marcar histórico como visto ao abrir chat ----------
-  function markExistingAsSeen(){
-    // Marca TODAS as mensagens atualmente visíveis (recentes ou não)
-    // para não responder histórico ao abrir uma conversa.
-    getIncomingBubbles(document).forEach((b)=>{
-      SEEN_BUBBLES.add(b);
-      const id = b.getAttribute("data-id");
-      if(id) PROCESSED_IDS.add(id);
-    });
-  }
-
-  // ---------- Caixa de envio ----------
-  function findInputBox(){
-    const footer = document.querySelector('#main footer') || document.querySelector('footer');
-    const boxes = Array.from((footer||document).querySelectorAll('div[contenteditable="true"], [role="textbox"][contenteditable="true"]'));
-    return boxes.find((el)=>!el.closest('[aria-hidden="true"]') && !el.getAttribute('aria-label')?.toLowerCase().includes('pesquisar'))
-        || document.querySelector('#main footer div[contenteditable="true"]')
-        || document.querySelector('div[contenteditable="true"][data-lexical-editor="true"]');
-  }
-  function findSendButton(){
-    const byLabel = Array.from(document.querySelectorAll('button[aria-label]')).find((b)=>{
-      const label = (b.getAttribute('aria-label')||'').toLowerCase();
-      return label.includes('enviar') || label.includes('send');
-    });
-    return byLabel
-        || document.querySelector('button[aria-label="Enviar"]')
-        || document.querySelector('button[aria-label="Send"]')
-        || document.querySelector('span[data-icon="send"]')?.closest('button')
-        || document.querySelector('span[data-icon="wds-ic-send-filled"]')?.closest('button')
-        || Array.from(document.querySelectorAll('span[data-icon*="send"]')).map((s)=>s.closest('button')).find(Boolean);
-  }
-  async function sendReply(text){
-    const box = findInputBox();
-    if(!box){warn("caixa não encontrada"); return false;}
-    box.focus(); box.click();
-    // 1) ClipboardEvent paste
+  // ============================================================
+  // INSERÇÃO DE TEXTO + ENVIO (Lexical-friendly)
+  // ============================================================
+  async function inserirTexto(campo, texto){
+    campo.focus();
+    campo.click();
     try{
-      const data = new DataTransfer();
-      data.setData("text/plain", text);
-      box.dispatchEvent(new ClipboardEvent("paste",{clipboardData:data,bubbles:true,cancelable:true}));
+      document.execCommand('selectAll', false, null);
+      document.execCommand('delete', false, null);
     }catch(_e){}
-    // 2) execCommand
-    if(!box.innerText?.includes(text)){
-      try{ document.execCommand("insertText", false, text); }catch(_e){}
+    document.execCommand('insertText', false, texto);
+    campo.dispatchEvent(new InputEvent('input', {
+      bubbles:true, cancelable:true, inputType:'insertText', data:texto
+    }));
+  }
+  async function enviarMensagem(campo){
+    await esperar(300);
+    const botao = buscarElemento(SELETORES_ENVIAR);
+    if(botao){
+      botao.click();
+      return true;
     }
-    // 3) clipboard + Ctrl+V
-    if(!box.innerText?.includes(text)){
-      try{
-        await navigator.clipboard.writeText(text);
-        box.dispatchEvent(new KeyboardEvent("keydown",{key:"v",code:"KeyV",ctrlKey:true,bubbles:true}));
-        box.dispatchEvent(new KeyboardEvent("keyup",{key:"v",code:"KeyV",ctrlKey:true,bubbles:true}));
-      }catch(_e){}
-    }
-    box.dispatchEvent(new InputEvent("input",{bubbles:true,inputType:"insertText",data:text}));
-    let btn = null;
-    for(let i=0;i<16;i++){
-      await new Promise(r=>setTimeout(r,250));
-      btn = findSendButton();
-      if(btn) break;
-    }
-    if(btn){btn.click(); log("enviado"); return true;}
-    box.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",code:"Enter",keyCode:13,which:13,bubbles:true}));
+    campo.dispatchEvent(new KeyboardEvent('keydown', { key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true }));
+    campo.dispatchEvent(new KeyboardEvent('keyup',   { key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true }));
     return true;
   }
 
-  // ---------- Chamada à IA ----------
-  async function askAI(messages){
+  // ============================================================
+  // CHAMADA À IA
+  // ============================================================
+  async function askAI(messages, sessionId){
     try{
-      log("IA <-", messages.length, "msgs");
+      log("IA <-", messages.length, "msgs (session:", sessionId, ")");
       const r = await fetch(CFG.endpoint, {
         method:"POST",
         headers:{"Content-Type":"application/json","x-api-key":CFG.apiKey},
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({ messages, sessionId }),
       });
       const j = await r.json().catch(()=>({}));
-      if(!r.ok){warn("API erro", r.status, j); setButtonStatus("⚠️ " + (j.error||r.status), false); return null;}
+      if(!r.ok){ warn("API erro", r.status, j); setButtonStatus("⚠️ "+(j.error||r.status), false); return null; }
       log("IA ->", j.reply);
       return j.reply || null;
-    }catch(e){warn("fetch erro", e); setButtonStatus("⚠️ SEM API", false); return null;}
+    }catch(e){ warn("fetch erro", e); setButtonStatus("⚠️ SEM API", false); return null; }
   }
 
-  // ---------- Processa uma bubble (chat já aberto) ----------
-  async function processBubble(bubble, chat){
-    if(SEEN_BUBBLES.has(bubble)) return false;
-    SEEN_BUBBLES.add(bubble);
-    if(!isRecent(bubble)){ return false; }
-    const id = bubble.getAttribute("data-id");
-    if(id){
-      if(PROCESSED_IDS.has(id)) return false;
-      PROCESSED_IDS.add(id);
-    }
-    const text = extractText(bubble);
-    if(!text) return false;
-    if(!(await getEnabled())){log("global off"); return false;}
-    if(isGroupChat()){log("grupo ignorado:", chat); return false;}
-    if(chat && !(await getChatEnabled(chat))){log("chat off:", chat); return false;}
-
-    const hist = HISTORY.get(chat) || [];
-    hist.push({role:"user", content:text});
-    while(hist.length>20) hist.shift();
-    HISTORY.set(chat, hist);
-
-    setButtonStatus("🤖 LENDO...", true, 4000);
-    const reply = await askAI(hist);
-    if(!reply) return false;
-    hist.push({role:"assistant", content:reply});
-    HISTORY.set(chat, hist);
-    setButtonStatus("🤖 ENVIANDO...", true, 4000);
-    await new Promise(r=>setTimeout(r, 700 + Math.random()*1000));
-    const sent = await sendReply(reply);
-    setButtonStatus(sent ? "🤖 RESPONDIDO" : "⚠️ NÃO ENVIOU", sent, 6000);
-    return sent;
-  }
-
-  // ---------- Scan do chat atualmente aberto (apenas dedupe; NÃO responde sozinho) ----------
-  // O fluxo principal de resposta é o background queue. Aqui só registramos IDs vistos
-  // para evitar reprocessar quando o background abrir o mesmo chat.
-  function trackOpenChatBubbles(){
-    getIncomingBubbles(document).forEach((b)=>{
-      const id = b.getAttribute("data-id");
-      if(id) {
-        // não marca como processado — apenas garante existência no SEEN para evitar loops
-      }
-    });
-  }
-
-  // ---------- Sidebar / unread detection ----------
-  function getSidebarRows(){
-    return Array.from(document.querySelectorAll('#pane-side [role="row"]'));
-  }
-  function findUnreadChatRows(){
-    return getSidebarRows().filter((row)=>{
-      const badges = row.querySelectorAll('span[aria-label]');
-      for(const b of badges){
-        const l = (b.getAttribute('aria-label')||'').toLowerCase();
-        if(/(não lida|nao lida|unread|mensagem não lida|mensagens não lidas)/.test(l)) return true;
-      }
-      return false;
-    });
-  }
-  function getSelectedRow(){
-    return getSidebarRows().find((r)=> r.querySelector('[aria-selected="true"]') || r.getAttribute('aria-selected')==='true') || null;
-  }
-  function rowKey(row){
-    if(!row) return null;
-    return (row.innerText||"").split("\\n")[0].trim() || null;
-  }
-  function findRowByKey(key){
-    if(!key) return null;
-    return getSidebarRows().find((r)=> rowKey(r)===key) || null;
-  }
-  function clickRow(row){
-    if(!row) return;
-    const target = row.querySelector('[role="button"], [tabindex]') || row;
-    target.click();
-  }
-  async function waitFor(pred, ms){
-    const start = Date.now();
-    while(Date.now()-start < (ms||4000)){
-      try{ if(pred()) return true; }catch(_e){}
-      await new Promise(r=>setTimeout(r,120));
-    }
-    return false;
-  }
-
-  // ---------- Background queue ----------
-  async function processOneUnread(){
-    if(bgBusy || busy) return false;
-    if(!(await getEnabled())) return false;
-    if(!isUserIdle() || isUserComposing() || isUserTyping()) return false;
-
-    const rows = findUnreadChatRows();
-    if(!rows.length) return false;
-
-    bgBusy = true;
-    busy = true;
-    const prevRow = getSelectedRow();
-    const prevKey = rowKey(prevRow);
-    const sidebar = document.querySelector('#pane-side [role="grid"]') || document.querySelector('#pane-side');
-    const prevScroll = sidebar ? sidebar.scrollTop : 0;
-    const beforeChat = getChatId();
-
+  // ============================================================
+  // PROCESSAMENTO PRINCIPAL (após debounce)
+  // ============================================================
+  async function processarChat(chat){
+    if(chatsEmProcessamento.has(chat)) return;
+    chatsEmProcessamento.add(chat);
     try{
-      const row = rows[0];
-      clickRow(row);
-      await waitFor(()=>{ const c = getChatId(); return c && c !== beforeChat; }, 4000);
-      await new Promise(r=>setTimeout(r, 500));
+      if(!(await getEnabled())){ log("global off"); return; }
+      if(getChatId() !== chat){ log("chat mudou durante debounce"); return; }
+      if(isGroupChat()){ log("grupo ignorado:", chat); return; }
+      if(!(await getChatEnabled(chat))){ log("chat off:", chat); return; }
+      if(isUserTyping()){ log("usuário digitando, abortando"); return; }
 
-      const chat = getChatId();
-      if(chat){
-        if(isGroupChat()){
-          log("grupo ignorado na sidebar:", chat);
-          if(prevKey){
-            const back = findRowByKey(prevKey) || getSidebarRows().find((r)=>(r.innerText||'').includes(prevKey));
-            if(back){ clickRow(back); await new Promise(r=>setTimeout(r, 300)); }
-          }
-          if(sidebar){ try{ sidebar.scrollTop = prevScroll; }catch(_e){} }
-          return false;
-        }
-        // só reseta history se chat mudou (não temos history para chats novos)
-        if(!HISTORY.has(chat)) HISTORY.set(chat, []);
+      const mensagens = lerMensagens(20);
+      if(!mensagens.length) return;
+      const ultima = mensagens[mensagens.length-1];
+      if(ultima.role !== "user"){ log("última é nossa, não responder"); return; }
 
-        // pega APENAS a última recebida recente do chat
-        const bubbles = getIncomingBubbles(document).filter(isRecent);
-        const last = bubbles[bubbles.length-1];
-        if(last) await processBubble(last, chat);
-      }
+      setButtonStatus("🤖 LENDO...", true, 4000);
+      const sessionId = CFG.apiKey + ":" + chat;
+      const reply = await askAI(mensagens, sessionId);
+      if(!reply) return;
 
-      // Voltar para o chat anterior
-      if(prevKey && prevKey !== rowKey(getSelectedRow())){
-        const back = findRowByKey(prevKey) || getSidebarRows().find((r)=>(r.innerText||'').includes(prevKey));
-        if(back){ clickRow(back); await new Promise(r=>setTimeout(r, 300)); }
-      }
-      if(sidebar){ try{ sidebar.scrollTop = prevScroll; }catch(_e){} }
-      return true;
-    }catch(e){ warn("BG erro", e); return false; }
-    finally{ bgBusy = false; busy = false; }
+      // delay humanizado 1.5s - 4s
+      const delay = 1500 + Math.random() * 2500;
+      setButtonStatus("🤖 DIGITANDO...", true, Math.ceil(delay)+1500);
+      await esperar(delay);
+
+      if(isUserTyping()){ log("usuário começou a digitar, cancelando envio"); return; }
+      if(getChatId() !== chat){ log("chat mudou antes de enviar"); return; }
+
+      const campo = buscarElemento(SELETORES_INPUT);
+      if(!campo){ warn("caixa de envio não encontrada"); setButtonStatus("⚠️ SEM CAIXA", false); return; }
+      await inserirTexto(campo, reply);
+      await enviarMensagem(campo);
+      setButtonStatus("🤖 RESPONDIDO", true, 5000);
+    }catch(e){
+      warn("processarChat erro", e);
+    }finally{
+      chatsEmProcessamento.delete(chat);
+    }
   }
 
-  // ---------- Botão ON/OFF por contato ----------
+  function agendarResposta(chat){
+    const prev = debounceTimers.get(chat);
+    if(prev) clearTimeout(prev);
+    const t = setTimeout(()=>{
+      debounceTimers.delete(chat);
+      processarChat(chat).catch((e)=>warn("agendar", e));
+    }, DEBOUNCE_MS);
+    debounceTimers.set(chat, t);
+  }
+
+  // ============================================================
+  // OBSERVER DE NOVAS MENSAGENS
+  // ============================================================
+  const obs = new MutationObserver((muts)=>{
+    let hasIncoming = false;
+    for(const m of muts){
+      for(const node of m.addedNodes){
+        if(!(node instanceof HTMLElement)) continue;
+        if(node.matches?.('.message-in') || node.querySelector?.('.message-in')){
+          hasIncoming = true; break;
+        }
+      }
+      if(hasIncoming) break;
+    }
+    if(!hasIncoming) return;
+    const chat = getChatId();
+    if(!chat) return;
+    // só agenda se última mensagem for do contato
+    const msgs = lerMensagens(5);
+    if(!msgs.length) return;
+    if(msgs[msgs.length-1].role !== "user") return;
+    agendarResposta(chat);
+  });
+  function attachObserver(){
+    const main = document.querySelector('#main') || document.body;
+    obs.disconnect();
+    obs.observe(main, { childList:true, subtree:true });
+  }
+
+  // ============================================================
+  // BOTÃO ON/OFF POR CONTATO
+  // ============================================================
   function styleBtn(btn, on){
     const hasOverride = statusOverrideText && Date.now() < statusOverrideUntil;
     btn.textContent = hasOverride ? statusOverrideText : (on ? "🤖 IA: ON" : "🤖 IA: OFF");
-    btn.style.background = hasOverride ? (statusOverrideOk ? "#16a34a" : "#dc2626") : (on ? "#16a34a" : "#dc2626");
+    btn.style.background = hasOverride ? (statusOverrideOk ? "#16a34a" : "#dc2626") : (on ? "#16a34a" : "#6b7280");
     btn.style.color = "#fff";
     btn.style.border = "none";
     btn.style.padding = "6px 12px";
@@ -489,6 +367,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     btn.style.fontWeight = "600";
     btn.style.cursor = "pointer";
     btn.style.marginRight = "8px";
+    btn.style.opacity = on ? "1" : "0.7";
     btn.style.boxShadow = "0 2px 6px rgba(0,0,0,.15)";
   }
   async function ensureToggleButton(){
@@ -519,50 +398,25 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     btn.dataset.chat = chat;
   }
 
-  // ---------- Chat change detection: marca histórico ao abrir ----------
-  let lastSeenChat = null;
+  // ============================================================
+  // DETECÇÃO DE TROCA DE CHAT
+  // ============================================================
   function onChatMaybeChanged(){
     const c = getChatId();
     if(c && c !== lastSeenChat){
       lastSeenChat = c;
-      // ao abrir/trocar chat, marca tudo que está visível como já visto
-      markExistingAsSeen();
       ensureToggleButton();
       log("chat ativo:", c);
     }
   }
 
-  // ---------- Observer em tempo real do chat aberto ----------
-  const obs = new MutationObserver((muts)=>{
-    if(bgBusy) return;
-    for(const m of muts){
-      for(const node of m.addedNodes){
-        if(!(node instanceof HTMLElement)) continue;
-        const candidates = [];
-        if(node.matches?.('[data-id]')) candidates.push(node);
-        node.querySelectorAll?.('[data-id]').forEach((b)=>candidates.push(b));
-        for(const b of candidates){
-          const normalized = b.closest('[data-id]') || b;
-          if(!isIncomingBubble(normalized)) continue;
-          const chat = getChatId();
-          if(chat) processBubble(normalized, chat).catch(()=>{});
-        }
-      }
-    }
-  });
-  function attachObserver(){
-    const main = document.querySelector('#main') || document.body;
-    obs.disconnect();
-    obs.observe(main, { childList:true, subtree:true });
-  }
-
-  // ---------- Loops ----------
+  // ============================================================
+  // LOOPS
+  // ============================================================
   setInterval(()=>{ ensureToggleButton(); onChatMaybeChanged(); attachObserver(); }, 1500);
-  setInterval(()=>{ processOneUnread().catch((e)=>warn("BG loop", e)); }, 5000);
 
-  // boot
-  setTimeout(()=>{ markExistingAsSeen(); ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa (modo background). Botão IA aparece no topo de cada conversa.");
+  setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
+  log("extensão ativa v1.0.14. Botão IA aparece no topo de cada conversa.");
 })();
 `;
 
