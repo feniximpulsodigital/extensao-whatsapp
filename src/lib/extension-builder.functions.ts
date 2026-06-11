@@ -365,7 +365,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       await esperar(delay);
 
       if(isUserTyping()){ log("usuário começou a digitar, cancelando envio"); return; }
-      if(getChatId() !== chat){ log("chat mudou antes de enviar"); return; }
+      if(!nomesIguais(getChatId(), chat)){ log("chat mudou antes de enviar"); return; }
 
       const campo = buscarElemento(SELETORES_INPUT);
       if(!campo){ warn("caixa de envio não encontrada"); setButtonStatus("⚠️ SEM CAIXA", false); return; }
