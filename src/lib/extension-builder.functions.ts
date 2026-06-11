@@ -203,11 +203,20 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   // ============================================================
   // LEITURA DE MENSAGENS (.message-in / .message-out)
   // ============================================================
+  function getAreaMensagens(){
+    return document.querySelector('#main div[role="application"]')
+      || document.querySelector('#main .copyable-area')
+      || document.querySelector('#main');
+  }
   function lerMensagens(limite){
     const max = limite || 20;
     const out = [];
-    const linhas = document.querySelectorAll('#main .message-in, #main .message-out');
-    linhas.forEach((linha)=>{
+    const area = getAreaMensagens();
+    if(!area) return out;
+    // garantir que não estamos pegando nada do header
+    const bolhas = area.querySelectorAll('.message-in, .message-out');
+    bolhas.forEach((linha)=>{
+      if(linha.closest('header')) return;
       const ehRecebida = linha.classList.contains('message-in');
       let texto = "";
       const spans = linha.querySelectorAll('span.selectable-text, span[class*="selectable-text"]');
