@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.17",
+  version: "1.0.18",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -88,7 +88,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.17. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.18. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -256,35 +256,59 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   }
 
   // ============================================================
-  // LEITURA DE MENSAGENS (.message-in / .message-out)
+  // LEITURA DE MENSAGENS — usa [role="row"] + data-id (false_/true_)
   // ============================================================
   function getAreaMensagens(){
     return document.querySelector('#main div[role="application"]')
       || document.querySelector('#main .copyable-area')
       || document.querySelector('#main');
   }
+  function detectarRoleRow(row){
+    // MÉTODO 1: data-id ("false_..." = recebida, "true_..." = enviada)
+    const elComId = row.hasAttribute('data-id') ? row : row.querySelector('[data-id]');
+    if(elComId){
+      const id = elComId.getAttribute('data-id') || '';
+      if(id.startsWith('false_')) return 'user';
+      if(id.startsWith('true_')) return 'assistant';
+    }
+    // MÉTODO 2: classes antigas
+    if(row.querySelector('.message-in')) return 'user';
+    if(row.querySelector('.message-out')) return 'assistant';
+    // MÉTODO 3: alinhamento horizontal da bolha
+    const bolha = row.firstElementChild;
+    if(bolha){
+      const rRow = row.getBoundingClientRect();
+      const rBolha = bolha.getBoundingClientRect();
+      if(rRow.width > 0 && rBolha.width > 0 && rBolha.width < rRow.width * 0.9){
+        const centroRow = rRow.left + rRow.width/2;
+        const centroBolha = rBolha.left + rBolha.width/2;
+        return centroBolha < centroRow ? 'user' : 'assistant';
+      }
+    }
+    return null;
+  }
   function lerMensagens(limite){
     const max = limite || 20;
     const out = [];
     const area = getAreaMensagens();
     if(!area) return out;
-    // garantir que não estamos pegando nada do header
-    const bolhas = area.querySelectorAll('.message-in, .message-out');
-    bolhas.forEach((linha)=>{
-      if(linha.closest('header')) return;
-      const ehRecebida = linha.classList.contains('message-in');
+    const rows = area.querySelectorAll('[role="row"]');
+    rows.forEach((row)=>{
+      if(row.closest('header')) return;
+      const role = detectarRoleRow(row);
+      if(!role) return;
       let texto = "";
-      const spans = linha.querySelectorAll('span.selectable-text, span[class*="selectable-text"]');
+      const spans = row.querySelectorAll('span.selectable-text, span[class*="selectable-text"]');
       spans.forEach((s)=>{
         const t = (s.innerText || s.textContent || "").trim();
         if(t) texto += (texto ? "\\n" : "") + t;
       });
       if(!texto){
-        const raw = (linha.innerText || "").trim();
+        const raw = (row.innerText || "").trim();
         texto = raw.split("\\n").filter((t)=>!/^[0-9]{1,2}:[0-9]{2}$/.test(t.trim())).join("\\n").trim();
       }
       if(!texto) return;
-      out.push({ role: ehRecebida ? "user" : "assistant", content: texto });
+      out.push({ role: role, content: texto });
     });
     return out.slice(-max);
   }
@@ -397,9 +421,13 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     for(const m of muts){
       for(const node of m.addedNodes){
         if(!(node instanceof HTMLElement)) continue;
-        if(node.matches?.('.message-in') || node.querySelector?.('.message-in')){
-          hasIncoming = true; break;
+        const candidatos = [];
+        if(node.matches?.('[role="row"]')) candidatos.push(node);
+        node.querySelectorAll?.('[role="row"]').forEach((r)=>candidatos.push(r));
+        for(const r of candidatos){
+          if(detectarRoleRow(r) === 'user'){ hasIncoming = true; break; }
         }
+        if(hasIncoming) break;
       }
       if(hasIncoming) break;
     }
@@ -563,7 +591,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.17. Monitorando chat aberto + polling + chats não lidos na sidebar.");
+  log("extensão ativa v1.0.18. Monitorando chat aberto + polling + chats não lidos na sidebar.");
 })();
 `;
 
