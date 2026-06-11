@@ -106,6 +106,33 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_model_prices: {
+        Row: {
+          input_per_1k: number
+          model: string
+          output_per_1k: number
+          provider: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          input_per_1k: number
+          model: string
+          output_per_1k: number
+          provider: string
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          input_per_1k?: number
+          model?: string
+          output_per_1k?: number
+          provider?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_pricing_config: {
         Row: {
           created_at: string

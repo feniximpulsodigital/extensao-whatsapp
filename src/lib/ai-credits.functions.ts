@@ -232,6 +232,32 @@ export const adminDeleteCreditPackage = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ---------------- Admin: preços automáticos de modelos ----------------
+
+export const adminListModelPrices = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    await assertAdmin(supabase, userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("ai_model_prices")
+      .select("model, provider, input_per_1k, output_per_1k, updated_at")
+      .order("provider")
+      .order("model");
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
+
+export const adminRefreshModelPrices = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    await assertAdmin(supabase, userId);
+    const { refreshModelPrices } = await import("./ai-model-prices.server");
+    return refreshModelPrices();
+  });
+
 // ---------------- Admin: usage report ----------------
 
 export const adminUsageReport = createServerFn({ method: "GET" })

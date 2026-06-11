@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
   adminGetPricingConfig,
@@ -16,6 +16,8 @@ import {
   adminListCreditPackages,
   adminUpsertCreditPackage,
   adminDeleteCreditPackage,
+  adminListModelPrices,
+  adminRefreshModelPrices,
 } from "@/lib/ai-credits.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/ai-credits")({
@@ -30,8 +32,19 @@ function AiCreditsPage() {
   const delPkg = useServerFn(adminDeleteCreditPackage);
   const qc = useQueryClient();
 
+  const listPrices = useServerFn(adminListModelPrices);
+  const refreshPrices = useServerFn(adminRefreshModelPrices);
+
   const { data: cfg } = useQuery({ queryKey: ["pricing-config"], queryFn: () => getCfg() });
   const { data: pkgs } = useQuery({ queryKey: ["credit-pkgs"], queryFn: () => listPkg() });
+  const { data: prices } = useQuery({ queryKey: ["model-prices"], queryFn: () => listPrices() });
+  const [priceFilter, setPriceFilter] = useState("");
+
+  const doRefreshPrices = useMutation({
+    mutationFn: () => refreshPrices(),
+    onSuccess: (r: any) => { toast.success(`${r.updated} modelos atualizados`); qc.invalidateQueries({ queryKey: ["model-prices"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const [form, setForm] = useState({
     usd_to_brl: 5.2,
@@ -99,14 +112,75 @@ function AiCreditsPage() {
             <div><Label>Markup global (x)</Label><Input type="number" step="0.1" value={form.global_markup_multiplier} onChange={(e) => setForm({ ...form, global_markup_multiplier: parseFloat(e.target.value || "0") })} /></div>
           </div>
           <div>
-            <Label>Custos por modelo (JSON: input_per_1k / output_per_1k em USD)</Label>
+            <Label>Overrides manuais por modelo (JSON: input_per_1k / output_per_1k em USD)</Label>
             <textarea
               className="w-full font-mono text-sm rounded-md border bg-background p-2 min-h-[160px]"
               value={form.model_cost_overrides}
               onChange={(e) => setForm({ ...form, model_cost_overrides: e.target.value })}
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              Tem prioridade sobre os preços automáticos abaixo. Deixe vazio para usar 100% automático.
+            </p>
           </div>
           <Button onClick={() => saveCfg.mutate()} disabled={saveCfg.isPending}>{saveCfg.isPending ? "Salvando…" : "Salvar configuração"}</Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Preços automáticos por modelo</CardTitle>
+              <CardDescription>
+                Buscados da base aberta LiteLLM (OpenAI, Anthropic, Groq, Gemini) e usados na cobrança
+                quando o modelo não tem override manual. Atualizam sozinhos a cada 24h.
+              </CardDescription>
+            </div>
+            <Button variant="outline" onClick={() => doRefreshPrices.mutate()} disabled={doRefreshPrices.isPending}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${doRefreshPrices.isPending ? "animate-spin" : ""}`} />
+              {doRefreshPrices.isPending ? "Atualizando…" : "Atualizar agora"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {(prices ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nenhum preço carregado ainda — clique em “Atualizar agora”.
+            </p>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                {(prices ?? []).length} modelos · última atualização:{" "}
+                {new Date((prices as any)[0]?.updated_at).toLocaleString("pt-BR")}
+              </p>
+              <Input placeholder="Filtrar modelo… (ex: gpt-4o, llama)" value={priceFilter} onChange={(e) => setPriceFilter(e.target.value)} />
+              <div className="max-h-[320px] overflow-y-auto rounded border">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-background">
+                    <tr className="border-b text-left">
+                      <th className="p-2">Modelo</th>
+                      <th className="p-2">Provedor</th>
+                      <th className="p-2 text-right">Input /1k (USD)</th>
+                      <th className="p-2 text-right">Output /1k (USD)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(prices ?? [])
+                      .filter((p: any) => !priceFilter || p.model.toLowerCase().includes(priceFilter.toLowerCase()))
+                      .slice(0, 100)
+                      .map((p: any) => (
+                        <tr key={p.model} className="border-b last:border-0">
+                          <td className="p-2 font-mono text-xs">{p.model}</td>
+                          <td className="p-2">{p.provider}</td>
+                          <td className="p-2 text-right font-mono text-xs">{Number(p.input_per_1k).toFixed(6)}</td>
+                          <td className="p-2 text-right font-mono text-xs">{Number(p.output_per_1k).toFixed(6)}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
