@@ -207,8 +207,6 @@ function AiSection() {
   const [form, setForm] = useState({
     temperature: 0.7,
     max_tokens: 500,
-    auto_reply_enabled: false,
-    response_delay_ms: 1500,
     prompt_content: "",
   });
   useEffect(() => {
@@ -218,8 +216,6 @@ function AiSection() {
         ...f,
         temperature: Number(c.temperature ?? 0.7),
         max_tokens: c.max_tokens ?? 500,
-        auto_reply_enabled: c.auto_reply_enabled ?? false,
-        response_delay_ms: c.response_delay_ms ?? 1500,
         prompt_content: cfg.prompt?.content ?? "",
       }));
     }
@@ -228,8 +224,6 @@ function AiSection() {
   const save = useMutation({
     mutationFn: () => updCfg({ data: {
       temperature: form.temperature,
-      auto_reply_enabled: form.auto_reply_enabled,
-      response_delay_ms: form.response_delay_ms,
       prompt_content: form.prompt_content || undefined,
     }}),
     onSuccess: () => { toast.success("Salvo"); qc.invalidateQueries({ queryKey: ["my-ai-config"] }); },
@@ -261,20 +255,6 @@ function AiSection() {
           <CardDescription>Personalize como sua IA responde no WhatsApp.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between rounded border p-4">
-            <div>
-              <p className="font-medium">Resposta automática</p>
-              <p className="text-sm text-muted-foreground">Quando ligada, a IA responde mensagens recebidas sem intervenção.</p>
-            </div>
-            <Switch checked={form.auto_reply_enabled} onCheckedChange={(c) => setForm({ ...form, auto_reply_enabled: c })} />
-          </div>
-
-          <div>
-            <Label>Delay antes de responder (ms)</Label>
-            <Input type="number" value={form.response_delay_ms} onChange={(e) => setForm({ ...form, response_delay_ms: parseInt(e.target.value || "0") })} />
-            <p className="text-xs text-muted-foreground mt-1">Pequena espera para parecer mais humano.</p>
-          </div>
-
           <div>
             <Label>Criatividade da IA ({form.temperature.toFixed(2)})</Label>
             <input type="range" min={0} max={1.5} step={0.05} value={form.temperature}
