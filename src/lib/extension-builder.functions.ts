@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.22",
+  version: "1.0.23",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -294,7 +294,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.22. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.23. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -346,11 +346,31 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const BTN_ID = "argos-toggle-btn";
   const DEBOUNCE_MS = 3000;
   const chatsEmProcessamento = new Set();
+  const chatsPendentes = new Set(); // respostas adiadas (operador ativo, chat trocado...)
   const debounceTimers = new Map(); // chat -> timer id
   let statusOverrideText = null;
   let statusOverrideOk = true;
   let statusOverrideUntil = 0;
   let lastSeenChat = null;
+
+  // ============================================================
+  // ATIVIDADE DO OPERADOR — a IA só mexe na interface quando
+  // o humano está ocioso (eventos sintéticos têm isTrusted=false
+  // e não contam, então as ações da própria IA não se bloqueiam)
+  // ============================================================
+  const HUMANO_OCIOSO_MS = 20000;
+  let lastHumanActivity = 0;
+  let ultimoLogHumano = 0;
+  ['mousedown','keydown','wheel','touchstart'].forEach((t)=>{
+    window.addEventListener(t, (e)=>{ if(e.isTrusted) lastHumanActivity = Date.now(); }, true);
+  });
+  function humanoAtivo(){ return Date.now() - lastHumanActivity < HUMANO_OCIOSO_MS; }
+  function logHumanoAtivo(acao){
+    if(Date.now() - ultimoLogHumano > 60000){
+      ultimoLogHumano = Date.now();
+      log("operador usando a janela —", acao, "adiado até ficar ocioso por " + (HUMANO_OCIOSO_MS/1000) + "s");
+    }
+  }
 
   function setButtonStatus(text, ok, ms){
     statusOverrideText = text;
@@ -717,17 +737,17 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     chatsEmProcessamento.add(chat);
     try{
       if(!(await getEnabled())){ log("global off"); return; }
-      if(!nomesIguais(getChatId(), chat)){ log("chat mudou durante debounce"); return; }
-      if(isGroupChat()){ log("grupo ignorado:", chat); return; }
-      if(!(await getChatEnabled(chat))){ log("chat off:", chat); return; }
-      if(isUserTyping()){ log("usuário digitando, abortando"); return; }
+      if(!nomesIguais(getChatId(), chat)){ log("chat mudou durante debounce"); chatsPendentes.add(chat); return; }
+      if(isGroupChat()){ log("grupo ignorado:", chat); chatsPendentes.delete(chat); return; }
+      if(!(await getChatEnabled(chat))){ log("chat off:", chat); chatsPendentes.delete(chat); return; }
+      if(isUserTyping()){ log("usuário digitando, deixando pendente:", chat); chatsPendentes.add(chat); return; }
 
       const mensagens = await lerMensagensConfiavel(chat, 20);
       log("total de mensagens lidas:", mensagens.length, "chat:", chat);
       if(!mensagens.length){ warn("nenhuma mensagem lida — verificar seletores da área de mensagens"); return; }
       const ultima = mensagens[mensagens.length-1];
       log("ultima eh do contato?", ultima.role === "user", "| texto:", ultima.content.slice(0,60));
-      if(ultima.role !== "user"){ log("última é nossa, não responder"); return; }
+      if(ultima.role !== "user"){ log("última é nossa, não responder"); chatsPendentes.delete(chat); return; }
 
       setButtonStatus("🤖 LENDO...", true, 4000);
       const sessionId = CFG.apiKey + ":" + chat;
@@ -739,13 +759,15 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       setButtonStatus("🤖 DIGITANDO...", true, Math.ceil(delay)+1500);
       await esperar(delay);
 
-      if(isUserTyping()){ log("usuário começou a digitar, cancelando envio"); return; }
-      if(!nomesIguais(getChatId(), chat)){ log("chat mudou antes de enviar"); return; }
+      if(isUserTyping()){ log("usuário começou a digitar, deixando pendente:", chat); chatsPendentes.add(chat); return; }
+      if(!nomesIguais(getChatId(), chat)){ log("chat mudou antes de enviar, deixando pendente:", chat); chatsPendentes.add(chat); return; }
+      if(humanoAtivo()){ logHumanoAtivo("envio da resposta"); chatsPendentes.add(chat); return; }
 
       const campo = buscarElemento(SELETORES_INPUT);
       if(!campo){ warn("caixa de envio não encontrada"); setButtonStatus("⚠️ SEM CAIXA", false); return; }
       await inserirTexto(campo, reply);
       await enviarMensagem(campo);
+      chatsPendentes.delete(chat);
       setButtonStatus("🤖 RESPONDIDO", true, 5000);
     }catch(e){
       warn("processarChat erro", e);
@@ -905,7 +927,12 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     if(atendendoFila) return;
     if(!(await getEnabled())) return;
     const fila = buscarChatsNaoLidos();
+    // inclui respostas adiadas (badge já consumido, mas resposta nunca saiu)
+    for(const nome of chatsPendentes){
+      if(!fila.some((c)=>nomesIguais(c.nome, nome))) fila.push({ nome: nome, item: null });
+    }
     if(!fila.length) return;
+    if(humanoAtivo()){ logHumanoAtivo("atendimento da fila"); return; }
 
     // filtra somente chats com IA ativada
     const ativos = [];
@@ -918,6 +945,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     try{
       for(const chat of ativos){
         if(chatsEmProcessamento.has(chat.nome)) continue;
+        if(humanoAtivo()){ logHumanoAtivo("restante da fila"); break; }
         log("abrindo chat não lido:", chat.nome);
         const abriu = await abrirChat(chat);
         if(!abriu) continue;
@@ -927,8 +955,9 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         log("após abrir", chat.nome, "- msgs:", msgs.length, "| última:", msgs.length ? msgs[msgs.length-1].role : "nenhuma");
         if(msgs.length && msgs[msgs.length-1].role === "user"){
           await processarChat(chat.nome);
-        }else if(!msgs.length){
-          warn("nenhuma mensagem lida em", chat.nome, "- store e DOM falharam");
+        }else{
+          chatsPendentes.delete(chat.nome); // nada a responder (ex.: operador já respondeu)
+          if(!msgs.length) warn("nenhuma mensagem lida em", chat.nome, "- store e DOM falharam");
         }
         await esperar(1000);
       }
@@ -945,7 +974,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.22. Monitorando chat aberto + polling + chats não lidos na sidebar.");
+  log("extensão ativa v1.0.23. Monitorando chat aberto + polling + chats não lidos na sidebar.");
 })();
 `;
 
