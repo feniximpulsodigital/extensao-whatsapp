@@ -139,6 +139,35 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_reply_claims: {
+        Row: {
+          claim_key: string
+          claimed_at: string
+          id: string
+          tenant_id: string
+        }
+        Insert: {
+          claim_key: string
+          claimed_at?: string
+          id?: string
+          tenant_id: string
+        }
+        Update: {
+          claim_key?: string
+          claimed_at?: string
+          id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_reply_claims_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_usage_log: {
         Row: {
           cost_usd_real: number

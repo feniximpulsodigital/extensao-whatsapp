@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.23",
+  version: "1.0.24",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -257,6 +257,53 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
     catch(err){ resp = { ok:false, motivo: String((err && err.message) || err) }; }
     window.postMessage(Object.assign({ __argos:'read-messages-result', reqId: d.reqId }, resp), '*');
   });
+  // ---- envio de mensagem direto pela API interna (sem abrir o chat na UI) ----
+  async function enviarViaStore(nome, texto){
+    let req = null;
+    try{ if(typeof window.require === 'function') req = window.require; }catch(_e){}
+    if(!req) return { ok:false, motivo:'sem-require' };
+    const col = getChatCollection(req);
+    if(!col) return { ok:false, motivo:'sem-chat-collection' };
+    const chat = acharChatModel(col, nome);
+    if(!chat) return { ok:false, motivo:'chat-nao-encontrado-store' };
+    let addAndSend = null, MsgKey = null, getMeUser = null;
+    try{ addAndSend = req('WAWebSendMsgChatAction').addAndSendMsgToChat; }catch(_e){}
+    if(typeof addAndSend !== 'function') return { ok:false, motivo:'sem-addAndSendMsgToChat' };
+    try{ MsgKey = req('WAWebMsgKey').default || req('WAWebMsgKey').MsgKey; }catch(_e){}
+    if(!MsgKey) return { ok:false, motivo:'sem-msgkey' };
+    try{ getMeUser = req('WAWebUserPrefsMeUser').getMaybeMeUser; }catch(_e){}
+    if(typeof getMeUser !== 'function') return { ok:false, motivo:'sem-meuser' };
+    try{
+      const me = getMeUser();
+      let novoId = MsgKey.newId();
+      if(novoId && typeof novoId.then === 'function') novoId = await novoId;
+      const key = new MsgKey({ from: me, to: chat.id, id: novoId, participant: undefined, selfDir: 'out' });
+      const msg = {
+        id: key, ack: 0, body: texto, from: me, to: chat.id,
+        local: true, self: 'out', t: Math.floor(Date.now()/1000),
+        isNewMsg: true, type: 'chat',
+      };
+      const r = addAndSend(chat, msg);
+      if(r && typeof r.then === 'function') await r;
+      // melhor esforço: marca o chat como lido
+      try{
+        const seen = req('WAWebUpdateUnreadChatAction').sendSeen;
+        if(typeof seen === 'function'){ const p = seen(chat); if(p && typeof p.catch === 'function') p.catch(()=>{}); }
+      }catch(_e){}
+      return { ok:true, via:'store-send' };
+    }catch(e){
+      return { ok:false, motivo:'send-erro: ' + String((e && e.message) || e) };
+    }
+  }
+  window.addEventListener('message', async (ev)=>{
+    if(ev.source !== window) return;
+    const d = ev.data;
+    if(!d || d.__argos !== 'send-message') return;
+    let resp;
+    try{ resp = await enviarViaStore(d.nome, d.texto); }
+    catch(err){ resp = { ok:false, motivo: String((err && err.message) || err) }; }
+    window.postMessage(Object.assign({ __argos:'send-message-result', reqId: d.reqId }, resp), '*');
+  });
   window.addEventListener('message', async (ev)=>{
     if(ev.source !== window) return;
     const d = ev.data;
@@ -294,7 +341,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.23. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.24. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -714,25 +761,31 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   // ============================================================
   // CHAMADA À IA
   // ============================================================
-  async function askAI(messages, sessionId){
+  function hashTexto(s){
+    let h = 5381;
+    for(let i = 0; i < s.length; i++){ h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; }
+    return h.toString(36);
+  }
+  async function askAI(messages, sessionId, dedupeKey){
     try{
       log("IA <-", messages.length, "msgs (session:", sessionId, ")");
       const r = await fetch(CFG.endpoint, {
         method:"POST",
         headers:{"Content-Type":"application/json","x-api-key":CFG.apiKey},
-        body: JSON.stringify({ messages, sessionId }),
+        body: JSON.stringify({ messages, sessionId, dedupeKey }),
       });
       const j = await r.json().catch(()=>({}));
       if(!r.ok){ warn("API erro", r.status, j); setButtonStatus("⚠️ "+(j.error||r.status), false); return null; }
+      if(j.skip){ log("outra instância reivindicou esta resposta"); return { skip:true }; }
       log("IA ->", j.reply);
-      return j.reply || null;
+      return j.reply ? { reply: j.reply } : null;
     }catch(e){ warn("fetch erro", e); setButtonStatus("⚠️ SEM API", false); return null; }
   }
 
   // ============================================================
   // PROCESSAMENTO PRINCIPAL (após debounce)
   // ============================================================
-  async function processarChat(chat){
+  async function processarChat(chat, replyPronto){
     if(chatsEmProcessamento.has(chat)) return;
     chatsEmProcessamento.add(chat);
     try{
@@ -749,10 +802,17 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       log("ultima eh do contato?", ultima.role === "user", "| texto:", ultima.content.slice(0,60));
       if(ultima.role !== "user"){ log("última é nossa, não responder"); chatsPendentes.delete(chat); return; }
 
-      setButtonStatus("🤖 LENDO...", true, 4000);
-      const sessionId = CFG.apiKey + ":" + chat;
-      const reply = await askAI(mensagens, sessionId);
-      if(!reply) return;
+      let reply = replyPronto || null;
+      if(!reply){
+        setButtonStatus("🤖 LENDO...", true, 4000);
+        const sessionId = CFG.apiKey + ":" + chat;
+        const dedupeKey = chat + ":" + hashTexto(ultima.content) + ":" + mensagens.length;
+        const resp = await askAI(mensagens, sessionId, dedupeKey);
+        if(!resp) return;
+        if(resp.skip){ chatsPendentes.delete(chat); return; }
+        reply = resp.reply;
+        if(!reply) return;
+      }
 
       // delay humanizado 1.5s - 4s
       const delay = 1500 + Math.random() * 2500;
@@ -776,12 +836,88 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     }
   }
 
+  // ============================================================
+  // PROCESSAMENTO HEADLESS — responde pela API interna sem nunca
+  // trocar a janela; o operador continua conversando em paralelo
+  // ============================================================
+  async function processarChatHeadless(nome){
+    if(chatsEmProcessamento.has(nome)) return "ok";
+    chatsEmProcessamento.add(nome);
+    try{
+      if(!(await getEnabled())) return "ok";
+      if(!(await getChatEnabled(nome))){ chatsPendentes.delete(nome); return "ok"; }
+      const r = await bridgeRequest('read-messages', { nome: nome, limite: 20 }, 4000);
+      if(!r || !r.ok || !Array.isArray(r.mensagens)){
+        log("headless: leitura via store indisponível (" + ((r && r.motivo) || '?') + ")");
+        return "fallback-ui";
+      }
+      if(r.grupo){ log("grupo ignorado:", nome); chatsPendentes.delete(nome); return "ok"; }
+      const mensagens = r.mensagens;
+      if(!mensagens.length) return "ok";
+      const ultima = mensagens[mensagens.length-1];
+      if(ultima.role !== "user"){ chatsPendentes.delete(nome); return "ok"; }
+      // se o operador está com ESTE chat aberto e usando a janela, é dele
+      if(nomesIguais(getChatId(), nome) && (humanoAtivo() || isUserTyping())){
+        chatsPendentes.add(nome);
+        return "ok";
+      }
+      log("headless: respondendo", nome, "| última:", ultima.content.slice(0, 60));
+      const sessionId = CFG.apiKey + ":" + nome;
+      const dedupeKey = nome + ":" + hashTexto(ultima.content) + ":" + mensagens.length;
+      const resp = await askAI(mensagens, sessionId, dedupeKey);
+      if(!resp) return "ok";
+      if(resp.skip){ chatsPendentes.delete(nome); return "ok"; }
+      const reply = resp.reply;
+      if(!reply) return "ok";
+
+      // delay humanizado 1.5s - 4s
+      await esperar(1500 + Math.random() * 2500);
+
+      // releitura: operador ou outro PC respondeu nesse meio tempo?
+      const r2 = await bridgeRequest('read-messages', { nome: nome, limite: 3 }, 4000);
+      if(r2 && r2.ok && r2.mensagens && r2.mensagens.length && r2.mensagens[r2.mensagens.length-1].role !== "user"){
+        log("headless: alguém já respondeu, cancelando:", nome);
+        chatsPendentes.delete(nome);
+        return "ok";
+      }
+
+      const env = await bridgeRequest('send-message', { nome: nome, texto: reply }, 8000);
+      if(env && env.ok){
+        log("headless: respondido sem abrir o chat:", nome);
+        chatsPendentes.delete(nome);
+        setButtonStatus("🤖 RESPONDIDO", true, 5000);
+        return "ok";
+      }
+      warn("headless: envio via store falhou (" + ((env && env.motivo) || '?') + ")");
+      return { fallback: true, reply: reply };
+    }catch(e){
+      warn("processarChatHeadless erro", e);
+      return "fallback-ui";
+    }finally{
+      chatsEmProcessamento.delete(nome);
+    }
+  }
+  // Orquestra: tenta headless; só usa a interface se o store falhar
+  // e o operador estiver ocioso.
+  async function responderChat(nome, item){
+    const r = await processarChatHeadless(nome);
+    if(r === "ok") return;
+    const replyPronto = (r && r.fallback && r.reply) || null;
+    if(humanoAtivo()){ logHumanoAtivo("resposta visual"); chatsPendentes.add(nome); return; }
+    if(!nomesIguais(getChatId(), nome)){
+      const abriu = await abrirChat({ nome: nome, item: item || null });
+      if(!abriu){ chatsPendentes.add(nome); return; }
+      await esperar(800);
+    }
+    await processarChat(nome, replyPronto);
+  }
+
   function agendarResposta(chat){
     const prev = debounceTimers.get(chat);
     if(prev) clearTimeout(prev);
     const t = setTimeout(()=>{
       debounceTimers.delete(chat);
-      processarChat(chat).catch((e)=>warn("agendar", e));
+      responderChat(chat).catch((e)=>warn("agendar", e));
     }, DEBOUNCE_MS);
     debounceTimers.set(chat, t);
   }
@@ -932,7 +1068,6 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       if(!fila.some((c)=>nomesIguais(c.nome, nome))) fila.push({ nome: nome, item: null });
     }
     if(!fila.length) return;
-    if(humanoAtivo()){ logHumanoAtivo("atendimento da fila"); return; }
 
     // filtra somente chats com IA ativada
     const ativos = [];
@@ -945,21 +1080,9 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     try{
       for(const chat of ativos){
         if(chatsEmProcessamento.has(chat.nome)) continue;
-        if(humanoAtivo()){ logHumanoAtivo("restante da fila"); break; }
-        log("abrindo chat não lido:", chat.nome);
-        const abriu = await abrirChat(chat);
-        if(!abriu) continue;
+        log("atendendo não lido:", chat.nome);
+        await responderChat(chat.nome, chat.item);
         await esperar(800);
-        if(isGroupChat()){ log("grupo, pulando"); continue; }
-        const msgs = await lerMensagensConfiavel(chat.nome, 5);
-        log("após abrir", chat.nome, "- msgs:", msgs.length, "| última:", msgs.length ? msgs[msgs.length-1].role : "nenhuma");
-        if(msgs.length && msgs[msgs.length-1].role === "user"){
-          await processarChat(chat.nome);
-        }else{
-          chatsPendentes.delete(chat.nome); // nada a responder (ex.: operador já respondeu)
-          if(!msgs.length) warn("nenhuma mensagem lida em", chat.nome, "- store e DOM falharam");
-        }
-        await esperar(1000);
       }
     }finally{
       atendendoFila = false;
@@ -974,7 +1097,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.23. Monitorando chat aberto + polling + chats não lidos na sidebar.");
+  log("extensão ativa v1.0.24. Modo headless: responde sem trocar de janela; multi-PC com dedupe no servidor.");
 })();
 `;
 
