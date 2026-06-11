@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.24",
+  version: "1.0.25",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -223,6 +223,9 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
     chat:'', image:'[imagem]', video:'[vídeo]', ptt:'[áudio]', audio:'[áudio]',
     document:'[documento]', sticker:'[figurinha]', location:'[localização]', vcard:'[contato]',
   };
+  // marcador invisível anexado a toda mensagem da IA; mensagem nossa SEM o
+  // marcador = enviada manualmente (por qualquer PC ou pelo celular)
+  const MARCA_IA = '\\u200b\\u2060';
   function lerMensagensStore(nome, limite){
     let req = null;
     try{ if(typeof window.require === 'function') req = window.require; }catch(_e){}
@@ -243,7 +246,14 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
         else texto = TIPOS_MSG[m.type] + (m.caption ? ' ' + String(m.caption) : '');
         texto = texto.trim();
         if(!texto) continue;
-        out.push({ role: fromMe ? 'assistant' : 'user', content: texto });
+        const temMarca = texto.indexOf(MARCA_IA) !== -1;
+        if(temMarca) texto = texto.split(MARCA_IA).join('').trim();
+        out.push({
+          role: fromMe ? 'assistant' : 'user',
+          content: texto,
+          t: m.t || 0,
+          manual: fromMe && !temMarca,
+        });
       }catch(_e){}
     }
     return { ok:true, mensagens: out.slice(-(limite || 20)), grupo: !!chat.isGroup };
@@ -279,7 +289,7 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
       if(novoId && typeof novoId.then === 'function') novoId = await novoId;
       const key = new MsgKey({ from: me, to: chat.id, id: novoId, participant: undefined, selfDir: 'out' });
       const msg = {
-        id: key, ack: 0, body: texto, from: me, to: chat.id,
+        id: key, ack: 0, body: texto + MARCA_IA, from: me, to: chat.id,
         local: true, self: 'out', t: Math.floor(Date.now()/1000),
         isNewMsg: true, type: 'chat',
       };
@@ -341,7 +351,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.24. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.25. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -440,6 +450,41 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   function setChatEnabled(chat, val){
     return new Promise((res)=>chrome.storage.local.set({[chatKey(chat)]: !!val}, ()=>res()));
   }
+  // momento em que a IA foi (re)ativada para o chat — mensagens manuais
+  // anteriores a isso não voltam a desativá-la
+  function chatEnabledAtKey(chat){ return "chatAt:"+chat; }
+  function getChatEnabledAt(chat){
+    return new Promise((res)=>chrome.storage.local.get([chatEnabledAtKey(chat)],(r)=>{
+      res(r[chatEnabledAtKey(chat)] || 0);
+    }));
+  }
+  function setChatEnabledAt(chat, ts){
+    return new Promise((res)=>chrome.storage.local.set({[chatEnabledAtKey(chat)]: ts}, ()=>res()));
+  }
+  // mesma marca invisível usada pelo bridge ao enviar
+  const MARCA_IA = '\\u200b\\u2060';
+  async function desativarPorIntervencao(chat, origem){
+    if(!(await getChatEnabled(chat))) return;
+    await setChatEnabled(chat, false);
+    chatsPendentes.delete(chat);
+    log("intervenção manual (" + origem + ") — IA desativada para:", chat, "| reative no botão IA");
+    setButtonStatus("🤖 IA: OFF", false, 4000);
+    ensureToggleButton();
+  }
+  function temIntervencaoManual(mensagens, enabledAt){
+    return mensagens.some((m)=>m.manual && ((m.t || 0) * 1000) > enabledAt);
+  }
+  // desliga a IA do chat aberto assim que o operador digita na caixa de mensagem
+  window.addEventListener('keydown', (e)=>{
+    if(!e.isTrusted) return;
+    const alvo = e.target;
+    if(!(alvo instanceof HTMLElement)) return;
+    if(!alvo.closest('#main footer')) return;
+    if(e.key !== 'Enter' && e.key !== 'Backspace' && (typeof e.key !== 'string' || e.key.length !== 1)) return;
+    const c = getChatId();
+    if(!c) return;
+    desativarPorIntervencao(c, "digitação").catch(()=>{});
+  }, true);
 
   // ============================================================
   // IDENTIFICAÇÃO DE CHAT / GRUPO / USUÁRIO DIGITANDO
@@ -798,6 +843,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       const mensagens = await lerMensagensConfiavel(chat, 20);
       log("total de mensagens lidas:", mensagens.length, "chat:", chat);
       if(!mensagens.length){ warn("nenhuma mensagem lida — verificar seletores da área de mensagens"); return; }
+      if(temIntervencaoManual(mensagens, await getChatEnabledAt(chat))){
+        await desativarPorIntervencao(chat, "mensagem manual");
+        return;
+      }
       const ultima = mensagens[mensagens.length-1];
       log("ultima eh do contato?", ultima.role === "user", "| texto:", ultima.content.slice(0,60));
       if(ultima.role !== "user"){ log("última é nossa, não responder"); chatsPendentes.delete(chat); return; }
@@ -825,7 +874,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
 
       const campo = buscarElemento(SELETORES_INPUT);
       if(!campo){ warn("caixa de envio não encontrada"); setButtonStatus("⚠️ SEM CAIXA", false); return; }
-      await inserirTexto(campo, reply);
+      await inserirTexto(campo, reply + MARCA_IA);
       await enviarMensagem(campo);
       chatsPendentes.delete(chat);
       setButtonStatus("🤖 RESPONDIDO", true, 5000);
@@ -854,6 +903,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       if(r.grupo){ log("grupo ignorado:", nome); chatsPendentes.delete(nome); return "ok"; }
       const mensagens = r.mensagens;
       if(!mensagens.length) return "ok";
+      if(temIntervencaoManual(mensagens, await getChatEnabledAt(nome))){
+        await desativarPorIntervencao(nome, "mensagem manual");
+        return "ok";
+      }
       const ultima = mensagens[mensagens.length-1];
       if(ultima.role !== "user"){ chatsPendentes.delete(nome); return "ok"; }
       // se o operador está com ESTE chat aberto e usando a janela, é dele
@@ -994,6 +1047,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         const c = getChatId(); if(!c) return;
         const cur = await getChatEnabled(c);
         await setChatEnabled(c, !cur);
+        if(!cur) await setChatEnabledAt(c, Date.now()); // reativou: zera histórico manual
         styleBtn(btn, !cur);
       });
     }
@@ -1097,7 +1151,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.24. Modo headless: responde sem trocar de janela; multi-PC com dedupe no servidor.");
+  log("extensão ativa v1.0.25. Headless + multi-PC + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
