@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.25",
+  version: "1.0.26",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -351,7 +351,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.25. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.26. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -463,6 +463,28 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   }
   // mesma marca invisível usada pelo bridge ao enviar
   const MARCA_IA = '\\u200b\\u2060';
+  // marco inicial: mensagens anteriores a isso não contam como intervenção
+  // (respostas da IA antigas, antes do marcador existir, não têm a marca)
+  let manualDetectSince = 0;
+  chrome.storage.local.get(['manualDetectSince'], (r)=>{
+    if(r.manualDetectSince){
+      manualDetectSince = r.manualDetectSince;
+    }else{
+      manualDetectSince = Date.now();
+      chrome.storage.local.set({ manualDetectSince: manualDetectSince });
+    }
+  });
+  // migração v1.0.26: a v1.0.25 desativou chats por engano (respostas
+  // antigas da IA, sem marcador, pareciam manuais) — reativa tudo 1 vez
+  chrome.storage.local.get(null, (all)=>{
+    if(all.migracaoV26) return;
+    const remover = Object.keys(all).filter((k)=>k.indexOf('chat:') === 0);
+    const concluir = ()=>chrome.storage.local.set({ migracaoV26: true }, ()=>{
+      if(remover.length) log("migração: IA reativada em", remover.length, "chats desativados por engano");
+    });
+    if(remover.length) chrome.storage.local.remove(remover, concluir);
+    else concluir();
+  });
   async function desativarPorIntervencao(chat, origem){
     if(!(await getChatEnabled(chat))) return;
     await setChatEnabled(chat, false);
@@ -472,7 +494,9 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     ensureToggleButton();
   }
   function temIntervencaoManual(mensagens, enabledAt){
-    return mensagens.some((m)=>m.manual && ((m.t || 0) * 1000) > enabledAt);
+    const desde = Math.max(enabledAt || 0, manualDetectSince || 0);
+    if(!desde) return false; // marco inicial ainda carregando
+    return mensagens.some((m)=>m.manual && ((m.t || 0) * 1000) > desde);
   }
   // desliga a IA do chat aberto assim que o operador digita na caixa de mensagem
   window.addEventListener('keydown', (e)=>{
@@ -1151,7 +1175,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.25. Headless + multi-PC + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.26. Headless + multi-PC + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
