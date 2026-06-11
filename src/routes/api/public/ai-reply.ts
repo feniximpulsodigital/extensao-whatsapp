@@ -190,11 +190,12 @@ export const Route = createFileRoute("/api/public/ai-reply")({
               .then(() => {}, () => {});
           }
 
-          const [globalCfg, tenantCfg, prompt, kb] = await Promise.all([
+          const [globalCfg, tenantCfg, prompt, kb, kbFiles] = await Promise.all([
             supabaseAdmin.from("ai_global_config").select("*").limit(1).maybeSingle().then((r) => r.data),
             supabaseAdmin.from("ai_config").select("*").eq("tenant_id", tenant.id).maybeSingle().then((r) => r.data),
             supabaseAdmin.from("system_prompts").select("content").eq("tenant_id", tenant.id).eq("is_default", true).maybeSingle().then((r) => r.data),
             supabaseAdmin.from("knowledge_base").select("question, answer").eq("tenant_id", tenant.id).eq("is_active", true).limit(50).then((r) => r.data ?? []),
+            supabaseAdmin.from("knowledge_files").select("filename, content").eq("tenant_id", tenant.id).eq("is_active", true).order("created_at", { ascending: false }).limit(10).then((r) => r.data ?? []),
           ]);
           if (!globalCfg?.enabled) return json(503, { error: "AI disabled" });
 
@@ -209,10 +210,24 @@ export const Route = createFileRoute("/api/public/ai-reply")({
           const kbBlock = kb.length
             ? "\n\nBase de conhecimento da empresa:\n" + kb.map((k: any) => `- P: ${k.question}\n  R: ${k.answer}`).join("\n")
             : "";
+          // Documentos enviados pelo cliente: orçamento total para não estourar tokens
+          let filesBudget = 9000;
+          const fileParts: string[] = [];
+          for (const f of kbFiles as { filename: string; content: string }[]) {
+            if (filesBudget <= 200) break;
+            const slice = (f.content || "").slice(0, Math.min(4000, filesBudget));
+            if (!slice) continue;
+            fileParts.push(`--- Documento: ${f.filename} ---\n${slice}`);
+            filesBudget -= slice.length;
+          }
+          const filesBlock = fileParts.length
+            ? "\n\nDocumentos da empresa (use como fonte ao responder):\n" + fileParts.join("\n\n")
+            : "";
           const system = [
             globalCfg.master_system_prompt,
             prompt?.content || "",
             kbBlock,
+            filesBlock,
           ].filter(Boolean).join("\n\n");
 
           const res = await callProvider({

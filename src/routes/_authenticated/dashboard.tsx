@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { LogOut, Settings, AlertTriangle, Zap, Plus, Pencil, Trash2, Download } from "lucide-react";
+import { LogOut, Settings, AlertTriangle, Zap, Plus, Pencil, Trash2, Download, FileText, Upload } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -22,6 +22,7 @@ import { buildMyExtension } from "@/lib/extension-builder.functions";
 import {
   getMyAiConfig, updateMyAiConfig,
   listMyKnowledge, upsertMyKnowledge, deleteMyKnowledge,
+  listMyKnowledgeFiles, uploadMyKnowledgeFile, toggleMyKnowledgeFile, deleteMyKnowledgeFile,
 } from "@/lib/ai-config.functions";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -247,6 +248,47 @@ function AiSection() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // ---- arquivos de conhecimento ----
+  const listFiles = useServerFn(listMyKnowledgeFiles);
+  const uploadFile = useServerFn(uploadMyKnowledgeFile);
+  const toggleFile = useServerFn(toggleMyKnowledgeFile);
+  const delFile = useServerFn(deleteMyKnowledgeFile);
+  const { data: files } = useQuery({ queryKey: ["my-kb-files"], queryFn: () => listFiles() });
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) { toast.error("Arquivo muito grande (máx. 4MB)."); return; }
+    setUploading(true);
+    try {
+      const base64 = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(String(r.result).split(",")[1] ?? "");
+        r.onerror = () => rej(new Error("Falha ao ler o arquivo"));
+        r.readAsDataURL(file);
+      });
+      const out = await uploadFile({ data: { filename: file.name, base64 } });
+      toast.success(`Arquivo adicionado (${out.chars.toLocaleString("pt-BR")} caracteres extraídos)`);
+      qc.invalidateQueries({ queryKey: ["my-kb-files"] });
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  }
+  const togFile = useMutation({
+    mutationFn: (v: { id: string; is_active: boolean }) => toggleFile({ data: v }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["my-kb-files"] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const remFile = useMutation({
+    mutationFn: (id: string) => delFile({ data: { id } }),
+    onSuccess: () => { toast.success("Arquivo removido"); qc.invalidateQueries({ queryKey: ["my-kb-files"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   return (
     <>
       <Card>
@@ -302,6 +344,44 @@ function AiSection() {
               <div className="flex gap-1 shrink-0">
                 <Button size="icon" variant="ghost" onClick={() => setEditing(k)}><Pencil className="h-4 w-4" /></Button>
                 <Button size="icon" variant="ghost" onClick={() => { if (confirm("Remover?")) removeKB.mutate(k.id); }}><Trash2 className="h-4 w-4" /></Button>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Arquivos de conhecimento</CardTitle>
+              <CardDescription>Envie documentos (PDF, TXT, MD, CSV) — a IA usa o conteúdo deles para responder.</CardDescription>
+            </div>
+            <Button variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+              <Upload className="h-4 w-4 mr-2" />{uploading ? "Enviando…" : "Enviar arquivo"}
+            </Button>
+            <input ref={fileInputRef} type="file" accept=".pdf,.txt,.md,.csv" className="hidden" onChange={onPickFile} />
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {(files ?? []).length === 0 && (
+            <p className="text-muted-foreground text-sm">Nenhum arquivo enviado. Até 10 arquivos de no máximo 4MB cada.</p>
+          )}
+          {(files ?? []).map((f: any) => (
+            <div key={f.id} className="border rounded p-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0">
+                  <p className="font-medium truncate">{f.filename}</p>
+                  <p className="text-xs text-muted-foreground">{Number(f.char_count).toLocaleString("pt-BR")} caracteres extraídos</p>
+                </div>
+                {!f.is_active && <Badge variant="secondary">inativo</Badge>}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Switch checked={f.is_active} onCheckedChange={(c) => togFile.mutate({ id: f.id, is_active: c })} />
+                <Button size="icon" variant="ghost" onClick={() => { if (confirm("Remover arquivo?")) remFile.mutate(f.id); }}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           ))}
