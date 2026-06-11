@@ -26,7 +26,12 @@ export async function chargeAiUsage(input: ChargeInput): Promise<ChargeResult> {
     string,
     { input_per_1k: number; output_per_1k: number }
   >;
-  const m = overrides[input.model] ?? { input_per_1k: 0.001, output_per_1k: 0.002 };
+  // prioridade: override manual > preço automático (base LiteLLM) > tarifa genérica
+  let m = overrides[input.model];
+  if (!m) {
+    const { getAutoModelPrice } = await import("./ai-model-prices.server");
+    m = (await getAutoModelPrice(input.model)) ?? { input_per_1k: 0.001, output_per_1k: 0.002 };
+  }
   const costUsd =
     (input.inputTokens / 1000) * m.input_per_1k + (input.outputTokens / 1000) * m.output_per_1k;
   const multiplier = Number(cfg?.global_markup_multiplier ?? 2.5);
