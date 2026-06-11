@@ -293,8 +293,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       if(isUserTyping()){ log("usuário digitando, abortando"); return; }
 
       const mensagens = lerMensagens(20);
-      if(!mensagens.length) return;
+      log("total de mensagens lidas:", mensagens.length, "chat:", chat);
+      if(!mensagens.length){ warn("nenhuma mensagem lida — verificar seletores da área de mensagens"); return; }
       const ultima = mensagens[mensagens.length-1];
+      log("ultima eh do contato?", ultima.role === "user", "| texto:", ultima.content.slice(0,60));
       if(ultima.role !== "user"){ log("última é nossa, não responder"); return; }
 
       setButtonStatus("🤖 LENDO...", true, 4000);
