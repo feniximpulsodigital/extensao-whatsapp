@@ -421,9 +421,13 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     for(const m of muts){
       for(const node of m.addedNodes){
         if(!(node instanceof HTMLElement)) continue;
-        if(node.matches?.('.message-in') || node.querySelector?.('.message-in')){
-          hasIncoming = true; break;
+        const candidatos = [];
+        if(node.matches?.('[role="row"]')) candidatos.push(node);
+        node.querySelectorAll?.('[role="row"]').forEach((r)=>candidatos.push(r));
+        for(const r of candidatos){
+          if(detectarRoleRow(r) === 'user'){ hasIncoming = true; break; }
         }
+        if(hasIncoming) break;
       }
       if(hasIncoming) break;
     }
