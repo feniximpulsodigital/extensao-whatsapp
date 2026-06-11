@@ -90,6 +90,7 @@ function TenantsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Empresa</TableHead>
+                  <TableHead>E-mail de acesso</TableHead>
                   <TableHead>Plano</TableHead>
                   <TableHead>Ciclo</TableHead>
                   <TableHead>Créditos</TableHead>
@@ -101,6 +102,7 @@ function TenantsPage() {
                 {(tenants ?? []).map((t: any) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-medium">{t.company_name}</TableCell>
+                    <TableCell className="text-muted-foreground">{t.owner_email ?? "—"}</TableCell>
                     <TableCell>{t.plans?.name ?? "—"}</TableCell>
                     <TableCell>{t.billing_cycle ?? "—"}</TableCell>
                     <TableCell>{t.credits_balance}</TableCell>

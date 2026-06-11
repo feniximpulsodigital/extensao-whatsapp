@@ -373,8 +373,15 @@ export const adminListTenants = createServerFn({ method: "GET" })
     await adminGuard(supabase, userId);
     const { data, error } = await supabase
       .from("tenants")
-      .select("id, company_name, status, credits_balance, billing_cycle, created_at, plans(name)")
+      .select("id, owner_id, company_name, status, credits_balance, billing_cycle, created_at, plans(name)")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return data ?? [];
+    // e-mail de acesso de cada dono (profiles é restrito por RLS; usa service role)
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const ownerIds = [...new Set((data ?? []).map((t) => t.owner_id))];
+    const { data: profs } = ownerIds.length
+      ? await supabaseAdmin.from("profiles").select("id, email").in("id", ownerIds)
+      : { data: [] as { id: string; email: string | null }[] };
+    const emails = new Map((profs ?? []).map((p) => [p.id, p.email]));
+    return (data ?? []).map((t) => ({ ...t, owner_email: emails.get(t.owner_id) ?? null }));
   });

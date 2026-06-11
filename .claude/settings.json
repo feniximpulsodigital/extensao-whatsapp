@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(git add -A)"
+      "PowerShell(git add -A)",
+      "PowerShell(node scripts\\\\check-extension-js.mjs; npx tsc --noEmit -p tsconfig.json; \"tsc exit: $LASTEXITCODE\")",
+      "PowerShell(npx tsc --noEmit -p tsconfig.json; \"tsc exit: $LASTEXITCODE\")",
+      "PowerShell(git add src/routes/_authenticated/dashboard.tsx)",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "PowerShell(npm install unpdf 2>&1)",
+      "PowerShell(npx -y bun@1.2.23 install --lockfile-only 2>&1)",
+      "PowerShell(node scripts\\\\fix-nul.mjs)",
+      "PowerShell(Remove-Item scripts\\\\fix-nul.mjs -Confirm:$false)"
     ]
   }
 }

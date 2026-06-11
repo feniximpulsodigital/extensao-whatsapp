@@ -211,3 +211,109 @@ export const deleteMyKnowledge = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// ---------- Knowledge files (arquivos que a IA consulta) ----------
+
+const MAX_FILE_BASE64 = 6 * 1024 * 1024; // ~4.5MB de arquivo
+const MAX_FILE_CONTENT = 60_000; // caracteres armazenados por arquivo
+const MAX_FILES_PER_TENANT = 10;
+
+export const listMyKnowledgeFiles = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data: tenant } = await supabase
+      .from("tenants").select("id").eq("owner_id", userId).maybeSingle();
+    if (!tenant) return [];
+    const { data, error } = await supabase
+      .from("knowledge_files")
+      .select("id, filename, char_count, is_active, created_at")
+      .eq("tenant_id", tenant.id)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  });
+
+export const uploadMyKnowledgeFile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      filename: z.string().min(1).max(200),
+      base64: z.string().min(1).max(MAX_FILE_BASE64),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    const { data: tenant } = await supabase
+      .from("tenants").select("id").eq("owner_id", userId).maybeSingle();
+    if (!tenant) throw new Error("Tenant não encontrado");
+
+    const { count } = await supabase
+      .from("knowledge_files")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", tenant.id);
+    if ((count ?? 0) >= MAX_FILES_PER_TENANT) {
+      throw new Error(`Limite de ${MAX_FILES_PER_TENANT} arquivos atingido. Exclua um arquivo antes de enviar outro.`);
+    }
+
+    const ext = (data.filename.split(".").pop() ?? "").toLowerCase();
+    const bytes = Uint8Array.from(atob(data.base64), (c) => c.charCodeAt(0));
+
+    let content = "";
+    if (ext === "pdf") {
+      const { extractText } = await import("unpdf");
+      const { text } = await extractText(bytes, { mergePages: true });
+      content = typeof text === "string" ? text : String(text ?? "");
+    } else if (["txt", "md", "csv"].includes(ext)) {
+      content = new TextDecoder("utf-8").decode(bytes);
+    } else {
+      throw new Error("Formato não suportado. Envie arquivos .pdf, .txt, .md ou .csv.");
+    }
+
+    content = content.split(String.fromCharCode(0)).join("").replace(/[ \t]+\n/g, "\n").trim();
+    if (!content) throw new Error("Não foi possível extrair texto deste arquivo.");
+    if (content.length > MAX_FILE_CONTENT) content = content.slice(0, MAX_FILE_CONTENT);
+
+    const { error } = await supabase.from("knowledge_files").insert({
+      tenant_id: tenant.id,
+      filename: data.filename,
+      content,
+      char_count: content.length,
+      is_active: true,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true, chars: content.length };
+  });
+
+export const toggleMyKnowledgeFile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ id: z.string().uuid(), is_active: z.boolean() }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    const { data: tenant } = await supabase
+      .from("tenants").select("id").eq("owner_id", userId).maybeSingle();
+    if (!tenant) throw new Error("Tenant não encontrado");
+    const { error } = await supabase
+      .from("knowledge_files")
+      .update({ is_active: data.is_active })
+      .eq("id", data.id)
+      .eq("tenant_id", tenant.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deleteMyKnowledgeFile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    const { data: tenant } = await supabase
+      .from("tenants").select("id").eq("owner_id", userId).maybeSingle();
+    if (!tenant) throw new Error("Tenant não encontrado");
+    const { error } = await supabase
+      .from("knowledge_files").delete().eq("id", data.id).eq("tenant_id", tenant.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
