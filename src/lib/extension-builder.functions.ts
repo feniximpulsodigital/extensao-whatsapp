@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.27",
+  version: "1.0.28",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -316,16 +316,41 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
       };
       const r = addAndSend(chat, msg);
       if(r && typeof r.then === 'function') await r;
-      // melhor esforço: marca o chat como lido
-      try{
-        const seen = req('WAWebUpdateUnreadChatAction').sendSeen;
-        if(typeof seen === 'function'){ const p = seen(chat); if(p && typeof p.catch === 'function') p.catch(()=>{}); }
-      }catch(_e){}
-      return { ok:true, via:'store-send' };
+      const seen = marcarLido(req, chat); // melhor esforço: limpa o badge de não lido
+      return { ok:true, via:'store-send', seen: seen };
     }catch(e){
       return { ok:false, motivo:'send-erro: ' + String((e && e.message) || e) };
     }
   }
+  function marcarLido(req, chat){
+    const mods = ['WAWebUpdateUnreadChatAction', 'WAWebSendSeenChatAction', 'WAWebSeenChatAction'];
+    for(const nomeMod of mods){
+      try{
+        const mod = req(nomeMod);
+        const fn = mod && (mod.sendSeen || mod.markSeen || mod.default);
+        if(typeof fn === 'function'){
+          const p = fn(chat);
+          if(p && typeof p.catch === 'function') p.catch(()=>{});
+          return true;
+        }
+      }catch(_e){}
+    }
+    return false;
+  }
+  window.addEventListener('message', (ev)=>{
+    if(ev.source !== window) return;
+    const d = ev.data;
+    if(!d || d.__argos !== 'mark-seen') return;
+    let resp = { ok:false };
+    try{
+      let req = null;
+      try{ if(typeof window.require === 'function') req = window.require; }catch(_e){}
+      const col = req ? getChatCollection(req) : null;
+      const chat = col ? acharChatModel(col, d.nome) : null;
+      if(req && chat) resp = { ok: marcarLido(req, chat) };
+    }catch(_e){}
+    window.postMessage(Object.assign({ __argos:'mark-seen-result', reqId: d.reqId }, resp), '*');
+  });
   window.addEventListener('message', async (ev)=>{
     if(ev.source !== window) return;
     const d = ev.data;
@@ -372,7 +397,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.27. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.28. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -962,7 +987,11 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         return "ok";
       }
       const ultima = mensagens[mensagens.length-1];
-      if(ultima.role !== "user"){ chatsPendentes.delete(nome); return "ok"; }
+      if(ultima.role !== "user"){
+        chatsPendentes.delete(nome);
+        bridgeRequest('mark-seen', { nome: nome }, 3000); // já respondido: limpa o badge
+        return "ok";
+      }
       // se o operador está com ESTE chat aberto e usando a janela, é dele
       if(nomesIguais(getChatId(), nome) && (humanoAtivo() || isUserTyping())){
         chatsPendentes.add(nome);
@@ -1199,7 +1228,6 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     try{
       for(const chat of ativos){
         if(chatsEmProcessamento.has(chat.nome)) continue;
-        log("atendendo não lido:", chat.nome);
         await responderChat(chat.nome, chat.item);
         await esperar(800);
       }
@@ -1216,7 +1244,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.27. Headless + multi-PC + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.28. Headless + multi-PC + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
