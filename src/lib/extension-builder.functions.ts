@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.26",
+  version: "1.0.27",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -276,17 +276,38 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
     if(!col) return { ok:false, motivo:'sem-chat-collection' };
     const chat = acharChatModel(col, nome);
     if(!chat) return { ok:false, motivo:'chat-nao-encontrado-store' };
-    let addAndSend = null, MsgKey = null, getMeUser = null;
+    let addAndSend = null;
     try{ addAndSend = req('WAWebSendMsgChatAction').addAndSendMsgToChat; }catch(_e){}
     if(typeof addAndSend !== 'function') return { ok:false, motivo:'sem-addAndSendMsgToChat' };
-    try{ MsgKey = req('WAWebMsgKey').default || req('WAWebMsgKey').MsgKey; }catch(_e){}
-    if(!MsgKey) return { ok:false, motivo:'sem-msgkey' };
-    try{ getMeUser = req('WAWebUserPrefsMeUser').getMaybeMeUser; }catch(_e){}
-    if(typeof getMeUser !== 'function') return { ok:false, motivo:'sem-meuser' };
+    // MsgKey/me: tenta os módulos e, se falhar, deriva de mensagens existentes
+    let MsgKey = null, me = null;
     try{
-      const me = getMeUser();
-      let novoId = MsgKey.newId();
-      if(novoId && typeof novoId.then === 'function') novoId = await novoId;
+      const mod = req('WAWebMsgKey');
+      MsgKey = (mod && (mod.default || mod.MsgKey)) || (typeof mod === 'function' ? mod : null);
+    }catch(_e){}
+    try{ me = req('WAWebUserPrefsMeUser').getMaybeMeUser(); }catch(_e){}
+    let modelos = [];
+    try{ modelos = chat.msgs.getModelsArray(); }catch(_e){}
+    for(let i = modelos.length - 1; i >= 0 && (!MsgKey || !me); i--){
+      const m = modelos[i];
+      try{
+        if(!MsgKey && m && m.id && typeof m.id.constructor === 'function') MsgKey = m.id.constructor;
+        if(!me && m && m.id && m.id.fromMe && m.from) me = m.from;
+      }catch(_e){}
+    }
+    if(!MsgKey) return { ok:false, motivo:'sem-msgkey' };
+    if(!me) return { ok:false, motivo:'sem-meuser' };
+    try{
+      let novoId = null;
+      try{
+        novoId = typeof MsgKey.newId === 'function' ? MsgKey.newId() : null;
+        if(novoId && typeof novoId.then === 'function') novoId = await novoId;
+      }catch(_e){}
+      if(!novoId){
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        novoId = Array.prototype.map.call(bytes, (b)=>('0'+b.toString(16)).slice(-2)).join('').toUpperCase();
+      }
       const key = new MsgKey({ from: me, to: chat.id, id: novoId, participant: undefined, selfDir: 'out' });
       const msg = {
         id: key, ack: 0, body: texto + MARCA_IA, from: me, to: chat.id,
@@ -351,7 +372,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.26. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.27. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -404,6 +425,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const DEBOUNCE_MS = 3000;
   const chatsEmProcessamento = new Set();
   const chatsPendentes = new Set(); // respostas adiadas (operador ativo, chat trocado...)
+  const respostasProntas = new Map(); // chat -> {hash, reply}: resposta obtida mas ainda não enviada
   const debounceTimers = new Map(); // chat -> timer id
   let statusOverrideText = null;
   let statusOverrideOk = true;
@@ -489,6 +511,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     if(!(await getChatEnabled(chat))) return;
     await setChatEnabled(chat, false);
     chatsPendentes.delete(chat);
+    respostasProntas.delete(chat);
     log("intervenção manual (" + origem + ") — IA desativada para:", chat, "| reative no botão IA");
     setButtonStatus("🤖 IA: OFF", false, 4000);
     ensureToggleButton();
@@ -876,15 +899,21 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       if(ultima.role !== "user"){ log("última é nossa, não responder"); chatsPendentes.delete(chat); return; }
 
       let reply = replyPronto || null;
+      const hashUltima = hashTexto(ultima.content) + ":" + mensagens.length;
+      if(!reply){
+        const cache = respostasProntas.get(chat);
+        if(cache && cache.hash === hashUltima) reply = cache.reply;
+      }
       if(!reply){
         setButtonStatus("🤖 LENDO...", true, 4000);
         const sessionId = CFG.apiKey + ":" + chat;
-        const dedupeKey = chat + ":" + hashTexto(ultima.content) + ":" + mensagens.length;
+        const dedupeKey = chat + ":" + hashUltima;
         const resp = await askAI(mensagens, sessionId, dedupeKey);
         if(!resp) return;
-        if(resp.skip){ chatsPendentes.delete(chat); return; }
+        if(resp.skip){ return; }
         reply = resp.reply;
         if(!reply) return;
+        respostasProntas.set(chat, { hash: hashUltima, reply: reply });
       }
 
       // delay humanizado 1.5s - 4s
@@ -901,6 +930,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       await inserirTexto(campo, reply + MARCA_IA);
       await enviarMensagem(campo);
       chatsPendentes.delete(chat);
+      respostasProntas.delete(chat);
       setButtonStatus("🤖 RESPONDIDO", true, 5000);
     }catch(e){
       warn("processarChat erro", e);
@@ -939,13 +969,22 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         return "ok";
       }
       log("headless: respondendo", nome, "| última:", ultima.content.slice(0, 60));
-      const sessionId = CFG.apiKey + ":" + nome;
-      const dedupeKey = nome + ":" + hashTexto(ultima.content) + ":" + mensagens.length;
-      const resp = await askAI(mensagens, sessionId, dedupeKey);
-      if(!resp) return "ok";
-      if(resp.skip){ chatsPendentes.delete(nome); return "ok"; }
-      const reply = resp.reply;
-      if(!reply) return "ok";
+      const hashUltima = hashTexto(ultima.content) + ":" + mensagens.length;
+      // reusa resposta já obtida (envio anterior falhou) — sem nova chamada à IA
+      const cache = respostasProntas.get(nome);
+      let reply = (cache && cache.hash === hashUltima) ? cache.reply : null;
+      if(!reply){
+        const sessionId = CFG.apiKey + ":" + nome;
+        const dedupeKey = nome + ":" + hashUltima;
+        const resp = await askAI(mensagens, sessionId, dedupeKey);
+        if(!resp) return "ok";
+        if(resp.skip) return "ok"; // outra instância cuida; pendente limpa quando a resposta chegar
+        reply = resp.reply;
+        if(!reply) return "ok";
+        respostasProntas.set(nome, { hash: hashUltima, reply: reply });
+      }else{
+        log("headless: reusando resposta em cache para", nome);
+      }
 
       // delay humanizado 1.5s - 4s
       await esperar(1500 + Math.random() * 2500);
@@ -955,6 +994,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       if(r2 && r2.ok && r2.mensagens && r2.mensagens.length && r2.mensagens[r2.mensagens.length-1].role !== "user"){
         log("headless: alguém já respondeu, cancelando:", nome);
         chatsPendentes.delete(nome);
+        respostasProntas.delete(nome);
         return "ok";
       }
 
@@ -962,6 +1002,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       if(env && env.ok){
         log("headless: respondido sem abrir o chat:", nome);
         chatsPendentes.delete(nome);
+        respostasProntas.delete(nome);
         setButtonStatus("🤖 RESPONDIDO", true, 5000);
         return "ok";
       }
@@ -1175,7 +1216,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.26. Headless + multi-PC + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.27. Headless + multi-PC + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
