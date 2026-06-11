@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.14",
+  version: "1.0.15",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -88,7 +88,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.14. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.15. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -203,11 +203,20 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   // ============================================================
   // LEITURA DE MENSAGENS (.message-in / .message-out)
   // ============================================================
+  function getAreaMensagens(){
+    return document.querySelector('#main div[role="application"]')
+      || document.querySelector('#main .copyable-area')
+      || document.querySelector('#main');
+  }
   function lerMensagens(limite){
     const max = limite || 20;
     const out = [];
-    const linhas = document.querySelectorAll('#main .message-in, #main .message-out');
-    linhas.forEach((linha)=>{
+    const area = getAreaMensagens();
+    if(!area) return out;
+    // garantir que não estamos pegando nada do header
+    const bolhas = area.querySelectorAll('.message-in, .message-out');
+    bolhas.forEach((linha)=>{
+      if(linha.closest('header')) return;
       const ehRecebida = linha.classList.contains('message-in');
       let texto = "";
       const spans = linha.querySelectorAll('span.selectable-text, span[class*="selectable-text"]');
@@ -284,8 +293,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       if(isUserTyping()){ log("usuário digitando, abortando"); return; }
 
       const mensagens = lerMensagens(20);
-      if(!mensagens.length) return;
+      log("total de mensagens lidas:", mensagens.length, "chat:", chat);
+      if(!mensagens.length){ warn("nenhuma mensagem lida — verificar seletores da área de mensagens"); return; }
       const ultima = mensagens[mensagens.length-1];
+      log("ultima eh do contato?", ultima.role === "user", "| texto:", ultima.content.slice(0,60));
       if(ultima.role !== "user"){ log("última é nossa, não responder"); return; }
 
       setButtonStatus("🤖 LENDO...", true, 4000);
@@ -416,7 +427,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ ensureToggleButton(); onChatMaybeChanged(); attachObserver(); }, 1500);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.14. Botão IA aparece no topo de cada conversa.");
+  log("extensão ativa v1.0.15. Botão IA aparece no topo de cada conversa.");
 })();
 `;
 
