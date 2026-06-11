@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.17",
+  version: "1.0.21",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -122,49 +122,125 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
       persist(){},
     };
   }
-  // Sobe a árvore a partir do elemento procurando props React com handler de clique.
-  function reactClick(el){
-    let node = el;
-    for(let depth = 0; node && depth < 15; depth++){
-      const key = Object.keys(node).find((k)=>k.startsWith('__reactProps$'));
-      if(key){
-        const props = node[key];
-        const ev = fakeEvent(node);
-        if(typeof props.onClick === 'function'){ props.onClick(ev); return 'onClick'; }
-        if(typeof props.onMouseDown === 'function'){
-          props.onMouseDown(ev);
-          if(typeof props.onMouseUp === 'function') props.onMouseUp(ev);
-          return 'onMouseDown';
-        }
-        if(typeof props.onPointerDown === 'function'){ props.onPointerDown(ev); return 'onPointerDown'; }
-      }
-      node = node.parentElement;
+  function tentarHandlers(props, el){
+    const ev = fakeEvent(el);
+    if(typeof props.onClick === 'function'){ props.onClick(ev); return 'onClick'; }
+    if(typeof props.onMouseDown === 'function'){
+      props.onMouseDown(ev);
+      if(typeof props.onMouseUp === 'function') props.onMouseUp(ev);
+      return 'onMouseDown';
+    }
+    if(typeof props.onPointerDown === 'function'){ props.onPointerDown(ev); return 'onPointerDown'; }
+    return null;
+  }
+  // Procura props React com handler de clique no item, descendentes e ancestrais.
+  function reactClick(item){
+    const candidatos = [item];
+    const desc = item.querySelectorAll('*');
+    for(let i = 0; i < desc.length && i < 120; i++) candidatos.push(desc[i]);
+    let node = item.parentElement;
+    for(let depth = 0; node && depth < 10; depth++){ candidatos.push(node); node = node.parentElement; }
+    for(const el of candidatos){
+      const key = Object.keys(el).find((k)=>k.startsWith('__reactProps$'));
+      if(!key) continue;
+      const via = tentarHandlers(el[key], el);
+      if(via) return via;
     }
     return null;
   }
-  window.addEventListener('message', (ev)=>{
+  // ---- API interna do WhatsApp (mesma técnica do wa-js / whatsapp-web.js) ----
+  function getChatCollection(req){
+    const nomes = ['WAWebChatCollection', 'WAWebCollections'];
+    for(const m of nomes){
+      try{
+        const mod = req(m);
+        const col = mod && (mod.ChatCollection || mod.Chat);
+        if(col && typeof col.getModelsArray === 'function') return col;
+      }catch(_e){}
+    }
+    return null;
+  }
+  function acharChatModel(col, nome){
+    const alvoDigitos = (nome || '').replace(/\\D/g, '');
+    for(const c of col.getModelsArray()){
+      try{
+        const idUser = (c.id && c.id.user) || '';
+        if(alvoDigitos.length >= 8 && idUser === alvoDigitos) return c;
+        const titulos = [
+          c.formattedTitle, c.name,
+          c.contact && c.contact.name,
+          c.contact && c.contact.pushname,
+        ];
+        for(const t of titulos){
+          if(t && nomesIguais(String(t), nome)) return c;
+        }
+      }catch(_e){}
+    }
+    return null;
+  }
+  function esperar(ms){ return new Promise((r)=>setTimeout(r, ms)); }
+  function chatAbertoNoDom(nome){
+    const ativo = document.querySelector('#pane-side [aria-selected="true"] span[title]');
+    if(ativo && nomesIguais(ativo.getAttribute('title'), nome)) return true;
+    const header = document.querySelector('#main header span[title]');
+    if(header && nomesIguais(header.getAttribute('title') || header.innerText, nome)) return true;
+    return false;
+  }
+  async function abrirViaStore(nome){
+    let req = null;
+    try{ if(typeof window.require === 'function') req = window.require; }catch(_e){}
+    if(!req) return { ok:false, motivo:'sem-require' };
+    let Cmd = null;
+    try{ Cmd = req('WAWebCmd').Cmd; }catch(_e){}
+    if(!Cmd) return { ok:false, motivo:'sem-cmd' };
+    const col = getChatCollection(req);
+    if(!col) return { ok:false, motivo:'sem-chat-collection' };
+    const chat = acharChatModel(col, nome);
+    if(!chat) return { ok:false, motivo:'chat-nao-encontrado-store' };
+    const chamadas = [];
+    if(typeof Cmd.openChatBottom === 'function'){
+      chamadas.push(['openChatBottom-obj', ()=>Cmd.openChatBottom({ chat: chat })]);
+      chamadas.push(['openChatBottom', ()=>Cmd.openChatBottom(chat)]);
+    }
+    if(typeof Cmd.openChatAt === 'function'){
+      chamadas.push(['openChatAt-obj', ()=>Cmd.openChatAt({ chat: chat })]);
+      chamadas.push(['openChatAt', ()=>Cmd.openChatAt(chat)]);
+    }
+    if(!chamadas.length) return { ok:false, motivo:'cmd-sem-funcao-abrir' };
+    for(const par of chamadas){
+      try{
+        const r = par[1]();
+        if(r && typeof r.catch === 'function') r.catch(()=>{});
+      }catch(_e){ continue; }
+      // verifica se abriu de verdade antes de aceitar
+      await esperar(900);
+      if(chatAbertoNoDom(nome)) return { ok:true, via:'store-' + par[0] };
+    }
+    return { ok:false, motivo:'store-nao-abriu' };
+  }
+  window.addEventListener('message', async (ev)=>{
     if(ev.source !== window) return;
     const d = ev.data;
     if(!d || d.__argos !== 'open-chat') return;
     let ok = false, via = '', motivo = '';
     try{
-      const item = d.nome ? encontrarItem(d.nome) : null;
-      if(!item){
-        motivo = 'item-nao-encontrado';
-      }else{
-        item.scrollIntoView({ block:'center' });
-        // tenta primeiro no filho clicável (handler costuma estar nele), depois no item
-        const alvos = [
-          item.querySelector('div[role="button"]'),
-          item.querySelector('div[tabindex]'),
-          item.firstElementChild,
-          item,
-        ].filter(Boolean);
-        for(const alvo of alvos){
-          via = reactClick(alvo);
-          if(via){ ok = true; break; }
+      // ESTRATÉGIA A: API interna (Cmd.openChatBottom) — não depende do DOM
+      if(d.modo !== 'react'){
+        const r = await abrirViaStore(d.nome);
+        if(r.ok){ ok = true; via = r.via; }
+        else motivo = r.motivo;
+      }
+      // ESTRATÉGIA B: handlers React no item da sidebar
+      if(!ok){
+        const item = d.nome ? encontrarItem(d.nome) : null;
+        if(!item){
+          motivo = (motivo ? motivo + '+' : '') + 'item-nao-encontrado';
+        }else{
+          item.scrollIntoView({ block:'center' });
+          via = reactClick(item);
+          if(via){ ok = true; }
+          else motivo = (motivo ? motivo + '+' : '') + 'sem-handler-react';
         }
-        if(!ok) motivo = 'sem-handler-react';
       }
     }catch(err){ motivo = String((err && err.message) || err); }
     window.postMessage({ __argos:'open-chat-result', reqId: d.reqId, ok, via, motivo }, '*');
@@ -179,7 +255,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.17. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.21. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -319,9 +395,9 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     }
     return null;
   }
-  // ---- ESTRATÉGIA 1: clique via handlers React internos (bridge no MAIN world) ----
+  // ---- ESTRATÉGIA 1: bridge no MAIN world (API interna do WhatsApp + handlers React) ----
   let bridgeReqSeq = 0;
-  function abrirViaBridge(nome){
+  function abrirViaBridge(nome, modo){
     return new Promise((res)=>{
       const reqId = ++bridgeReqSeq;
       let done = false;
@@ -330,7 +406,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         done = true;
         window.removeEventListener('message', onMsg);
         res({ ok:false, motivo:'bridge-timeout' });
-      }, 2500);
+      }, 8000);
       function onMsg(ev){
         if(ev.source !== window) return;
         const d = ev.data;
@@ -342,15 +418,22 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         res(d);
       }
       window.addEventListener('message', onMsg);
-      window.postMessage({ __argos:'open-chat', nome, reqId }, '*');
+      window.postMessage({ __argos:'open-chat', nome, reqId, modo: modo || 'auto' }, '*');
     });
   }
   // ---- ESTRATÉGIA 3: busca pelo nome na caixa de pesquisa ----
   const SELETORES_BUSCA = [
-    '#side div[contenteditable="true"][data-tab="3"]',
+    'div[contenteditable="true"][data-tab="3"]',
+    '#side div[contenteditable="true"]',
     'div[contenteditable="true"][aria-label*="esquis"]',
     'div[contenteditable="true"][aria-label*="earch"]',
-    '#side div[contenteditable="true"]',
+    'div[contenteditable="true"][role="textbox"]:not([data-tab="10"])',
+  ];
+  const SELETORES_ABRIR_BUSCA = [
+    'button[aria-label*="esquis"]',
+    'button[aria-label*="earch"]',
+    'span[data-icon="search"]',
+    'span[data-icon="search-refreshed"]',
   ];
   const SELETORES_LIMPAR_BUSCA = [
     'button[aria-label="Cancelar pesquisa"]',
@@ -363,7 +446,18 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     if(btn) btn.click();
   }
   async function abrirViaBusca(nome){
-    const campo = buscarElemento(SELETORES_BUSCA);
+    let campo = buscarElemento(SELETORES_BUSCA);
+    if(campo && campo.closest('#main')) campo = null; // não confundir com a caixa de mensagem
+    if(!campo){
+      // a caixa pode só existir depois de clicar no botão de pesquisa
+      const abrir = buscarElemento(SELETORES_ABRIR_BUSCA);
+      if(abrir){
+        simularCliqueReal(abrir);
+        await esperar(600);
+        campo = buscarElemento(SELETORES_BUSCA);
+        if(campo && campo.closest('#main')) campo = null;
+      }
+    }
     if(!campo){ log("busca: campo de pesquisa não encontrado"); return false; }
     simularCliqueReal(campo);
     campo.focus();
@@ -392,17 +486,18 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   }
   async function abrirChat(chat){
     const nome = chat.nome;
-    // ESTRATÉGIA 1: handlers React internos via bridge (mais confiável)
-    for(let i = 0; i < 2; i++){
-      const r = await abrirViaBridge(nome);
+    // ESTRATÉGIA 1: bridge (1ª tentativa: API interna do WhatsApp; 2ª: handlers React)
+    const modos = ['auto', 'react'];
+    for(let i = 0; i < modos.length; i++){
+      const r = await abrirViaBridge(nome, modos[i]);
       if(r.ok){
         await esperar(1200);
         if(nomesIguais(getChatId(), nome)){
-          log("chat aberto via React (" + (r.via || '') + "):", nome);
+          log("chat aberto via bridge (" + (r.via || '') + "):", nome);
           return true;
         }
       }
-      log("bridge tentativa", i + 1, "falhou:", r.motivo || r.via || '?');
+      log("bridge modo", modos[i], "falhou:", r.motivo || r.via || '?');
       await esperar(400);
     }
     // ESTRATÉGIA 2: sequência completa de pointer/mouse events
@@ -795,7 +890,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.17. Monitorando chat aberto + polling + chats não lidos na sidebar.");
+  log("extensão ativa v1.0.21. Monitorando chat aberto + polling + chats não lidos na sidebar.");
 })();
 `;
 
