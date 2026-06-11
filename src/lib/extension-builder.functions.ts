@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.15",
+  version: "1.0.16",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -88,7 +88,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.15. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.16. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -410,14 +410,95 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   }
 
   // ============================================================
-  // DETECÇÃO DE TROCA DE CHAT
+  // DETECÇÃO DE TROCA DE CHAT — dispara verificação ao abrir
   // ============================================================
   function onChatMaybeChanged(){
     const c = getChatId();
     if(c && c !== lastSeenChat){
       lastSeenChat = c;
       ensureToggleButton();
-      log("chat ativo:", c);
+      log("chat aberto/trocado:", c);
+      // espera DOM carregar mensagens do chat recém-aberto
+      setTimeout(()=>{
+        const atual = getChatId();
+        if(atual !== c) return;
+        const msgs = lerMensagens(5);
+        if(msgs.length && msgs[msgs.length-1].role === "user"){
+          log("mensagem pendente detectada ao abrir chat:", c);
+          agendarResposta(c);
+        }
+      }, 1500);
+    }
+  }
+
+  // ============================================================
+  // POLLING DE SEGURANÇA — chat aberto
+  // ============================================================
+  function pollingChatAberto(){
+    const chat = getChatId();
+    if(!chat) return;
+    if(chatsEmProcessamento.has(chat)) return;
+    if(debounceTimers.has(chat)) return;
+    if(isGroupChat()) return;
+    const msgs = lerMensagens(5);
+    if(!msgs.length) return;
+    if(msgs[msgs.length-1].role !== "user") return;
+    log("polling detectou mensagem pendente em:", chat);
+    agendarResposta(chat);
+  }
+
+  // ============================================================
+  // ATENDIMENTO DE CHATS NÃO LIDOS NA SIDEBAR
+  // ============================================================
+  function buscarChatsNaoLidos(){
+    const badges = document.querySelectorAll(
+      '#pane-side span[aria-label*="não lida"], #pane-side span[aria-label*="nao lida"], #pane-side span[aria-label*="unread"]'
+    );
+    const chats = [];
+    const vistos = new Set();
+    badges.forEach((badge)=>{
+      const item = badge.closest('[role="listitem"]') || badge.closest('[role="row"]') || badge.closest('div[tabindex]');
+      if(!item) return;
+      const tEl = item.querySelector('span[title]');
+      const nome = tEl?.getAttribute('title');
+      if(!nome || vistos.has(nome)) return;
+      vistos.add(nome);
+      chats.push({ nome, item });
+    });
+    return chats;
+  }
+  let atendendoFila = false;
+  async function atenderNaoLidos(){
+    if(atendendoFila) return;
+    if(!(await getEnabled())) return;
+    const fila = buscarChatsNaoLidos();
+    if(!fila.length) return;
+
+    // filtra somente chats com IA ativada
+    const ativos = [];
+    for(const c of fila){
+      if(await getChatEnabled(c.nome)) ativos.push(c);
+    }
+    if(!ativos.length) return;
+
+    atendendoFila = true;
+    try{
+      for(const chat of ativos){
+        if(chatsEmProcessamento.has(chat.nome)) continue;
+        log("abrindo chat não lido:", chat.nome);
+        try{ chat.item.click(); }catch(_e){}
+        await esperar(1800);
+        const atual = getChatId();
+        if(atual !== chat.nome){ warn("falhou abrir:", chat.nome, "atual:", atual); continue; }
+        if(isGroupChat()){ log("grupo, pulando"); continue; }
+        const msgs = lerMensagens(5);
+        if(msgs.length && msgs[msgs.length-1].role === "user"){
+          await processarChat(chat.nome);
+        }
+        await esperar(1000);
+      }
+    }finally{
+      atendendoFila = false;
     }
   }
 
@@ -425,9 +506,11 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   // LOOPS
   // ============================================================
   setInterval(()=>{ ensureToggleButton(); onChatMaybeChanged(); attachObserver(); }, 1500);
+  setInterval(pollingChatAberto, 5000);
+  setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.15. Botão IA aparece no topo de cada conversa.");
+  log("extensão ativa v1.0.16. Monitorando chat aberto + polling + chats não lidos na sidebar.");
 })();
 `;
 
