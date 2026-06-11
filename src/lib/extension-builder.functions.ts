@@ -540,10 +540,9 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       for(const chat of ativos){
         if(chatsEmProcessamento.has(chat.nome)) continue;
         log("abrindo chat não lido:", chat.nome);
-        try{ chat.item.click(); }catch(_e){}
-        await esperar(1800);
-        const atual = getChatId();
-        if(atual !== chat.nome){ warn("falhou abrir:", chat.nome, "atual:", atual); continue; }
+        const abriu = await abrirChat(chat);
+        if(!abriu) continue;
+        await esperar(800);
         if(isGroupChat()){ log("grupo, pulando"); continue; }
         const msgs = lerMensagens(5);
         if(msgs.length && msgs[msgs.length-1].role === "user"){
