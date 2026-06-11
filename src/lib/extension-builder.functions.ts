@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.21",
+  version: "1.0.22",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -218,6 +218,45 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
     }
     return { ok:false, motivo:'store-nao-abriu' };
   }
+  // ---- leitura de mensagens direto da coleção interna (imune a mudanças de DOM) ----
+  const TIPOS_MSG = {
+    chat:'', image:'[imagem]', video:'[vídeo]', ptt:'[áudio]', audio:'[áudio]',
+    document:'[documento]', sticker:'[figurinha]', location:'[localização]', vcard:'[contato]',
+  };
+  function lerMensagensStore(nome, limite){
+    let req = null;
+    try{ if(typeof window.require === 'function') req = window.require; }catch(_e){}
+    if(!req) return { ok:false, motivo:'sem-require' };
+    const col = getChatCollection(req);
+    if(!col) return { ok:false, motivo:'sem-chat-collection' };
+    const chat = acharChatModel(col, nome);
+    if(!chat) return { ok:false, motivo:'chat-nao-encontrado-store' };
+    let models = [];
+    try{ models = chat.msgs.getModelsArray(); }catch(_e){ return { ok:false, motivo:'sem-msgs' }; }
+    const out = [];
+    for(const m of models){
+      try{
+        if(!m || !m.type || !(m.type in TIPOS_MSG)) continue;
+        const fromMe = !!(m.id && m.id.fromMe);
+        let texto = '';
+        if(m.type === 'chat') texto = String(m.body || '');
+        else texto = TIPOS_MSG[m.type] + (m.caption ? ' ' + String(m.caption) : '');
+        texto = texto.trim();
+        if(!texto) continue;
+        out.push({ role: fromMe ? 'assistant' : 'user', content: texto });
+      }catch(_e){}
+    }
+    return { ok:true, mensagens: out.slice(-(limite || 20)), grupo: !!chat.isGroup };
+  }
+  window.addEventListener('message', (ev)=>{
+    if(ev.source !== window) return;
+    const d = ev.data;
+    if(!d || d.__argos !== 'read-messages') return;
+    let resp;
+    try{ resp = lerMensagensStore(d.nome, d.limite); }
+    catch(err){ resp = { ok:false, motivo: String((err && err.message) || err) }; }
+    window.postMessage(Object.assign({ __argos:'read-messages-result', reqId: d.reqId }, resp), '*');
+  });
   window.addEventListener('message', async (ev)=>{
     if(ev.source !== window) return;
     const d = ev.data;
@@ -255,7 +294,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.21. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.22. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -395,9 +434,9 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     }
     return null;
   }
-  // ---- ESTRATÉGIA 1: bridge no MAIN world (API interna do WhatsApp + handlers React) ----
+  // ---- BRIDGE no MAIN world (API interna do WhatsApp + handlers React) ----
   let bridgeReqSeq = 0;
-  function abrirViaBridge(nome, modo){
+  function bridgeRequest(tipo, payload, timeoutMs){
     return new Promise((res)=>{
       const reqId = ++bridgeReqSeq;
       let done = false;
@@ -406,11 +445,11 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         done = true;
         window.removeEventListener('message', onMsg);
         res({ ok:false, motivo:'bridge-timeout' });
-      }, 8000);
+      }, timeoutMs || 8000);
       function onMsg(ev){
         if(ev.source !== window) return;
         const d = ev.data;
-        if(!d || d.__argos !== 'open-chat-result' || d.reqId !== reqId) return;
+        if(!d || d.__argos !== tipo + '-result' || d.reqId !== reqId) return;
         if(done) return;
         done = true;
         clearTimeout(to);
@@ -418,8 +457,21 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         res(d);
       }
       window.addEventListener('message', onMsg);
-      window.postMessage({ __argos:'open-chat', nome, reqId, modo: modo || 'auto' }, '*');
+      window.postMessage(Object.assign({ __argos: tipo, reqId: reqId }, payload || {}), '*');
     });
+  }
+  function abrirViaBridge(nome, modo){
+    return bridgeRequest('open-chat', { nome: nome, modo: modo || 'auto' }, 8000);
+  }
+  // Lê mensagens pela coleção interna do WhatsApp; cai para o DOM se indisponível.
+  async function lerMensagensConfiavel(nome, limite){
+    const r = await bridgeRequest('read-messages', { nome: nome, limite: limite }, 4000);
+    if(r && r.ok && Array.isArray(r.mensagens)){
+      if(r.mensagens.length) return r.mensagens;
+    }else if(r && r.motivo){
+      log("leitura via store falhou (" + r.motivo + "), usando DOM");
+    }
+    return lerMensagens(limite);
   }
   // ---- ESTRATÉGIA 3: busca pelo nome na caixa de pesquisa ----
   const SELETORES_BUSCA = [
@@ -670,7 +722,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       if(!(await getChatEnabled(chat))){ log("chat off:", chat); return; }
       if(isUserTyping()){ log("usuário digitando, abortando"); return; }
 
-      const mensagens = lerMensagens(20);
+      const mensagens = await lerMensagensConfiavel(chat, 20);
       log("total de mensagens lidas:", mensagens.length, "chat:", chat);
       if(!mensagens.length){ warn("nenhuma mensagem lida — verificar seletores da área de mensagens"); return; }
       const ultima = mensagens[mensagens.length-1];
@@ -800,10 +852,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       lastSeenChat = c;
       ensureToggleButton();
       log("chat aberto/trocado:", c);
-      setTimeout(()=>{
+      setTimeout(async ()=>{
         const atual = getChatId();
         if(!nomesIguais(atual, c)) return;
-        const msgs = lerMensagens(5);
+        const msgs = await lerMensagensConfiavel(c, 5);
         if(msgs.length && msgs[msgs.length-1].role === "user"){
           log("mensagem pendente detectada ao abrir chat:", c);
           agendarResposta(c);
@@ -815,13 +867,13 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   // ============================================================
   // POLLING DE SEGURANÇA — chat aberto
   // ============================================================
-  function pollingChatAberto(){
+  async function pollingChatAberto(){
     const chat = getChatId();
     if(!chat) return;
     if(chatsEmProcessamento.has(chat)) return;
     if(debounceTimers.has(chat)) return;
     if(isGroupChat()) return;
-    const msgs = lerMensagens(5);
+    const msgs = await lerMensagensConfiavel(chat, 5);
     if(!msgs.length) return;
     if(msgs[msgs.length-1].role !== "user") return;
     log("polling detectou mensagem pendente em:", chat);
@@ -871,9 +923,12 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         if(!abriu) continue;
         await esperar(800);
         if(isGroupChat()){ log("grupo, pulando"); continue; }
-        const msgs = lerMensagens(5);
+        const msgs = await lerMensagensConfiavel(chat.nome, 5);
+        log("após abrir", chat.nome, "- msgs:", msgs.length, "| última:", msgs.length ? msgs[msgs.length-1].role : "nenhuma");
         if(msgs.length && msgs[msgs.length-1].role === "user"){
           await processarChat(chat.nome);
+        }else if(!msgs.length){
+          warn("nenhuma mensagem lida em", chat.nome, "- store e DOM falharam");
         }
         await esperar(1000);
       }
@@ -886,11 +941,11 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   // LOOPS
   // ============================================================
   setInterval(()=>{ ensureToggleButton(); onChatMaybeChanged(); attachObserver(); }, 1500);
-  setInterval(pollingChatAberto, 5000);
+  setInterval(()=>{ pollingChatAberto().catch((e)=>warn("polling", e)); }, 5000);
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.21. Monitorando chat aberto + polling + chats não lidos na sidebar.");
+  log("extensão ativa v1.0.22. Monitorando chat aberto + polling + chats não lidos na sidebar.");
 })();
 `;
 
