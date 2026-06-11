@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.17",
+  version: "1.0.20",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -21,11 +21,18 @@ const MANIFEST = (brandName: string, apiOrigin: string) => ({
   },
   background: { service_worker: "background.js" },
   icons: { "16": "icon-16.png", "48": "icon-48.png", "128": "icon-128.png" },
+  minimum_chrome_version: "111",
   content_scripts: [
     {
       matches: ["https://web.whatsapp.com/*"],
       js: ["config.js", "content.js"],
       run_at: "document_idle",
+    },
+    {
+      matches: ["https://web.whatsapp.com/*"],
+      js: ["bridge.js"],
+      run_at: "document_idle",
+      world: "MAIN",
     },
   ],
 });
@@ -82,13 +89,97 @@ chrome.runtime.onMessage.addListener((msg,_s,send)=>{
 });
 `;
 
+const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do React do WhatsApp.
+// O content script (isolated world) pede ações via window.postMessage.
+(function(){
+  function norm(s){ return (s||'').replace(/[\\s\\-\\(\\)\\+\\u2011\\u2013]/g,'').toLowerCase(); }
+  function nomesIguais(a, b){
+    if(!a || !b) return false;
+    const na = norm(a), nb = norm(b);
+    return na === nb || na.includes(nb) || nb.includes(na);
+  }
+  function encontrarItem(nome){
+    const itens = document.querySelectorAll('#pane-side [role="listitem"], #pane-side [role="row"]');
+    for(const item of itens){
+      const t = item.querySelector('span[title]')?.getAttribute('title');
+      if(t && nomesIguais(t, nome)) return item;
+    }
+    return null;
+  }
+  function fakeEvent(el){
+    const rect = el.getBoundingClientRect();
+    return {
+      button:0, buttons:1, ctrlKey:false, metaKey:false, shiftKey:false, altKey:false,
+      bubbles:true, cancelable:true, defaultPrevented:false, isTrusted:true,
+      type:'click', target:el, currentTarget:el,
+      clientX:rect.left+rect.width/2, clientY:rect.top+rect.height/2,
+      pageX:rect.left+rect.width/2, pageY:rect.top+rect.height/2,
+      nativeEvent:{ stopImmediatePropagation(){}, stopPropagation(){}, preventDefault(){} },
+      preventDefault(){ this.defaultPrevented = true; },
+      stopPropagation(){},
+      isDefaultPrevented(){ return this.defaultPrevented; },
+      isPropagationStopped(){ return false; },
+      persist(){},
+    };
+  }
+  // Sobe a árvore a partir do elemento procurando props React com handler de clique.
+  function reactClick(el){
+    let node = el;
+    for(let depth = 0; node && depth < 15; depth++){
+      const key = Object.keys(node).find((k)=>k.startsWith('__reactProps$'));
+      if(key){
+        const props = node[key];
+        const ev = fakeEvent(node);
+        if(typeof props.onClick === 'function'){ props.onClick(ev); return 'onClick'; }
+        if(typeof props.onMouseDown === 'function'){
+          props.onMouseDown(ev);
+          if(typeof props.onMouseUp === 'function') props.onMouseUp(ev);
+          return 'onMouseDown';
+        }
+        if(typeof props.onPointerDown === 'function'){ props.onPointerDown(ev); return 'onPointerDown'; }
+      }
+      node = node.parentElement;
+    }
+    return null;
+  }
+  window.addEventListener('message', (ev)=>{
+    if(ev.source !== window) return;
+    const d = ev.data;
+    if(!d || d.__argos !== 'open-chat') return;
+    let ok = false, via = '', motivo = '';
+    try{
+      const item = d.nome ? encontrarItem(d.nome) : null;
+      if(!item){
+        motivo = 'item-nao-encontrado';
+      }else{
+        item.scrollIntoView({ block:'center' });
+        // tenta primeiro no filho clicável (handler costuma estar nele), depois no item
+        const alvos = [
+          item.querySelector('div[role="button"]'),
+          item.querySelector('div[tabindex]'),
+          item.firstElementChild,
+          item,
+        ].filter(Boolean);
+        for(const alvo of alvos){
+          via = reactClick(alvo);
+          if(via){ ok = true; break; }
+        }
+        if(!ok) motivo = 'sem-handler-react';
+      }
+    }catch(err){ motivo = String((err && err.message) || err); }
+    window.postMessage({ __argos:'open-chat-result', reqId: d.reqId, ok, via, motivo }, '*');
+  });
+  console.log('%c[Argos]','color:#16a34a;font-weight:bold','bridge MAIN world ativo');
+})();
+`;
+
 const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e responde via API Argos.
 (function(){
   const CFG = window.__ARGOS_CONFIG__ || {};
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.17. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.20. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -205,32 +296,145 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     return na === nb || na.includes(nb) || nb.includes(na);
   }
   function simularCliqueReal(elemento){
+    try{ elemento.scrollIntoView({ block:'center' }); }catch(_e){}
     const rect = elemento.getBoundingClientRect();
     const x = rect.left + rect.width/2;
     const y = rect.top + rect.height/2;
     const opts = { bubbles:true, cancelable:true, view:window, clientX:x, clientY:y, button:0 };
+    const pOpts = Object.assign({ pointerId:1, pointerType:'mouse', isPrimary:true }, opts);
+    // WhatsApp Web (React) escuta pointer events; sem eles o clique é ignorado
+    elemento.dispatchEvent(new PointerEvent('pointerover', pOpts));
+    elemento.dispatchEvent(new MouseEvent('mouseover', opts));
+    elemento.dispatchEvent(new PointerEvent('pointerdown', pOpts));
     elemento.dispatchEvent(new MouseEvent('mousedown', opts));
+    elemento.dispatchEvent(new PointerEvent('pointerup', pOpts));
     elemento.dispatchEvent(new MouseEvent('mouseup', opts));
     elemento.dispatchEvent(new MouseEvent('click', opts));
   }
-  async function abrirChat(chat){
-    const alvos = [
-      chat.item.querySelector('div[tabindex]'),
-      chat.item.querySelector('div[role="button"]'),
-      chat.item.firstElementChild,
-      chat.item,
-    ].filter(Boolean);
-    for(const alvo of alvos){
-      simularCliqueReal(alvo);
-      await esperar(1200);
-      const atual = getChatId();
-      if(nomesIguais(atual, chat.nome)){
-        log("chat aberto com sucesso:", atual);
-        return true;
-      }
-      log("tentativa falhou alvo", alvo.tagName, "- atual:", atual);
+  function encontrarItemPorNome(nome){
+    const itens = document.querySelectorAll('#pane-side [role="listitem"], #pane-side [role="row"]');
+    for(const item of itens){
+      const t = item.querySelector('span[title]')?.getAttribute('title');
+      if(t && nomesIguais(t, nome)) return item;
     }
-    warn("não foi possível abrir o chat:", chat.nome);
+    return null;
+  }
+  // ---- ESTRATÉGIA 1: clique via handlers React internos (bridge no MAIN world) ----
+  let bridgeReqSeq = 0;
+  function abrirViaBridge(nome){
+    return new Promise((res)=>{
+      const reqId = ++bridgeReqSeq;
+      let done = false;
+      const to = setTimeout(()=>{
+        if(done) return;
+        done = true;
+        window.removeEventListener('message', onMsg);
+        res({ ok:false, motivo:'bridge-timeout' });
+      }, 2500);
+      function onMsg(ev){
+        if(ev.source !== window) return;
+        const d = ev.data;
+        if(!d || d.__argos !== 'open-chat-result' || d.reqId !== reqId) return;
+        if(done) return;
+        done = true;
+        clearTimeout(to);
+        window.removeEventListener('message', onMsg);
+        res(d);
+      }
+      window.addEventListener('message', onMsg);
+      window.postMessage({ __argos:'open-chat', nome, reqId }, '*');
+    });
+  }
+  // ---- ESTRATÉGIA 3: busca pelo nome na caixa de pesquisa ----
+  const SELETORES_BUSCA = [
+    '#side div[contenteditable="true"][data-tab="3"]',
+    'div[contenteditable="true"][aria-label*="esquis"]',
+    'div[contenteditable="true"][aria-label*="earch"]',
+    '#side div[contenteditable="true"]',
+  ];
+  const SELETORES_LIMPAR_BUSCA = [
+    'button[aria-label="Cancelar pesquisa"]',
+    'button[aria-label="Cancel search"]',
+    'span[data-icon="x-alt"]',
+    'span[data-icon="x"]',
+  ];
+  function limparBusca(){
+    const btn = buscarElemento(SELETORES_LIMPAR_BUSCA);
+    if(btn) btn.click();
+  }
+  async function abrirViaBusca(nome){
+    const campo = buscarElemento(SELETORES_BUSCA);
+    if(!campo){ log("busca: campo de pesquisa não encontrado"); return false; }
+    simularCliqueReal(campo);
+    campo.focus();
+    await esperar(300);
+    try{
+      document.execCommand('selectAll', false, null);
+      document.execCommand('insertText', false, nome);
+    }catch(_e){}
+    campo.dispatchEvent(new InputEvent('input', { bubbles:true, cancelable:true, inputType:'insertText', data:nome }));
+    await esperar(1500);
+    // abre o primeiro resultado: handler React -> clique simulado -> Enter
+    const r = await abrirViaBridge(nome);
+    if(!r.ok){
+      const resultado = encontrarItemPorNome(nome);
+      if(resultado){
+        simularCliqueReal(resultado.querySelector('div[tabindex]') || resultado);
+      }else{
+        const kOpts = { key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true, cancelable:true };
+        campo.dispatchEvent(new KeyboardEvent('keydown', kOpts));
+        campo.dispatchEvent(new KeyboardEvent('keyup', kOpts));
+      }
+    }
+    await esperar(1200);
+    limparBusca();
+    return nomesIguais(getChatId(), nome);
+  }
+  async function abrirChat(chat){
+    const nome = chat.nome;
+    // ESTRATÉGIA 1: handlers React internos via bridge (mais confiável)
+    for(let i = 0; i < 2; i++){
+      const r = await abrirViaBridge(nome);
+      if(r.ok){
+        await esperar(1200);
+        if(nomesIguais(getChatId(), nome)){
+          log("chat aberto via React (" + (r.via || '') + "):", nome);
+          return true;
+        }
+      }
+      log("bridge tentativa", i + 1, "falhou:", r.motivo || r.via || '?');
+      await esperar(400);
+    }
+    // ESTRATÉGIA 2: sequência completa de pointer/mouse events
+    let item = chat.item;
+    if(!item || !item.isConnected) item = encontrarItemPorNome(nome);
+    if(item){
+      const alvos = [
+        item.querySelector('div[tabindex]'),
+        item.querySelector('div[role="button"]'),
+        item.firstElementChild,
+        item,
+      ].filter(Boolean);
+      for(const alvo of alvos){
+        if(!alvo.isConnected) continue;
+        simularCliqueReal(alvo);
+        await esperar(1200);
+        if(nomesIguais(getChatId(), nome)){
+          log("chat aberto via clique simulado:", nome);
+          return true;
+        }
+      }
+      log("clique simulado não abriu:", nome);
+    }else{
+      log("item não está na sidebar:", nome);
+    }
+    // ESTRATÉGIA 3: pesquisa pelo nome
+    log("tentando abrir via pesquisa:", nome);
+    if(await abrirViaBusca(nome)){
+      log("chat aberto via pesquisa:", nome);
+      return true;
+    }
+    warn("não foi possível abrir o chat:", nome);
     return false;
   }
   function isGroupChat(){
@@ -563,7 +767,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.17. Monitorando chat aberto + polling + chats não lidos na sidebar.");
+  log("extensão ativa v1.0.20. Monitorando chat aberto + polling + chats não lidos na sidebar.");
 })();
 `;
 
@@ -619,6 +823,7 @@ export const buildMyExtension = createServerFn({ method: "POST" })
       "manifest.json": strToU8(JSON.stringify(MANIFEST(brandName, origin), null, 2)),
       "config.js": strToU8(CONFIG_JS(tenant.extension_api_key, endpoint)),
       "content.js": strToU8(CONTENT_JS),
+      "bridge.js": strToU8(BRIDGE_JS),
       "background.js": strToU8(BACKGROUND_JS),
       "popup.html": strToU8(POPUP_HTML(brandName)),
       "popup.js": strToU8(POPUP_JS),
