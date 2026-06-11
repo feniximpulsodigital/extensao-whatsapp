@@ -171,12 +171,67 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   // ============================================================
   // IDENTIFICAÇÃO DE CHAT / GRUPO / USUÁRIO DIGITANDO
   // ============================================================
+  function ehTextoDeStatus(t){
+    if(!t) return true;
+    const tl = t.toLowerCase();
+    const padroes = [
+      'online','offline','digitando','typing','gravando','recording',
+      'visto por último','visto por ultimo','last seen','visto hoje','visto ontem',
+      'clique para mostrar','click here for','dados do contato','contact info'
+    ];
+    return padroes.some(p=>tl.includes(p));
+  }
   function getChatId(){
-    const el = buscarElemento(SELETORES_HEADER);
-    if(el) return (el.getAttribute("title") || el.innerText || "").trim() || null;
+    // MÉTODO 1: item selecionado na sidebar
+    const ativo = document.querySelector('#pane-side [aria-selected="true"]');
+    if(ativo){
+      const nome = ativo.querySelector('span[title]')?.getAttribute('title')?.trim();
+      if(nome && !ehTextoDeStatus(nome)) return nome;
+    }
+    // MÉTODO 2: header — primeiro span que NÃO é status
     const header = document.querySelector('#main header');
     if(!header) return null;
-    return (header.innerText || "").split("\\n")[0].trim() || null;
+    const spans = header.querySelectorAll('span[title], span[dir="auto"]');
+    for(const s of spans){
+      const t = (s.getAttribute('title') || s.innerText || '').trim();
+      if(t && !ehTextoDeStatus(t)) return t;
+    }
+    return null;
+  }
+  function nomesIguais(a, b){
+    if(!a || !b) return false;
+    const norm = (s)=>s.replace(/[\\s\\-\\(\\)\\+\\u2011\\u2013]/g,'').toLowerCase();
+    const na = norm(a), nb = norm(b);
+    return na === nb || na.includes(nb) || nb.includes(na);
+  }
+  function simularCliqueReal(elemento){
+    const rect = elemento.getBoundingClientRect();
+    const x = rect.left + rect.width/2;
+    const y = rect.top + rect.height/2;
+    const opts = { bubbles:true, cancelable:true, view:window, clientX:x, clientY:y, button:0 };
+    elemento.dispatchEvent(new MouseEvent('mousedown', opts));
+    elemento.dispatchEvent(new MouseEvent('mouseup', opts));
+    elemento.dispatchEvent(new MouseEvent('click', opts));
+  }
+  async function abrirChat(chat){
+    const alvos = [
+      chat.item.querySelector('div[tabindex]'),
+      chat.item.querySelector('div[role="button"]'),
+      chat.item.firstElementChild,
+      chat.item,
+    ].filter(Boolean);
+    for(const alvo of alvos){
+      simularCliqueReal(alvo);
+      await esperar(1200);
+      const atual = getChatId();
+      if(nomesIguais(atual, chat.nome)){
+        log("chat aberto com sucesso:", atual);
+        return true;
+      }
+      log("tentativa falhou alvo", alvo.tagName, "- atual:", atual);
+    }
+    warn("não foi possível abrir o chat:", chat.nome);
+    return false;
   }
   function isGroupChat(){
     const header = document.querySelector('#main header');
