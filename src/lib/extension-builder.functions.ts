@@ -469,14 +469,13 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   // ============================================================
   function onChatMaybeChanged(){
     const c = getChatId();
-    if(c && c !== lastSeenChat){
+    if(c && !nomesIguais(c, lastSeenChat || '')){
       lastSeenChat = c;
       ensureToggleButton();
       log("chat aberto/trocado:", c);
-      // espera DOM carregar mensagens do chat recém-aberto
       setTimeout(()=>{
         const atual = getChatId();
-        if(atual !== c) return;
+        if(!nomesIguais(atual, c)) return;
         const msgs = lerMensagens(5);
         if(msgs.length && msgs[msgs.length-1].role === "user"){
           log("mensagem pendente detectada ao abrir chat:", c);
