@@ -342,7 +342,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     chatsEmProcessamento.add(chat);
     try{
       if(!(await getEnabled())){ log("global off"); return; }
-      if(getChatId() !== chat){ log("chat mudou durante debounce"); return; }
+      if(!nomesIguais(getChatId(), chat)){ log("chat mudou durante debounce"); return; }
       if(isGroupChat()){ log("grupo ignorado:", chat); return; }
       if(!(await getChatEnabled(chat))){ log("chat off:", chat); return; }
       if(isUserTyping()){ log("usuário digitando, abortando"); return; }
