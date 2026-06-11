@@ -14,7 +14,15 @@ const BodySchema = z.object({
     role: z.enum(["user", "assistant", "system"]),
     content: z.string().min(1).max(8000),
   })).min(1).max(40),
+  sessionId: z.string().max(300).optional(),
+  // identifica a mensagem sendo respondida; instâncias em PCs diferentes
+  // geram a mesma chave e só a primeira a reivindicar recebe a resposta
+  dedupeKey: z.string().max(300).optional(),
 });
+
+// claims mais velhos que isso podem ser reivindicados de novo
+// (cobre instância que travou entre reivindicar e enviar)
+const CLAIM_TTL_MS = 120_000;
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -148,6 +156,39 @@ export const Route = createFileRoute("/api/public/ai-reply")({
           try { payload = await request.json(); } catch { return json(400, { error: "Invalid JSON" }); }
           const parsed = BodySchema.safeParse(payload);
           if (!parsed.success) return json(400, { error: "Invalid body", details: parsed.error.flatten() });
+
+          // Deduplicação entre instâncias (vários PCs na mesma conta WhatsApp)
+          const dedupeKey = parsed.data.dedupeKey;
+          if (dedupeKey) {
+            const { error: insErr } = await supabaseAdmin
+              .from("ai_reply_claims")
+              .insert({ tenant_id: tenant.id, claim_key: dedupeKey });
+            if (insErr) {
+              const { data: claim } = await supabaseAdmin
+                .from("ai_reply_claims")
+                .select("id, claimed_at")
+                .eq("tenant_id", tenant.id)
+                .eq("claim_key", dedupeKey)
+                .maybeSingle();
+              const age = claim ? Date.now() - new Date(claim.claimed_at).getTime() : Infinity;
+              if (claim && age < CLAIM_TTL_MS) {
+                return json(200, { skip: true, reason: "already-claimed" });
+              }
+              if (claim) {
+                await supabaseAdmin
+                  .from("ai_reply_claims")
+                  .update({ claimed_at: new Date().toISOString() })
+                  .eq("id", claim.id);
+              }
+            }
+            // limpeza oportunista de claims antigos do tenant
+            supabaseAdmin
+              .from("ai_reply_claims")
+              .delete()
+              .eq("tenant_id", tenant.id)
+              .lt("claimed_at", new Date(Date.now() - 86_400_000).toISOString())
+              .then(() => {}, () => {});
+          }
 
           const [globalCfg, tenantCfg, prompt, kb] = await Promise.all([
             supabaseAdmin.from("ai_global_config").select("*").limit(1).maybeSingle().then((r) => r.data),
