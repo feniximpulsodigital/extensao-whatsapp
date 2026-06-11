@@ -364,6 +364,18 @@ function AiSection() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            <p className="font-medium flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+              Arquivos aumentam o consumo de créditos
+            </p>
+            <p className="text-muted-foreground mt-1">
+              O conteúdo dos arquivos <strong>ativos</strong> é enviado junto com <strong>cada resposta</strong> da IA,
+              o que aumenta o custo em créditos por mensagem — quanto mais texto ativo, maior o consumo.
+              Mantenha ativos apenas os arquivos realmente necessários e prefira documentos enxutos.
+              Você pode desativar um arquivo a qualquer momento sem excluí-lo.
+            </p>
+          </div>
           {(files ?? []).length === 0 && (
             <p className="text-muted-foreground text-sm">Nenhum arquivo enviado. Até 10 arquivos de no máximo 4MB cada.</p>
           )}
