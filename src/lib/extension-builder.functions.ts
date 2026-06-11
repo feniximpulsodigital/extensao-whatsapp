@@ -256,35 +256,59 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   }
 
   // ============================================================
-  // LEITURA DE MENSAGENS (.message-in / .message-out)
+  // LEITURA DE MENSAGENS — usa [role="row"] + data-id (false_/true_)
   // ============================================================
   function getAreaMensagens(){
     return document.querySelector('#main div[role="application"]')
       || document.querySelector('#main .copyable-area')
       || document.querySelector('#main');
   }
+  function detectarRoleRow(row){
+    // MÉTODO 1: data-id ("false_..." = recebida, "true_..." = enviada)
+    const elComId = row.hasAttribute('data-id') ? row : row.querySelector('[data-id]');
+    if(elComId){
+      const id = elComId.getAttribute('data-id') || '';
+      if(id.startsWith('false_')) return 'user';
+      if(id.startsWith('true_')) return 'assistant';
+    }
+    // MÉTODO 2: classes antigas
+    if(row.querySelector('.message-in')) return 'user';
+    if(row.querySelector('.message-out')) return 'assistant';
+    // MÉTODO 3: alinhamento horizontal da bolha
+    const bolha = row.firstElementChild;
+    if(bolha){
+      const rRow = row.getBoundingClientRect();
+      const rBolha = bolha.getBoundingClientRect();
+      if(rRow.width > 0 && rBolha.width > 0 && rBolha.width < rRow.width * 0.9){
+        const centroRow = rRow.left + rRow.width/2;
+        const centroBolha = rBolha.left + rBolha.width/2;
+        return centroBolha < centroRow ? 'user' : 'assistant';
+      }
+    }
+    return null;
+  }
   function lerMensagens(limite){
     const max = limite || 20;
     const out = [];
     const area = getAreaMensagens();
     if(!area) return out;
-    // garantir que não estamos pegando nada do header
-    const bolhas = area.querySelectorAll('.message-in, .message-out');
-    bolhas.forEach((linha)=>{
-      if(linha.closest('header')) return;
-      const ehRecebida = linha.classList.contains('message-in');
+    const rows = area.querySelectorAll('[role="row"]');
+    rows.forEach((row)=>{
+      if(row.closest('header')) return;
+      const role = detectarRoleRow(row);
+      if(!role) return;
       let texto = "";
-      const spans = linha.querySelectorAll('span.selectable-text, span[class*="selectable-text"]');
+      const spans = row.querySelectorAll('span.selectable-text, span[class*="selectable-text"]');
       spans.forEach((s)=>{
         const t = (s.innerText || s.textContent || "").trim();
         if(t) texto += (texto ? "\\n" : "") + t;
       });
       if(!texto){
-        const raw = (linha.innerText || "").trim();
+        const raw = (row.innerText || "").trim();
         texto = raw.split("\\n").filter((t)=>!/^[0-9]{1,2}:[0-9]{2}$/.test(t.trim())).join("\\n").trim();
       }
       if(!texto) return;
-      out.push({ role: ehRecebida ? "user" : "assistant", content: texto });
+      out.push({ role: role, content: texto });
     });
     return out.slice(-max);
   }
