@@ -489,44 +489,6 @@ export type Database = {
           },
         ]
       }
-      knowledge_files: {
-        Row: {
-          char_count: number
-          content: string
-          created_at: string
-          filename: string
-          id: string
-          is_active: boolean
-          tenant_id: string
-        }
-        Insert: {
-          char_count?: number
-          content: string
-          created_at?: string
-          filename: string
-          id?: string
-          is_active?: boolean
-          tenant_id: string
-        }
-        Update: {
-          char_count?: number
-          content?: string
-          created_at?: string
-          filename?: string
-          id?: string
-          is_active?: boolean
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "knowledge_files_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       knowledge_base: {
         Row: {
           answer: string
@@ -561,6 +523,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "knowledge_base_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_files: {
+        Row: {
+          char_count: number
+          content: string
+          created_at: string
+          filename: string
+          id: string
+          is_active: boolean
+          tenant_id: string
+        }
+        Insert: {
+          char_count?: number
+          content: string
+          created_at?: string
+          filename: string
+          id?: string
+          is_active?: boolean
+          tenant_id: string
+        }
+        Update: {
+          char_count?: number
+          content?: string
+          created_at?: string
+          filename?: string
+          id?: string
+          is_active?: boolean
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_files_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
