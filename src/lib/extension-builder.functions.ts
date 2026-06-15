@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.28",
+  version: "1.0.29",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -351,6 +351,25 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
     }catch(_e){}
     window.postMessage(Object.assign({ __argos:'mark-seen-result', reqId: d.reqId }, resp), '*');
   });
+  window.addEventListener('message', (ev)=>{
+    if(ev.source !== window) return;
+    const d = ev.data;
+    if(!d || d.__argos !== 'get-me') return;
+    let resp = { ok:false };
+    try{
+      let req = null;
+      try{ if(typeof window.require === 'function') req = window.require; }catch(_e){}
+      let me = null;
+      try{ if(req) me = req('WAWebUserPrefsMeUser').getMaybeMeUser(); }catch(_e){}
+      let numero = null;
+      try{
+        if(me && me.user) numero = String(me.user);
+        else if(me && me._serialized) numero = String(me._serialized).split('@')[0];
+      }catch(_e){}
+      if(numero) resp = { ok:true, numero: numero };
+    }catch(_e){}
+    window.postMessage(Object.assign({ __argos:'get-me-result', reqId: d.reqId }, resp), '*');
+  });
   window.addEventListener('message', async (ev)=>{
     if(ev.source !== window) return;
     const d = ev.data;
@@ -397,7 +416,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.28. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.29. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -883,16 +902,38 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     for(let i = 0; i < s.length; i++){ h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; }
     return h.toString(36);
   }
+  // identidade do computador (persistida) — usada no limite de PCs por plano
+  let deviceId = null;
+  const deviceIdPronto = new Promise((res)=>{
+    chrome.storage.local.get(["deviceId"],(r)=>{
+      if(r.deviceId){ deviceId = r.deviceId; res(deviceId); return; }
+      let novo = null;
+      try{ novo = crypto.randomUUID(); }catch(_e){}
+      if(!novo) novo = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+      chrome.storage.local.set({ deviceId: novo }, ()=>{ deviceId = novo; res(novo); });
+    });
+  });
+  // número do WhatsApp conectado (via bridge) — o servidor compara com o
+  // número cadastrado no painel
+  let meNumber = null;
+  async function obterMeNumber(){
+    if(meNumber) return meNumber;
+    const r = await bridgeRequest('get-me', {}, 3000);
+    if(r && r.ok && r.numero) meNumber = r.numero;
+    return meNumber;
+  }
   async function askAI(messages, sessionId, dedupeKey){
     try{
       log("IA <-", messages.length, "msgs (session:", sessionId, ")");
+      await deviceIdPronto;
+      const numero = await obterMeNumber();
       const r = await fetch(CFG.endpoint, {
         method:"POST",
         headers:{"Content-Type":"application/json","x-api-key":CFG.apiKey},
-        body: JSON.stringify({ messages, sessionId, dedupeKey }),
+        body: JSON.stringify({ messages, sessionId, dedupeKey, deviceId: deviceId || undefined, meNumber: numero || undefined }),
       });
       const j = await r.json().catch(()=>({}));
-      if(!r.ok){ warn("API erro", r.status, j); setButtonStatus("⚠️ "+(j.error||r.status), false); return null; }
+      if(!r.ok){ warn("API erro", r.status, j); setButtonStatus("⚠️ "+(j.message||j.error||r.status), false); return null; }
       if(j.skip){ log("outra instância reivindicou esta resposta"); return { skip:true }; }
       log("IA ->", j.reply);
       return j.reply ? { reply: j.reply } : null;
@@ -1244,7 +1285,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.28. Headless + multi-PC + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.29. Headless + multi-PC + limite de PCs/número por plano + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 

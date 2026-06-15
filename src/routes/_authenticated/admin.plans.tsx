@@ -7,7 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { adminListPlans, adminUpsertPlan, adminDeletePlan } from "@/lib/billing.functions";
@@ -24,6 +30,9 @@ type PlanForm = {
   price_cents_annual: number;
   monthly_credits: number;
   max_knowledge_entries: number;
+  max_devices: number | null;
+  max_numbers: number | null;
+  support_priority: number;
   is_active: boolean;
   is_custom: boolean;
   sort_order: number;
@@ -36,6 +45,9 @@ const empty: PlanForm = {
   price_cents_annual: 0,
   monthly_credits: 0,
   max_knowledge_entries: 100,
+  max_devices: null,
+  max_numbers: 1,
+  support_priority: 1,
   is_active: true,
   is_custom: false,
   sort_order: 0,
@@ -61,6 +73,9 @@ function PlansPage() {
           price_cents_annual: f.price_cents_annual,
           monthly_credits: f.monthly_credits,
           max_knowledge_entries: f.max_knowledge_entries,
+          max_devices: f.max_devices,
+          max_numbers: f.max_numbers,
+          support_priority: f.support_priority,
           is_active: f.is_active,
           is_custom: f.is_custom,
           sort_order: f.sort_order,
@@ -93,14 +108,22 @@ function PlansPage() {
         <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
           <DialogTrigger asChild>
             <Button onClick={() => setEditing({ ...empty })}>
-              <Plus className="h-4 w-4 mr-2" />Novo plano
+              <Plus className="h-4 w-4 mr-2" />
+              Novo plano
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{editing?.id ? "Editar plano" : "Novo plano"}</DialogTitle>
             </DialogHeader>
-            {editing && <PlanFormEditor form={editing} onChange={setEditing} onSave={() => saveMut.mutate(editing)} saving={saveMut.isPending} />}
+            {editing && (
+              <PlanFormEditor
+                form={editing}
+                onChange={setEditing}
+                onSave={() => saveMut.mutate(editing)}
+                saving={saveMut.isPending}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </div>
@@ -132,10 +155,17 @@ function PlansPage() {
                 <CardDescription>{p.description}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-1 text-sm">
-                <div>Mensal: <strong>R$ {(p.price_cents / 100).toFixed(2)}</strong></div>
-                <div>Anual: <strong>R$ {((p.price_cents_annual ?? 0) / 100).toFixed(2)}</strong></div>
+                <div>
+                  Mensal: <strong>R$ {(p.price_cents / 100).toFixed(2)}</strong>
+                </div>
+                <div>
+                  Anual: <strong>R$ {((p.price_cents_annual ?? 0) / 100).toFixed(2)}</strong>
+                </div>
                 <div>Créditos/mês: {p.monthly_credits}</div>
                 <div>Base de conhecimento: {p.max_knowledge_entries}</div>
+                <div>Computadores: {p.max_devices ?? "ilimitado"}</div>
+                <div>Números WhatsApp: {p.max_numbers ?? "ilimitado"}</div>
+                <div>Prioridade de suporte: {p.support_priority}</div>
                 <div>Status: {p.is_active ? "Ativo" : "Inativo"}</div>
               </CardContent>
             </Card>
@@ -165,7 +195,10 @@ function PlanFormEditor({
       </div>
       <div>
         <Label>Descrição</Label>
-        <Input value={form.description ?? ""} onChange={(e) => onChange({ ...form, description: e.target.value })} />
+        <Input
+          value={form.description ?? ""}
+          onChange={(e) => onChange({ ...form, description: e.target.value })}
+        />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -174,7 +207,12 @@ function PlanFormEditor({
             type="number"
             step="0.01"
             value={(form.price_cents / 100).toString()}
-            onChange={(e) => onChange({ ...form, price_cents: Math.round(parseFloat(e.target.value || "0") * 100) })}
+            onChange={(e) =>
+              onChange({
+                ...form,
+                price_cents: Math.round(parseFloat(e.target.value || "0") * 100),
+              })
+            }
           />
         </div>
         <div>
@@ -183,7 +221,12 @@ function PlanFormEditor({
             type="number"
             step="0.01"
             value={(form.price_cents_annual / 100).toString()}
-            onChange={(e) => onChange({ ...form, price_cents_annual: Math.round(parseFloat(e.target.value || "0") * 100) })}
+            onChange={(e) =>
+              onChange({
+                ...form,
+                price_cents_annual: Math.round(parseFloat(e.target.value || "0") * 100),
+              })
+            }
           />
         </div>
         <div>
@@ -191,7 +234,9 @@ function PlanFormEditor({
           <Input
             type="number"
             value={form.monthly_credits}
-            onChange={(e) => onChange({ ...form, monthly_credits: parseInt(e.target.value || "0") })}
+            onChange={(e) =>
+              onChange({ ...form, monthly_credits: parseInt(e.target.value || "0") })
+            }
           />
         </div>
         <div>
@@ -199,7 +244,42 @@ function PlanFormEditor({
           <Input
             type="number"
             value={form.max_knowledge_entries}
-            onChange={(e) => onChange({ ...form, max_knowledge_entries: parseInt(e.target.value || "0") })}
+            onChange={(e) =>
+              onChange({ ...form, max_knowledge_entries: parseInt(e.target.value || "0") })
+            }
+          />
+        </div>
+        <div>
+          <Label>Máx. computadores (vazio = ilimitado)</Label>
+          <Input
+            type="number"
+            min={1}
+            value={form.max_devices ?? ""}
+            onChange={(e) =>
+              onChange({ ...form, max_devices: e.target.value ? parseInt(e.target.value) : null })
+            }
+          />
+        </div>
+        <div>
+          <Label>Máx. números WhatsApp (vazio = ilimitado)</Label>
+          <Input
+            type="number"
+            min={1}
+            value={form.max_numbers ?? ""}
+            onChange={(e) =>
+              onChange({ ...form, max_numbers: e.target.value ? parseInt(e.target.value) : null })
+            }
+          />
+        </div>
+        <div>
+          <Label>Prioridade de suporte (maior = mais rápido)</Label>
+          <Input
+            type="number"
+            min={1}
+            value={form.support_priority}
+            onChange={(e) =>
+              onChange({ ...form, support_priority: parseInt(e.target.value || "1") })
+            }
           />
         </div>
         <div>
@@ -211,11 +291,17 @@ function PlanFormEditor({
           />
         </div>
         <div className="flex items-center gap-2 pt-6">
-          <Switch checked={form.is_active} onCheckedChange={(c) => onChange({ ...form, is_active: c })} />
+          <Switch
+            checked={form.is_active}
+            onCheckedChange={(c) => onChange({ ...form, is_active: c })}
+          />
           <Label>Ativo</Label>
         </div>
         <div className="flex items-center gap-2 pt-6 col-span-2">
-          <Switch checked={form.is_custom} onCheckedChange={(c) => onChange({ ...form, is_custom: c })} />
+          <Switch
+            checked={form.is_custom}
+            onCheckedChange={(c) => onChange({ ...form, is_custom: c })}
+          />
           <Label>Plano custom (oculto do checkout público — só atribuído por convite)</Label>
         </div>
       </div>

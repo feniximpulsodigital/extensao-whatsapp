@@ -677,12 +677,15 @@ export type Database = {
           is_active: boolean
           is_custom: boolean
           low_balance_threshold_pct: number
+          max_devices: number | null
           max_knowledge_entries: number
+          max_numbers: number | null
           monthly_credits: number
           name: string
           price_cents: number
           price_cents_annual: number
           sort_order: number
+          support_priority: number
           updated_at: string
         }
         Insert: {
@@ -695,12 +698,15 @@ export type Database = {
           is_active?: boolean
           is_custom?: boolean
           low_balance_threshold_pct?: number
+          max_devices?: number | null
           max_knowledge_entries?: number
+          max_numbers?: number | null
           monthly_credits?: number
           name: string
           price_cents?: number
           price_cents_annual?: number
           sort_order?: number
+          support_priority?: number
           updated_at?: string
         }
         Update: {
@@ -713,12 +719,15 @@ export type Database = {
           is_active?: boolean
           is_custom?: boolean
           low_balance_threshold_pct?: number
+          max_devices?: number | null
           max_knowledge_entries?: number
+          max_numbers?: number | null
           monthly_credits?: number
           name?: string
           price_cents?: number
           price_cents_annual?: number
           sort_order?: number
+          support_priority?: number
           updated_at?: string
         }
         Relationships: []
@@ -755,6 +764,82 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      support_messages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          read_at: string | null
+          sender: string
+          ticket_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender: string
+          ticket_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          read_at?: string | null
+          sender?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_tickets: {
+        Row: {
+          created_at: string
+          id: string
+          last_message_at: string
+          priority: number
+          status: string
+          subject: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          priority?: number
+          status?: string
+          subject: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_message_at?: string
+          priority?: number
+          status?: string
+          subject?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       system_prompts: {
         Row: {
@@ -794,6 +879,35 @@ export type Database = {
           },
         ]
       }
+      tenant_devices: {
+        Row: {
+          created_at: string
+          device_id: string
+          last_seen_at: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          last_seen_at?: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          last_seen_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_devices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           asaas_customer_id: string | null
@@ -817,6 +931,8 @@ export type Database = {
           subscription_renews_at: string | null
           subscription_started_at: string | null
           updated_at: string
+          whatsapp_number: string | null
+          whatsapp_numbers: string[]
         }
         Insert: {
           asaas_customer_id?: string | null
@@ -840,6 +956,8 @@ export type Database = {
           subscription_renews_at?: string | null
           subscription_started_at?: string | null
           updated_at?: string
+          whatsapp_number?: string | null
+          whatsapp_numbers?: string[]
         }
         Update: {
           asaas_customer_id?: string | null
@@ -863,6 +981,8 @@ export type Database = {
           subscription_renews_at?: string | null
           subscription_started_at?: string | null
           updated_at?: string
+          whatsapp_number?: string | null
+          whatsapp_numbers?: string[]
         }
         Relationships: [
           {

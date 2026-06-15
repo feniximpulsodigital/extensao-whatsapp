@@ -17,6 +17,68 @@ export const getMyTenant = createServerFn({ method: "GET" })
     return data;
   });
 
+// Números de WhatsApp autorizados — a IA só responde quando o WhatsApp Web
+// conectado for um dos números da lista (verificado pelo endpoint da
+// extensão). A quantidade é limitada por plans.max_numbers (NULL = ilimitado).
+export const addMyWhatsappNumber = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ number: z.string().min(8).max(25) }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { userId } = context;
+    const digits = data.number.replace(/\D/g, "");
+    if (digits.length < 10 || digits.length > 15) {
+      throw new Error("Número inválido. Informe com DDI e DDD, ex.: 5511999999999");
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: tenant } = await supabaseAdmin
+      .from("tenants")
+      .select("id, whatsapp_numbers, plans(max_numbers)")
+      .eq("owner_id", userId)
+      .maybeSingle();
+    if (!tenant) throw new Error("Conta sem empresa vinculada");
+
+    const atuais = tenant.whatsapp_numbers ?? [];
+    if (atuais.includes(digits)) return { ok: true, numbers: atuais };
+
+    const max = (tenant.plans as { max_numbers: number | null } | null)?.max_numbers ?? null;
+    if (max && atuais.length >= max) {
+      throw new Error(
+        max === 1
+          ? "Seu plano permite 1 número de WhatsApp. Remova o atual para trocar, ou faça upgrade de plano."
+          : `Seu plano permite até ${max} números de WhatsApp. Remova um para adicionar outro, ou faça upgrade de plano.`,
+      );
+    }
+
+    const numbers = [...atuais, digits];
+    const { error } = await supabaseAdmin
+      .from("tenants")
+      .update({ whatsapp_numbers: numbers })
+      .eq("id", tenant.id);
+    if (error) throw new Error(error.message);
+    return { ok: true, numbers };
+  });
+
+export const removeMyWhatsappNumber = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ number: z.string().min(8).max(25) }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { userId } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: tenant } = await supabaseAdmin
+      .from("tenants")
+      .select("id, whatsapp_numbers")
+      .eq("owner_id", userId)
+      .maybeSingle();
+    if (!tenant) throw new Error("Conta sem empresa vinculada");
+    const numbers = (tenant.whatsapp_numbers ?? []).filter((n) => n !== data.number);
+    const { error } = await supabaseAdmin
+      .from("tenants")
+      .update({ whatsapp_numbers: numbers })
+      .eq("id", tenant.id);
+    if (error) throw new Error(error.message);
+    return { ok: true, numbers };
+  });
+
 export const getMyExtensionApiKey = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -37,7 +99,9 @@ export const listActivePlans = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data, error } = await supabase
       .from("plans")
-      .select("id, name, description, price_cents, price_cents_annual, monthly_credits, max_knowledge_entries, features, sort_order")
+      .select(
+        "id, name, description, price_cents, price_cents_annual, monthly_credits, max_knowledge_entries, features, sort_order",
+      )
       .eq("is_active", true)
       .eq("is_custom", false)
       .order("sort_order", { ascending: true });
@@ -77,10 +141,7 @@ async function ensureAsaasCustomer(adminSupa: any, userId: string) {
     }),
   });
 
-  await supabaseAdmin
-    .from("tenants")
-    .update({ asaas_customer_id: created.id })
-    .eq("id", tenant.id);
+  await supabaseAdmin.from("tenants").update({ asaas_customer_id: created.id }).eq("id", tenant.id);
 
   return { ...tenant, asaas_customer_id: created.id };
 }
@@ -90,10 +151,12 @@ async function ensureAsaasCustomer(adminSupa: any, userId: string) {
 export const createPixCharge = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({
-      planId: z.string().uuid(),
-      billingCycle: z.enum(["monthly", "annual"]),
-    }).parse(input)
+    z
+      .object({
+        planId: z.string().uuid(),
+        billingCycle: z.enum(["monthly", "annual"]),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { userId } = context;
@@ -127,7 +190,7 @@ export const createPixCharge = createServerFn({ method: "POST" })
     });
 
     const qr = await asaasFetch<{ encodedImage: string; payload: string }>(
-      `/payments/${charge.id}/pixQrCode`
+      `/payments/${charge.id}/pixQrCode`,
     );
 
     const { data: payment, error: payErr } = await supabaseAdmin
@@ -164,21 +227,23 @@ export const createPixCharge = createServerFn({ method: "POST" })
 export const createCardSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({
-      planId: z.string().uuid(),
-      billingCycle: z.enum(["monthly", "annual"]),
-      holderName: z.string().min(1),
-      cardNumber: z.string().min(13).max(19),
-      expiryMonth: z.string().length(2),
-      expiryYear: z.string().length(4),
-      ccv: z.string().min(3).max(4),
-      holderEmail: z.string().email(),
-      holderCpfCnpj: z.string().min(11),
-      holderPostalCode: z.string().min(8),
-      holderAddressNumber: z.string().min(1),
-      holderPhone: z.string().min(10),
-      remoteIp: z.string().optional(),
-    }).parse(input)
+    z
+      .object({
+        planId: z.string().uuid(),
+        billingCycle: z.enum(["monthly", "annual"]),
+        holderName: z.string().min(1),
+        cardNumber: z.string().min(13).max(19),
+        expiryMonth: z.string().length(2),
+        expiryYear: z.string().length(4),
+        ccv: z.string().min(3).max(4),
+        holderEmail: z.string().email(),
+        holderCpfCnpj: z.string().min(11),
+        holderPostalCode: z.string().min(8),
+        holderAddressNumber: z.string().min(1),
+        holderPhone: z.string().min(10),
+        remoteIp: z.string().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { userId } = context;
@@ -279,7 +344,9 @@ export const getAppSettings = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("app_settings")
-      .select("id, asaas_env, asaas_api_key_sandbox, asaas_api_key_production, asaas_webhook_token, updated_at")
+      .select(
+        "id, asaas_env, asaas_api_key_sandbox, asaas_api_key_production, asaas_webhook_token, updated_at",
+      )
       .limit(1)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -289,18 +356,24 @@ export const getAppSettings = createServerFn({ method: "GET" })
 export const updateAppSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({
-      asaas_env: z.enum(["sandbox", "production"]),
-      asaas_api_key_sandbox: z.string().nullable().optional(),
-      asaas_api_key_production: z.string().nullable().optional(),
-      asaas_webhook_token: z.string().nullable().optional(),
-    }).parse(input)
+    z
+      .object({
+        asaas_env: z.enum(["sandbox", "production"]),
+        asaas_api_key_sandbox: z.string().nullable().optional(),
+        asaas_api_key_production: z.string().nullable().optional(),
+        asaas_webhook_token: z.string().nullable().optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
     await adminGuard(supabase, userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: existing } = await supabaseAdmin.from("app_settings").select("id").limit(1).maybeSingle();
+    const { data: existing } = await supabaseAdmin
+      .from("app_settings")
+      .select("id")
+      .limit(1)
+      .maybeSingle();
     if (existing) {
       const { error } = await supabaseAdmin.from("app_settings").update(data).eq("id", existing.id);
       if (error) throw new Error(error.message);
@@ -326,18 +399,23 @@ export const adminListPlans = createServerFn({ method: "GET" })
 export const adminUpsertPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({
-      id: z.string().uuid().optional(),
-      name: z.string().min(1),
-      description: z.string().nullable().optional(),
-      price_cents: z.number().int().min(0),
-      price_cents_annual: z.number().int().min(0),
-      monthly_credits: z.number().int().min(0),
-      max_knowledge_entries: z.number().int().min(0),
-      is_active: z.boolean(),
-      is_custom: z.boolean().optional().default(false),
-      sort_order: z.number().int(),
-    }).parse(input)
+    z
+      .object({
+        id: z.string().uuid().optional(),
+        name: z.string().min(1),
+        description: z.string().nullable().optional(),
+        price_cents: z.number().int().min(0),
+        price_cents_annual: z.number().int().min(0),
+        monthly_credits: z.number().int().min(0),
+        max_knowledge_entries: z.number().int().min(0),
+        max_devices: z.number().int().min(1).nullable().optional(),
+        max_numbers: z.number().int().min(1).nullable().optional(),
+        support_priority: z.number().int().min(1).optional(),
+        is_active: z.boolean(),
+        is_custom: z.boolean().optional().default(false),
+        sort_order: z.number().int(),
+      })
+      .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
@@ -373,7 +451,9 @@ export const adminListTenants = createServerFn({ method: "GET" })
     await adminGuard(supabase, userId);
     const { data, error } = await supabase
       .from("tenants")
-      .select("id, owner_id, company_name, status, credits_balance, billing_cycle, created_at, plans(name)")
+      .select(
+        "id, owner_id, company_name, status, credits_balance, billing_cycle, created_at, plans(name)",
+      )
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     // e-mail de acesso de cada dono (profiles é restrito por RLS; usa service role)

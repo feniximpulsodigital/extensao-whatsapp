@@ -10,19 +10,43 @@ const cors = {
 };
 
 const BodySchema = z.object({
-  messages: z.array(z.object({
-    role: z.enum(["user", "assistant", "system"]),
-    content: z.string().min(1).max(8000),
-  })).min(1).max(40),
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant", "system"]),
+        content: z.string().min(1).max(8000),
+      }),
+    )
+    .min(1)
+    .max(40),
   sessionId: z.string().max(300).optional(),
   // identifica a mensagem sendo respondida; instâncias em PCs diferentes
   // geram a mesma chave e só a primeira a reivindicar recebe a resposta
   dedupeKey: z.string().max(300).optional(),
+  // identifica o computador (persistido no chrome.storage) — usado no limite
+  // de dispositivos por plano; ausente em extensões antigas (sem enforcement)
+  deviceId: z.string().max(80).optional(),
+  // número do WhatsApp conectado (dígitos), lido do store pela extensão
+  meNumber: z.string().max(32).optional(),
 });
 
 // claims mais velhos que isso podem ser reivindicados de novo
 // (cobre instância que travou entre reivindicar e enviar)
 const CLAIM_TTL_MS = 120_000;
+
+// janela deslizante do limite de dispositivos: um PC conta como "ativo"
+// enquanto tiver feito alguma chamada nos últimos N minutos
+const DEVICE_WINDOW_MS = 10 * 60_000;
+
+function soDigitos(s: string) {
+  return s.replace(/\D/g, "");
+}
+
+// tolera DDI omitido / 9º dígito: igual ou um termina com o outro (mín. 8 dígitos)
+function numerosBatem(a: string, b: string) {
+  if (a.length < 8 || b.length < 8) return false;
+  return a === b || a.endsWith(b) || b.endsWith(a);
+}
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -40,7 +64,10 @@ async function callProvider(opts: {
   maxTokens: number;
   system: string;
   messages: Msg[];
-}): Promise<{ ok: true; reply: string; inputTokens: number; outputTokens: number } | { ok: false; status: number; error: string }> {
+}): Promise<
+  | { ok: true; reply: string; inputTokens: number; outputTokens: number }
+  | { ok: false; status: number; error: string }
+> {
   const { provider, model, temperature, maxTokens, system, messages } = opts;
 
   async function callLovableGateway() {
@@ -59,7 +86,11 @@ async function callProvider(opts: {
     if (!r.ok) {
       const t = await r.text();
       console.error("lovable gateway error", r.status, t);
-      return { ok: false as const, status: r.status === 429 ? 429 : 502, error: r.status === 429 ? "Limite de uso atingido" : "Erro no provedor de IA" };
+      return {
+        ok: false as const,
+        status: r.status === 429 ? 429 : 502,
+        error: r.status === 429 ? "Limite de uso atingido" : "Erro no provedor de IA",
+      };
     }
     const j: any = await r.json();
     return {
@@ -73,22 +104,29 @@ async function callProvider(opts: {
   if (provider === "groq" || provider === "openai") {
     const key = provider === "groq" ? process.env.GROQ_API_KEY : process.env.OPENAI_API_KEY;
     if (!key) return callLovableGateway();
-    const url = provider === "groq"
-      ? "https://api.groq.com/openai/v1/chat/completions"
-      : "https://api.openai.com/v1/chat/completions";
+    const url =
+      provider === "groq"
+        ? "https://api.groq.com/openai/v1/chat/completions"
+        : "https://api.openai.com/v1/chat/completions";
 
     const r = await fetch(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model, temperature, max_tokens: maxTokens,
+        model,
+        temperature,
+        max_tokens: maxTokens,
         messages: [{ role: "system", content: system }, ...messages],
       }),
     });
     if (!r.ok) {
       const t = await r.text();
       console.error(`${provider} error`, r.status, t);
-      return { ok: false, status: r.status === 429 ? 429 : 502, error: r.status === 429 ? "Limite de uso atingido" : "Erro no provedor de IA" };
+      return {
+        ok: false,
+        status: r.status === 429 ? 429 : 502,
+        error: r.status === 429 ? "Limite de uso atingido" : "Erro no provedor de IA",
+      };
     }
     const j: any = await r.json();
     return {
@@ -114,16 +152,22 @@ async function callProvider(opts: {
       max_tokens: maxTokens,
       temperature,
       system,
-      messages: messages.filter((m) => m.role !== "system").map((m) => ({
-        role: m.role === "assistant" ? "assistant" : "user",
-        content: m.content,
-      })),
+      messages: messages
+        .filter((m) => m.role !== "system")
+        .map((m) => ({
+          role: m.role === "assistant" ? "assistant" : "user",
+          content: m.content,
+        })),
     }),
   });
   if (!r.ok) {
     const t = await r.text();
     console.error("anthropic error", r.status, t);
-    return { ok: false, status: r.status === 429 ? 429 : 502, error: r.status === 429 ? "Limite de uso atingido" : "Erro no provedor de IA" };
+    return {
+      ok: false,
+      status: r.status === 429 ? 429 : 502,
+      error: r.status === 429 ? "Limite de uso atingido" : "Erro no provedor de IA",
+    };
   }
   const j: any = await r.json();
   const reply = Array.isArray(j?.content) ? j.content.map((c: any) => c?.text ?? "").join("") : "";
@@ -146,16 +190,80 @@ export const Route = createFileRoute("/api/public/ai-reply")({
 
           const { data: tenant } = await supabaseAdmin
             .from("tenants")
-            .select("id, status, credits_balance, owner_id")
+            .select("id, status, credits_balance, owner_id, whatsapp_numbers, plans(max_devices)")
             .eq("extension_api_key", apiKey)
             .maybeSingle();
           if (!tenant) return json(401, { error: "Invalid api key" });
           if (tenant.status !== "active") return json(403, { error: "Tenant inactive" });
 
           let payload: unknown;
-          try { payload = await request.json(); } catch { return json(400, { error: "Invalid JSON" }); }
+          try {
+            payload = await request.json();
+          } catch {
+            return json(400, { error: "Invalid JSON" });
+          }
           const parsed = BodySchema.safeParse(payload);
-          if (!parsed.success) return json(400, { error: "Invalid body", details: parsed.error.flatten() });
+          if (!parsed.success)
+            return json(400, { error: "Invalid body", details: parsed.error.flatten() });
+
+          // ===== Números autorizados (cadastrados no dashboard) =====
+          // Só aplica quando a extensão é nova o bastante para se identificar
+          // (deviceId presente); extensões antigas seguem como legado.
+          if (parsed.data.deviceId) {
+            const registrados = (tenant.whatsapp_numbers ?? [])
+              .map((n) => soDigitos(n))
+              .filter((n) => n.length >= 8);
+            if (!registrados.length) {
+              return json(403, {
+                error: "NUMBER_NOT_SET",
+                message: "Cadastre o número do seu WhatsApp no painel da Argos para ativar a IA.",
+              });
+            }
+            const conectado = soDigitos(parsed.data.meNumber ?? "");
+            // se a extensão não conseguiu ler o número do store, não dá para
+            // verificar — segue (o limite de dispositivos continua valendo)
+            if (conectado && !registrados.some((r) => numerosBatem(conectado, r))) {
+              return json(403, {
+                error: "NUMBER_MISMATCH",
+                message:
+                  "Este WhatsApp não está entre os números cadastrados no painel. Adicione o número no painel ou conecte o WhatsApp Web de uma conta autorizada.",
+              });
+            }
+          }
+
+          // ===== Limite de computadores (janela deslizante) =====
+          if (parsed.data.deviceId) {
+            const maxDevices =
+              (tenant.plans as { max_devices: number | null } | null)?.max_devices ?? null;
+            if (maxDevices && maxDevices > 0) {
+              const cutoff = new Date(Date.now() - DEVICE_WINDOW_MS).toISOString();
+              const { data: ativos } = await supabaseAdmin
+                .from("tenant_devices")
+                .select("device_id")
+                .eq("tenant_id", tenant.id)
+                .gt("last_seen_at", cutoff);
+              const lista = ativos ?? [];
+              const conhecido = lista.some((d) => d.device_id === parsed.data.deviceId);
+              if (!conhecido && lista.length >= maxDevices) {
+                // não atualiza last_seen: o PC bloqueado não ocupa a vaga
+                return json(403, {
+                  error: "DEVICE_LIMIT",
+                  message:
+                    maxDevices === 1
+                      ? "Seu plano permite 1 computador por vez. Feche a extensão no outro PC e aguarde 10 minutos, ou faça upgrade de plano."
+                      : `Seu plano permite ${maxDevices} computadores por vez. Desative a extensão em um deles e aguarde 10 minutos, ou faça upgrade de plano.`,
+                });
+              }
+            }
+            await supabaseAdmin.from("tenant_devices").upsert(
+              {
+                tenant_id: tenant.id,
+                device_id: parsed.data.deviceId,
+                last_seen_at: new Date().toISOString(),
+              },
+              { onConflict: "tenant_id,device_id" },
+            );
+          }
 
           // Deduplicação entre instâncias (vários PCs na mesma conta WhatsApp)
           const dedupeKey = parsed.data.dedupeKey;
@@ -187,15 +295,47 @@ export const Route = createFileRoute("/api/public/ai-reply")({
               .delete()
               .eq("tenant_id", tenant.id)
               .lt("claimed_at", new Date(Date.now() - 86_400_000).toISOString())
-              .then(() => {}, () => {});
+              .then(
+                () => {},
+                () => {},
+              );
           }
 
           const [globalCfg, tenantCfg, prompt, kb, kbFiles] = await Promise.all([
-            supabaseAdmin.from("ai_global_config").select("*").limit(1).maybeSingle().then((r) => r.data),
-            supabaseAdmin.from("ai_config").select("*").eq("tenant_id", tenant.id).maybeSingle().then((r) => r.data),
-            supabaseAdmin.from("system_prompts").select("content").eq("tenant_id", tenant.id).eq("is_default", true).maybeSingle().then((r) => r.data),
-            supabaseAdmin.from("knowledge_base").select("question, answer").eq("tenant_id", tenant.id).eq("is_active", true).limit(50).then((r) => r.data ?? []),
-            supabaseAdmin.from("knowledge_files").select("filename, content").eq("tenant_id", tenant.id).eq("is_active", true).order("created_at", { ascending: false }).limit(10).then((r) => r.data ?? []),
+            supabaseAdmin
+              .from("ai_global_config")
+              .select("*")
+              .limit(1)
+              .maybeSingle()
+              .then((r) => r.data),
+            supabaseAdmin
+              .from("ai_config")
+              .select("*")
+              .eq("tenant_id", tenant.id)
+              .maybeSingle()
+              .then((r) => r.data),
+            supabaseAdmin
+              .from("system_prompts")
+              .select("content")
+              .eq("tenant_id", tenant.id)
+              .eq("is_default", true)
+              .maybeSingle()
+              .then((r) => r.data),
+            supabaseAdmin
+              .from("knowledge_base")
+              .select("question, answer")
+              .eq("tenant_id", tenant.id)
+              .eq("is_active", true)
+              .limit(50)
+              .then((r) => r.data ?? []),
+            supabaseAdmin
+              .from("knowledge_files")
+              .select("filename, content")
+              .eq("tenant_id", tenant.id)
+              .eq("is_active", true)
+              .order("created_at", { ascending: false })
+              .limit(10)
+              .then((r) => r.data ?? []),
           ]);
           if (!globalCfg?.enabled) return json(503, { error: "AI disabled" });
 
@@ -203,12 +343,14 @@ export const Route = createFileRoute("/api/public/ai-reply")({
           const model = globalCfg.default_model;
           const temperature = Number(tenantCfg?.temperature ?? globalCfg.default_temperature);
           // Auto: dimensiona resposta pelo tamanho da última mensagem do usuário (otimiza custo)
-          const lastUserMsg = [...parsed.data.messages].reverse().find((m: any) => m.role === "user")?.content ?? "";
+          const lastUserMsg =
+            [...parsed.data.messages].reverse().find((m: any) => m.role === "user")?.content ?? "";
           const approxInTokens = Math.ceil(lastUserMsg.length / 4);
           const maxTokens = Math.min(800, Math.max(180, approxInTokens * 2 + 120));
 
           const kbBlock = kb.length
-            ? "\n\nBase de conhecimento da empresa:\n" + kb.map((k: any) => `- P: ${k.question}\n  R: ${k.answer}`).join("\n")
+            ? "\n\nBase de conhecimento da empresa:\n" +
+              kb.map((k: any) => `- P: ${k.question}\n  R: ${k.answer}`).join("\n")
             : "";
           // Documentos enviados pelo cliente: orçamento total para não estourar tokens
           let filesBudget = 9000;
@@ -228,7 +370,9 @@ export const Route = createFileRoute("/api/public/ai-reply")({
             prompt?.content || "",
             kbBlock,
             filesBlock,
-          ].filter(Boolean).join("\n\n");
+          ]
+            .filter(Boolean)
+            .join("\n\n");
 
           const res = await callProvider({
             provider,

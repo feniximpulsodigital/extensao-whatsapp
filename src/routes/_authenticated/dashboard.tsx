@@ -8,8 +8,27 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { LogOut, Settings, AlertTriangle, Zap, Plus, Pencil, Trash2, Download, FileText, Upload } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  LogOut,
+  Settings,
+  AlertTriangle,
+  Zap,
+  Plus,
+  Pencil,
+  Trash2,
+  Download,
+  FileText,
+  Upload,
+  Smartphone,
+  LifeBuoy,
+} from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -17,12 +36,23 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyCreditsSummary } from "@/lib/ai-credits.functions";
-import { getMyExtensionApiKey } from "@/lib/billing.functions";
+import {
+  getMyExtensionApiKey,
+  addMyWhatsappNumber,
+  removeMyWhatsappNumber,
+} from "@/lib/billing.functions";
+import { getMySupportBadge } from "@/lib/support.functions";
 import { buildMyExtension } from "@/lib/extension-builder.functions";
 import {
-  getMyAiConfig, updateMyAiConfig,
-  listMyKnowledge, upsertMyKnowledge, deleteMyKnowledge,
-  listMyKnowledgeFiles, uploadMyKnowledgeFile, toggleMyKnowledgeFile, deleteMyKnowledgeFile,
+  getMyAiConfig,
+  updateMyAiConfig,
+  listMyKnowledge,
+  upsertMyKnowledge,
+  deleteMyKnowledge,
+  listMyKnowledgeFiles,
+  uploadMyKnowledgeFile,
+  toggleMyKnowledgeFile,
+  deleteMyKnowledgeFile,
 } from "@/lib/ai-config.functions";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -44,7 +74,9 @@ function Dashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tenants")
-        .select("id, status, credits_balance, plan_id, plans(name)")
+        .select(
+          "id, status, credits_balance, plan_id, whatsapp_numbers, plans(name, max_devices, max_numbers)",
+        )
         .eq("owner_id", user.id)
         .maybeSingle();
       if (error) throw error;
@@ -53,6 +85,24 @@ function Dashboard() {
   });
   const { data: credits } = useQuery({ queryKey: ["credits-summary"], queryFn: () => summary() });
   const { data: extKey } = useQuery({ queryKey: ["extension-key"], queryFn: () => extKeyFn() });
+
+  // Notificação de resposta do suporte: badge no botão + toast quando chega
+  const supportBadgeFn = useServerFn(getMySupportBadge);
+  const { data: supportBadge } = useQuery({
+    queryKey: ["support-badge"],
+    queryFn: () => supportBadgeFn(),
+    enabled: !isAdmin,
+    refetchInterval: 30_000,
+  });
+  const prevUnread = useRef<number | null>(null);
+  useEffect(() => {
+    const unread = supportBadge?.unread;
+    if (unread === undefined) return;
+    if (prevUnread.current !== null && unread > prevUnread.current) {
+      toast.info("O suporte respondeu seu ticket. Veja em Suporte.");
+    }
+    prevUnread.current = unread;
+  }, [supportBadge?.unread]);
 
   const downloadExt = useMutation({
     mutationFn: async () => buildExt({ data: { origin: window.location.origin } }),
@@ -91,13 +141,30 @@ function Dashboard() {
           </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle />
+            {!isAdmin && (
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/support">
+                  <LifeBuoy className="h-4 w-4 mr-1" />
+                  Suporte
+                  {(supportBadge?.unread ?? 0) > 0 && (
+                    <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
+                      {supportBadge!.unread}
+                    </span>
+                  )}
+                </Link>
+              </Button>
+            )}
             {isAdmin && (
               <Button asChild variant="outline" size="sm">
-                <Link to="/admin/settings"><Settings className="h-4 w-4 mr-2" />Admin</Link>
+                <Link to="/admin/settings">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Admin
+                </Link>
               </Button>
             )}
             <Button onClick={handleLogout} variant="ghost" size="sm">
-              <LogOut className="h-4 w-4 mr-2" />Sair
+              <LogOut className="h-4 w-4 mr-2" />
+              Sair
             </Button>
           </div>
         </div>
@@ -117,11 +184,14 @@ function Dashboard() {
                 <div>
                   <p className="font-semibold">Saldo baixo</p>
                   <p className="text-sm text-muted-foreground">
-                    Você usou {100 - credits.pctRemaining}% da sua cota. Compre mais para não interromper o uso.
+                    Você usou {100 - credits.pctRemaining}% da sua cota. Compre mais para não
+                    interromper o uso.
                   </p>
                 </div>
               </div>
-              <Button asChild><Link to="/buy-credits">Comprar créditos</Link></Button>
+              <Button asChild>
+                <Link to="/buy-credits">Comprar créditos</Link>
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -130,17 +200,24 @@ function Dashboard() {
           <Card>
             <CardHeader>
               <CardDescription>Créditos disponíveis</CardDescription>
-              <CardTitle className="text-3xl">{credits?.balance ?? tenant?.credits_balance ?? 0}</CardTitle>
+              <CardTitle className="text-3xl">
+                {credits?.balance ?? tenant?.credits_balance ?? 0}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {credits && credits.allowance > 0 && (
                 <>
                   <Progress value={credits.pctRemaining} className="h-2" />
-                  <p className="text-xs text-muted-foreground mt-2">{credits.pctRemaining}% restante de {credits.allowance}/mês</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {credits.pctRemaining}% restante de {credits.allowance}/mês
+                  </p>
                 </>
               )}
               <Button asChild size="sm" variant="outline" className="mt-3 w-full">
-                <Link to="/buy-credits"><Zap className="h-4 w-4 mr-2" />Comprar mais</Link>
+                <Link to="/buy-credits">
+                  <Zap className="h-4 w-4 mr-2" />
+                  Comprar mais
+                </Link>
               </Button>
             </CardContent>
           </Card>
@@ -148,6 +225,13 @@ function Dashboard() {
             <CardHeader>
               <CardDescription>Plano</CardDescription>
               <CardTitle className="text-xl">{tenant?.plans?.name ?? "—"}</CardTitle>
+              {tenant?.plans?.max_devices ? (
+                <p className="text-xs text-muted-foreground">
+                  Até {tenant.plans.max_devices} computador
+                  {tenant.plans.max_devices > 1 ? "es" : ""} ativo
+                  {tenant.plans.max_devices > 1 ? "s" : ""} por vez
+                </p>
+              ) : null}
             </CardHeader>
           </Card>
           <Card>
@@ -158,13 +242,21 @@ function Dashboard() {
           </Card>
         </div>
 
+        {!isAdmin && tenant && (
+          <WhatsappNumbersCard
+            numbers={tenant.whatsapp_numbers ?? []}
+            maxNumbers={tenant.plans?.max_numbers ?? null}
+            onSaved={() => qc.invalidateQueries({ queryKey: ["my-tenant"] })}
+          />
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>Sua extensão personalizada</CardTitle>
             <CardDescription>
-              Baixe sua extensão exclusiva — já vem com sua chave embutida.
-              Pode instalar em quantos computadores quiser; a IA funciona enquanto
-              pelo menos um deles estiver com o Chrome aberto no WhatsApp Web.
+              Baixe sua extensão exclusiva — já vem com sua chave embutida. Conforme o seu plano,
+              instale em um ou mais computadores; a IA funciona enquanto pelo menos um deles estiver
+              com o Chrome aberto no WhatsApp Web do número cadastrado.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -174,15 +266,25 @@ function Dashboard() {
             </Button>
             <ol className="text-sm text-muted-foreground list-decimal pl-5 space-y-1">
               <li>Descompacte o arquivo baixado.</li>
-              <li>Abra <code className="px-1 bg-muted rounded">chrome://extensions</code> no Chrome.</li>
-              <li>Ative o <b>Modo do desenvolvedor</b> (canto superior direito).</li>
-              <li>Clique em <b>Carregar sem compactação</b> e selecione a pasta descompactada.</li>
-              <li>Abra <b>web.whatsapp.com</b> e clique no ícone da extensão para ativar.</li>
+              <li>
+                Abra <code className="px-1 bg-muted rounded">chrome://extensions</code> no Chrome.
+              </li>
+              <li>
+                Ative o <b>Modo do desenvolvedor</b> (canto superior direito).
+              </li>
+              <li>
+                Clique em <b>Carregar sem compactação</b> e selecione a pasta descompactada.
+              </li>
+              <li>
+                Abra <b>web.whatsapp.com</b> e clique no ícone da extensão para ativar.
+              </li>
             </ol>
             {extKey?.extensionApiKey && (
               <details className="text-xs text-muted-foreground">
                 <summary className="cursor-pointer">Ver chave de API (uso avançado)</summary>
-                <code className="block mt-2 rounded bg-muted p-2 break-all">{extKey.extensionApiKey}</code>
+                <code className="block mt-2 rounded bg-muted p-2 break-all">
+                  {extKey.extensionApiKey}
+                </code>
               </details>
             )}
           </CardContent>
@@ -191,6 +293,119 @@ function Dashboard() {
         {showAi && <AiSection />}
       </main>
     </div>
+  );
+}
+
+function WhatsappNumbersCard({
+  numbers,
+  maxNumbers,
+  onSaved,
+}: {
+  numbers: string[];
+  maxNumbers: number | null;
+  onSaved: () => void;
+}) {
+  const addNumber = useServerFn(addMyWhatsappNumber);
+  const removeNumber = useServerFn(removeMyWhatsappNumber);
+  const [value, setValue] = useState("");
+
+  const add = useMutation({
+    mutationFn: () => addNumber({ data: { number: value } }),
+    onSuccess: () => {
+      toast.success("Número adicionado.");
+      setValue("");
+      onSaved();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const remove = useMutation({
+    mutationFn: (n: string) => removeNumber({ data: { number: n } }),
+    onSuccess: () => {
+      toast.success("Número removido.");
+      onSaved();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const missing = numbers.length === 0;
+  const atLimit = maxNumbers !== null && numbers.length >= maxNumbers;
+  return (
+    <Card className={missing ? "border-amber-500 bg-amber-50 dark:bg-amber-950/30" : ""}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          {missing ? (
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
+          ) : (
+            <Smartphone className="h-5 w-5 text-primary" />
+          )}
+          Números de WhatsApp da IA
+        </CardTitle>
+        <CardDescription>
+          {missing
+            ? "Obrigatório: cadastre o número do WhatsApp que a IA vai atender. Sem ele, a IA não responde."
+            : "A IA só responde nos números desta lista. Cada número usa o próprio WhatsApp Web com a extensão instalada."}
+          {maxNumbers !== null && (
+            <>
+              {" "}
+              Seu plano permite {maxNumbers} número{maxNumbers > 1 ? "s" : ""} ({numbers.length}/
+              {maxNumbers} em uso).
+            </>
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {numbers.length > 0 && (
+          <ul className="space-y-2">
+            {numbers.map((n) => (
+              <li
+                key={n}
+                className="flex items-center justify-between rounded-lg border bg-background px-3 py-2"
+              >
+                <span className="font-mono text-sm">{n}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => remove.mutate(n)}
+                  disabled={remove.isPending}
+                  title="Remover número"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {atLimit ? (
+          <p className="text-xs text-muted-foreground">
+            Limite do plano atingido. Para adicionar outro número, remova um ou faça upgrade de
+            plano.
+          </p>
+        ) : (
+          <form
+            className="flex flex-col gap-3 sm:flex-row sm:items-end"
+            onSubmit={(e) => {
+              e.preventDefault();
+              add.mutate();
+            }}
+          >
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="whatsapp-number">Número com DDI e DDD (só dígitos)</Label>
+              <Input
+                id="whatsapp-number"
+                type="tel"
+                placeholder="5511999999999"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" disabled={add.isPending || !value.trim()}>
+              {add.isPending ? "Adicionando..." : "Adicionar número"}
+            </Button>
+          </form>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -223,28 +438,45 @@ function AiSection() {
   }, [cfg]);
 
   const save = useMutation({
-    mutationFn: () => updCfg({ data: {
-      temperature: form.temperature,
-      prompt_content: form.prompt_content || undefined,
-    }}),
-    onSuccess: () => { toast.success("Salvo"); qc.invalidateQueries({ queryKey: ["my-ai-config"] }); },
+    mutationFn: () =>
+      updCfg({
+        data: {
+          temperature: form.temperature,
+          prompt_content: form.prompt_content || undefined,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Salvo");
+      qc.invalidateQueries({ queryKey: ["my-ai-config"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
-
   const [editing, setEditing] = useState<any | null>(null);
   const saveKB = useMutation({
-    mutationFn: () => upsertKB({ data: {
-      id: editing.id || undefined,
-      question: editing.question, answer: editing.answer,
-      tags: editing.tags ?? [], is_active: editing.is_active ?? true,
-    }}),
-    onSuccess: () => { toast.success("Salvo"); qc.invalidateQueries({ queryKey: ["my-kb"] }); setEditing(null); },
+    mutationFn: () =>
+      upsertKB({
+        data: {
+          id: editing.id || undefined,
+          question: editing.question,
+          answer: editing.answer,
+          tags: editing.tags ?? [],
+          is_active: editing.is_active ?? true,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Salvo");
+      qc.invalidateQueries({ queryKey: ["my-kb"] });
+      setEditing(null);
+    },
     onError: (e: Error) => toast.error(e.message),
   });
   const removeKB = useMutation({
     mutationFn: (id: string) => delKB({ data: { id } }),
-    onSuccess: () => { toast.success("Removido"); qc.invalidateQueries({ queryKey: ["my-kb"] }); },
+    onSuccess: () => {
+      toast.success("Removido");
+      qc.invalidateQueries({ queryKey: ["my-kb"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -260,7 +492,10 @@ function AiSection() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > 4 * 1024 * 1024) { toast.error("Arquivo muito grande (máx. 4MB)."); return; }
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("Arquivo muito grande (máx. 4MB).");
+      return;
+    }
     setUploading(true);
     try {
       const base64 = await new Promise<string>((res, rej) => {
@@ -270,7 +505,9 @@ function AiSection() {
         r.readAsDataURL(file);
       });
       const out = await uploadFile({ data: { filename: file.name, base64 } });
-      toast.success(`Arquivo adicionado (${out.chars.toLocaleString("pt-BR")} caracteres extraídos)`);
+      toast.success(
+        `Arquivo adicionado (${out.chars.toLocaleString("pt-BR")} caracteres extraídos)`,
+      );
       qc.invalidateQueries({ queryKey: ["my-kb-files"] });
     } catch (err) {
       toast.error((err as Error).message);
@@ -285,7 +522,10 @@ function AiSection() {
   });
   const remFile = useMutation({
     mutationFn: (id: string) => delFile({ data: { id } }),
-    onSuccess: () => { toast.success("Arquivo removido"); qc.invalidateQueries({ queryKey: ["my-kb-files"] }); },
+    onSuccess: () => {
+      toast.success("Arquivo removido");
+      qc.invalidateQueries({ queryKey: ["my-kb-files"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -299,22 +539,35 @@ function AiSection() {
         <CardContent className="space-y-4">
           <div>
             <Label>Criatividade da IA ({form.temperature.toFixed(2)})</Label>
-            <input type="range" min={0} max={1.5} step={0.05} value={form.temperature}
-              onChange={(e) => setForm({ ...form, temperature: parseFloat(e.target.value) })} className="w-full" />
+            <input
+              type="range"
+              min={0}
+              max={1.5}
+              step={0.05}
+              value={form.temperature}
+              onChange={(e) => setForm({ ...form, temperature: parseFloat(e.target.value) })}
+              className="w-full"
+            />
             <p className="text-xs text-muted-foreground mt-1">
-              Controla a liberdade da IA. O ideal para atendimento é <strong>0.7 = equilibrado</strong>. <strong>1.0+ = mais criativo, mas pode inventar</strong>.
+              Controla a liberdade da IA. O ideal para atendimento é{" "}
+              <strong>0.7 = equilibrado</strong>.{" "}
+              <strong>1.0+ = mais criativo, mas pode inventar</strong>.
             </p>
           </div>
 
-
           <div>
             <Label>Prompt da minha empresa</Label>
-            <Textarea rows={6} value={form.prompt_content}
+            <Textarea
+              rows={6}
+              value={form.prompt_content}
               onChange={(e) => setForm({ ...form, prompt_content: e.target.value })}
-              placeholder="Ex.: Você é o atendente virtual da Padaria do João. Seja sempre cordial, ofereça opções de delivery e horário de funcionamento (8h-20h). Não invente preços que não estejam na base de conhecimento." />
+              placeholder="Ex.: Você é o atendente virtual da Padaria do João. Seja sempre cordial, ofereça opções de delivery e horário de funcionamento (8h-20h). Não invente preços que não estejam na base de conhecimento."
+            />
           </div>
 
-          <Button onClick={() => save.mutate()} disabled={save.isPending}>{save.isPending ? "Salvando…" : "Salvar"}</Button>
+          <Button onClick={() => save.mutate()} disabled={save.isPending}>
+            {save.isPending ? "Salvando…" : "Salvar"}
+          </Button>
         </CardContent>
       </Card>
 
@@ -323,15 +576,22 @@ function AiSection() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Base de conhecimento</CardTitle>
-              <CardDescription>Perguntas e respostas que a IA consulta antes de responder.</CardDescription>
+              <CardDescription>
+                Perguntas e respostas que a IA consulta antes de responder.
+              </CardDescription>
             </div>
-            <Button onClick={() => setEditing({ question: "", answer: "", tags: [], is_active: true })}>
-              <Plus className="h-4 w-4 mr-2" />Nova entrada
+            <Button
+              onClick={() => setEditing({ question: "", answer: "", tags: [], is_active: true })}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Nova entrada
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {(kb ?? []).length === 0 && <p className="text-muted-foreground text-sm">Nenhuma entrada cadastrada.</p>}
+          {(kb ?? []).length === 0 && (
+            <p className="text-muted-foreground text-sm">Nenhuma entrada cadastrada.</p>
+          )}
           {(kb ?? []).map((k: any) => (
             <div key={k.id} className="border rounded p-3 flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
@@ -342,8 +602,18 @@ function AiSection() {
                 <p className="text-sm text-muted-foreground line-clamp-2">{k.answer}</p>
               </div>
               <div className="flex gap-1 shrink-0">
-                <Button size="icon" variant="ghost" onClick={() => setEditing(k)}><Pencil className="h-4 w-4" /></Button>
-                <Button size="icon" variant="ghost" onClick={() => { if (confirm("Remover?")) removeKB.mutate(k.id); }}><Trash2 className="h-4 w-4" /></Button>
+                <Button size="icon" variant="ghost" onClick={() => setEditing(k)}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    if (confirm("Remover?")) removeKB.mutate(k.id);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           ))}
@@ -355,12 +625,25 @@ function AiSection() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle>Arquivos de conhecimento</CardTitle>
-              <CardDescription>Envie documentos (PDF, TXT, MD, CSV) — a IA usa o conteúdo deles para responder.</CardDescription>
+              <CardDescription>
+                Envie documentos (PDF, TXT, MD, CSV) — a IA usa o conteúdo deles para responder.
+              </CardDescription>
             </div>
-            <Button variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
-              <Upload className="h-4 w-4 mr-2" />{uploading ? "Enviando…" : "Enviar arquivo"}
+            <Button
+              variant="outline"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              {uploading ? "Enviando…" : "Enviar arquivo"}
             </Button>
-            <input ref={fileInputRef} type="file" accept=".pdf,.txt,.md,.csv" className="hidden" onChange={onPickFile} />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.txt,.md,.csv"
+              className="hidden"
+              onChange={onPickFile}
+            />
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -370,14 +653,17 @@ function AiSection() {
               Arquivos aumentam o consumo de créditos
             </p>
             <p className="text-muted-foreground mt-1">
-              O conteúdo dos arquivos <strong>ativos</strong> é enviado junto com <strong>cada resposta</strong> da IA,
-              o que aumenta o custo em créditos por mensagem — quanto mais texto ativo, maior o consumo.
-              Mantenha ativos apenas os arquivos realmente necessários e prefira documentos enxutos.
-              Você pode desativar um arquivo a qualquer momento sem excluí-lo.
+              O conteúdo dos arquivos <strong>ativos</strong> é enviado junto com{" "}
+              <strong>cada resposta</strong> da IA, o que aumenta o custo em créditos por mensagem —
+              quanto mais texto ativo, maior o consumo. Mantenha ativos apenas os arquivos realmente
+              necessários e prefira documentos enxutos. Você pode desativar um arquivo a qualquer
+              momento sem excluí-lo.
             </p>
           </div>
           {(files ?? []).length === 0 && (
-            <p className="text-muted-foreground text-sm">Nenhum arquivo enviado. Até 10 arquivos de no máximo 4MB cada.</p>
+            <p className="text-muted-foreground text-sm">
+              Nenhum arquivo enviado. Até 10 arquivos de no máximo 4MB cada.
+            </p>
           )}
           {(files ?? []).map((f: any) => (
             <div key={f.id} className="border rounded p-3 flex items-center justify-between gap-3">
@@ -385,13 +671,24 @@ function AiSection() {
                 <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0">
                   <p className="font-medium truncate">{f.filename}</p>
-                  <p className="text-xs text-muted-foreground">{Number(f.char_count).toLocaleString("pt-BR")} caracteres extraídos</p>
+                  <p className="text-xs text-muted-foreground">
+                    {Number(f.char_count).toLocaleString("pt-BR")} caracteres extraídos
+                  </p>
                 </div>
                 {!f.is_active && <Badge variant="secondary">inativo</Badge>}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <Switch checked={f.is_active} onCheckedChange={(c) => togFile.mutate({ id: f.id, is_active: c })} />
-                <Button size="icon" variant="ghost" onClick={() => { if (confirm("Remover arquivo?")) remFile.mutate(f.id); }}>
+                <Switch
+                  checked={f.is_active}
+                  onCheckedChange={(c) => togFile.mutate({ id: f.id, is_active: c })}
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    if (confirm("Remover arquivo?")) remFile.mutate(f.id);
+                  }}
+                >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -402,17 +699,38 @@ function AiSection() {
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{editing?.id ? "Editar entrada" : "Nova entrada"}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editing?.id ? "Editar entrada" : "Nova entrada"}</DialogTitle>
+          </DialogHeader>
           {editing && (
             <div className="space-y-3">
-              <div><Label>Pergunta / gatilho</Label><Input value={editing.question} onChange={(e) => setEditing({ ...editing, question: e.target.value })} /></div>
-              <div><Label>Resposta</Label><Textarea rows={6} value={editing.answer} onChange={(e) => setEditing({ ...editing, answer: e.target.value })} /></div>
+              <div>
+                <Label>Pergunta / gatilho</Label>
+                <Input
+                  value={editing.question}
+                  onChange={(e) => setEditing({ ...editing, question: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Resposta</Label>
+                <Textarea
+                  rows={6}
+                  value={editing.answer}
+                  onChange={(e) => setEditing({ ...editing, answer: e.target.value })}
+                />
+              </div>
               <div className="flex items-center gap-2">
-                <Switch checked={editing.is_active ?? true} onCheckedChange={(c) => setEditing({ ...editing, is_active: c })} />
+                <Switch
+                  checked={editing.is_active ?? true}
+                  onCheckedChange={(c) => setEditing({ ...editing, is_active: c })}
+                />
                 <Label>Ativo</Label>
               </div>
               <DialogFooter>
-                <Button onClick={() => saveKB.mutate()} disabled={saveKB.isPending || !editing.question || !editing.answer}>
+                <Button
+                  onClick={() => saveKB.mutate()}
+                  disabled={saveKB.isPending || !editing.question || !editing.answer}
+                >
                   {saveKB.isPending ? "Salvando…" : "Salvar"}
                 </Button>
               </DialogFooter>
