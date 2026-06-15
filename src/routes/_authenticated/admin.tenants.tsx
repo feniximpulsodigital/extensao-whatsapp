@@ -28,7 +28,7 @@ function TenantsPage() {
   const createInvite = useServerFn(adminCreateInvite);
   const qc = useQueryClient();
 
-  const { data: tenants, isLoading } = useQuery({ queryKey: ["admin-tenants"], queryFn: () => list() });
+  const { data: tenants, isLoading, error: tenantsError } = useQuery({ queryKey: ["admin-tenants"], queryFn: () => list() });
   const { data: plans } = useQuery({ queryKey: ["admin-plans"], queryFn: () => listPlans() });
 
   const [editing, setEditing] = useState<any | null>(null);
@@ -99,6 +99,20 @@ function TenantsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {tenantsError && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-sm text-destructive">
+                      Erro ao carregar clientes: {(tenantsError as Error).message}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!tenantsError && !isLoading && (tenants ?? []).length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                      Nenhum cliente ainda.
+                    </TableCell>
+                  </TableRow>
+                )}
                 {(tenants ?? []).map((t: any) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-medium">{t.company_name}</TableCell>
