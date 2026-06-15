@@ -28,7 +28,23 @@ const BodySchema = z.object({
   deviceId: z.string().max(80).optional(),
   // número do WhatsApp conectado (dígitos), lido do store pela extensão
   meNumber: z.string().max(32).optional(),
+  // áudio da última mensagem do cliente (PTT/voz), para transcrição.
+  // base64 ~ até 16MB de áudio → limitamos a ~2.7M chars (≈ 2MB binário).
+  audio: z
+    .object({
+      base64: z.string().max(2_700_000),
+      mime: z.string().max(60).optional(),
+      seconds: z.number().min(0).max(900).optional(),
+    })
+    .optional(),
+  // tipo da última mensagem do cliente (do store do WhatsApp). Para
+  // image/document/video respondemos com o texto fixo cadastrado.
+  mediaType: z.string().max(30).optional(),
 });
+
+// Whisper (Groq/OpenAI) cobra por segundo de áudio; estimamos tokens a partir
+// da duração só para a contabilidade de créditos (~ proxy razoável).
+const AUDIO_TOKENS_PER_SECOND = 50;
 
 // claims mais velhos que isso podem ser reivindicados de novo
 // (cobre instância que travou entre reivindicar e enviar)
@@ -177,6 +193,87 @@ async function callProvider(opts: {
     inputTokens: Number(j?.usage?.input_tokens ?? 0),
     outputTokens: Number(j?.usage?.output_tokens ?? 0),
   };
+}
+
+// Transcreve um áudio (PTT) seguindo o provedor configurado pelo admin:
+// - groq:   Whisper na API do Groq (whisper-large-v3-turbo)
+// - openai: Whisper na API da OpenAI (whisper-1)
+// - anthropic (sem API de áudio) ou sem key: cai no gateway Lovable (Gemini),
+//   que aceita áudio inline e devolve a transcrição.
+async function transcribeAudio(opts: {
+  provider: "groq" | "openai" | "anthropic";
+  base64: string;
+  mime: string;
+}): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  const { provider, base64, mime } = opts;
+
+  function b64ToBlob() {
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mime || "audio/ogg" });
+  }
+
+  async function viaWhisper(url: string, key: string, model: string) {
+    const form = new FormData();
+    const ext = (mime || "audio/ogg").includes("mp4") ? "m4a" : "ogg";
+    form.append("file", b64ToBlob(), `audio.${ext}`);
+    form.append("model", model);
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}` },
+      body: form,
+    });
+    if (!r.ok) {
+      console.error("whisper error", r.status, await r.text());
+      return { ok: false as const, error: "Falha ao transcrever o áudio" };
+    }
+    const j: any = await r.json();
+    return { ok: true as const, text: String(j?.text ?? "").trim() };
+  }
+
+  async function viaLovableGateway() {
+    const key = process.env.LOVABLE_API_KEY;
+    if (!key) return { ok: false as const, error: "Transcrição de áudio indisponível" };
+    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-3-flash-preview",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Transcreva o áudio a seguir literalmente, em português. Responda apenas com a transcrição, sem comentários.",
+              },
+              { type: "input_audio", input_audio: { data: base64, format: mime?.includes("mp4") ? "m4a" : "ogg" } },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!r.ok) {
+      console.error("gateway transcribe error", r.status, await r.text());
+      return { ok: false as const, error: "Falha ao transcrever o áudio" };
+    }
+    const j: any = await r.json();
+    return { ok: true as const, text: String(j?.choices?.[0]?.message?.content ?? "").trim() };
+  }
+
+  if (provider === "groq" && process.env.GROQ_API_KEY) {
+    return viaWhisper(
+      "https://api.groq.com/openai/v1/audio/transcriptions",
+      process.env.GROQ_API_KEY,
+      "whisper-large-v3-turbo",
+    );
+  }
+  if (provider === "openai" && process.env.OPENAI_API_KEY) {
+    return viaWhisper("https://api.openai.com/v1/audio/transcriptions", process.env.OPENAI_API_KEY, "whisper-1");
+  }
+  // anthropic ou provedor sem key configurada
+  return viaLovableGateway();
 }
 
 export const Route = createFileRoute("/api/public/ai-reply")({
@@ -342,9 +439,69 @@ export const Route = createFileRoute("/api/public/ai-reply")({
           const provider = (globalCfg as any).provider as "groq" | "openai" | "anthropic";
           const model = globalCfg.default_model;
           const temperature = Number(tenantCfg?.temperature ?? globalCfg.default_temperature);
+
+          // ===== Mídia que a IA não interpreta (imagem/documento/vídeo) =====
+          // Responde o texto fixo cadastrado pelo cliente e sinaliza para a
+          // extensão deixar o chat NÃO LIDO (o dono precisa olhar). Não chama
+          // IA nem cobra créditos. Áudio NÃO entra aqui (é transcrito abaixo).
+          const mt = parsed.data.mediaType;
+          if (mt === "image" || mt === "document" || mt === "video") {
+            const cfgAny = tenantCfg as any;
+            const fixo =
+              mt === "image"
+                ? cfgAny?.media_reply_image
+                : mt === "document"
+                  ? cfgAny?.media_reply_document
+                  : cfgAny?.media_reply_video;
+            const reply = (fixo ?? "").trim();
+            // se o cliente apagou o texto, não responde nada — mas ainda marca não-lido
+            return json(200, { reply: reply || null, keepUnread: true });
+          }
+
+          // ===== Transcrição de áudio (PTT/voz) =====
+          // A extensão envia o áudio só quando a última mensagem do cliente é
+          // de voz. Transcrevemos com o provedor do admin e substituímos o
+          // marcador "[áudio]" pelo texto na última mensagem do usuário.
+          const msgs = parsed.data.messages.map((m) => ({ ...m }));
+          if (parsed.data.audio?.base64) {
+            const tr = await transcribeAudio({
+              provider,
+              base64: parsed.data.audio.base64,
+              mime: parsed.data.audio.mime ?? "audio/ogg",
+            });
+            // localiza a última mensagem do cliente para injetar a transcrição
+            let lastUserIdx = -1;
+            for (let i = msgs.length - 1; i >= 0; i--) {
+              if (msgs[i].role === "user") {
+                lastUserIdx = i;
+                break;
+              }
+            }
+            if (tr.ok && tr.text && lastUserIdx >= 0) {
+              const base = msgs[lastUserIdx].content.replace("[áudio]", "").trim();
+              msgs[lastUserIdx].content = base
+                ? `${base}\n[áudio transcrito]: ${tr.text}`
+                : `[áudio transcrito]: ${tr.text}`;
+              // cobra a transcrição pela duração estimada (entrada apenas)
+              const secs = Math.max(1, Math.ceil(parsed.data.audio.seconds ?? 0));
+              await chargeAiUsage({
+                tenantId: tenant.id,
+                model: `${provider}/whisper`,
+                inputTokens: secs * AUDIO_TOKENS_PER_SECOND,
+                outputTokens: 0,
+                endpoint: "/api/public/ai-reply#transcribe",
+              });
+            } else if (lastUserIdx >= 0) {
+              // transcrição falhou: instrui a IA a pedir o texto por escrito
+              msgs[lastUserIdx].content = msgs[lastUserIdx].content.replace(
+                "[áudio]",
+                "[o cliente enviou um áudio que não pôde ser transcrito]",
+              );
+            }
+          }
           // Auto: dimensiona resposta pelo tamanho da última mensagem do usuário (otimiza custo)
           const lastUserMsg =
-            [...parsed.data.messages].reverse().find((m: any) => m.role === "user")?.content ?? "";
+            [...msgs].reverse().find((m: any) => m.role === "user")?.content ?? "";
           const approxInTokens = Math.ceil(lastUserMsg.length / 4);
           const maxTokens = Math.min(800, Math.max(180, approxInTokens * 2 + 120));
 
@@ -365,9 +522,18 @@ export const Route = createFileRoute("/api/public/ai-reply")({
           const filesBlock = fileParts.length
             ? "\n\nDocumentos da empresa (use como fonte ao responder):\n" + fileParts.join("\n\n")
             : "";
+          // Regras de mídia (Opção 0): o cliente lê mensagens não-texto como
+          // marcadores [imagem]/[áudio]/[documento]/etc. Sem instrução, a IA
+          // responde sem sentido. Áudio já chega transcrito quando possível.
+          const mediaRules =
+            "Regras para mensagens não textuais:\n" +
+            "- [áudio] (sem transcrição): diga gentilmente que por aqui você não consegue ouvir áudios e peça que escrevam a dúvida.\n" +
+            "- [imagem], [documento], [vídeo], [figurinha], [localização], [contato]: você não consegue abrir nem ver esse conteúdo. Reconheça o envio, peça os detalhes por escrito e, se for algo que precisa de análise humana (ex.: comprovante de pagamento, foto de problema), avise que um atendente vai verificar. NUNCA confirme pagamento ou dado baseado apenas em uma imagem que você não pode ver.";
+
           const system = [
             globalCfg.master_system_prompt,
             prompt?.content || "",
+            mediaRules,
             kbBlock,
             filesBlock,
           ]
@@ -380,7 +546,7 @@ export const Route = createFileRoute("/api/public/ai-reply")({
             temperature,
             maxTokens,
             system,
-            messages: parsed.data.messages,
+            messages: msgs,
           });
 
           if (!res.ok) return json(res.status, { error: res.error });

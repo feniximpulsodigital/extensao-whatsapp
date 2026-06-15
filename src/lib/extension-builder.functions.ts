@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.29",
+  version: "1.0.31",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -253,6 +253,8 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
           content: texto,
           t: m.t || 0,
           manual: fromMe && !temMarca,
+          audio: (m.type === 'ptt' || m.type === 'audio'),
+          mtype: m.type,
         });
       }catch(_e){}
     }
@@ -267,8 +269,72 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
     catch(err){ resp = { ok:false, motivo: String((err && err.message) || err) }; }
     window.postMessage(Object.assign({ __argos:'read-messages-result', reqId: d.reqId }, resp), '*');
   });
+  // ---- download + decriptação do áudio mais recente recebido do contato ----
+  function arrayBufferParaBase64(buf){
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    const chunk = 0x8000;
+    for(let i = 0; i < bytes.length; i += chunk){
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(bin);
+  }
+  async function baixarAudioStore(nome){
+    let req = null;
+    try{ if(typeof window.require === 'function') req = window.require; }catch(_e){}
+    if(!req) return { ok:false, motivo:'sem-require' };
+    const col = getChatCollection(req);
+    if(!col) return { ok:false, motivo:'sem-chat-collection' };
+    const chat = acharChatModel(col, nome);
+    if(!chat) return { ok:false, motivo:'chat-nao-encontrado-store' };
+    let models = [];
+    try{ models = chat.msgs.getModelsArray(); }catch(_e){ return { ok:false, motivo:'sem-msgs' }; }
+    // áudio mais recente recebido (não nosso)
+    let alvo = null;
+    for(let i = models.length - 1; i >= 0; i--){
+      const m = models[i];
+      if(!m || !m.type) continue;
+      if(m.id && m.id.fromMe) continue;
+      if(m.type === 'ptt' || m.type === 'audio'){ alvo = m; break; }
+    }
+    if(!alvo) return { ok:false, motivo:'sem-audio' };
+    // tenta o helper de alto nível; cai para o DownloadManager
+    let buf = null;
+    try{
+      let dl = null;
+      try{ const mod = req('WAWebDownloadManager'); dl = mod && (mod.downloadManager || mod.default || mod); }catch(_e){}
+      if(dl && typeof dl.downloadAndMaybeDecrypt === 'function'){
+        buf = await dl.downloadAndMaybeDecrypt({
+          directPath: alvo.directPath, encFilehash: alvo.encFilehash, filehash: alvo.filehash,
+          mediaKey: alvo.mediaKey, type: alvo.type, signal: (new AbortController()).signal,
+          mediaKeyTimestamp: alvo.mediaKeyTimestamp,
+        });
+      }
+    }catch(_e){}
+    if(!buf){
+      try{
+        if(typeof alvo.downloadMedia === 'function'){
+          const res = await alvo.downloadMedia({ downloadEvenIfExpensive:true, isUserInitiated:true });
+          if(res && res.arrayBuffer) buf = await res.arrayBuffer();
+          else if(res instanceof Blob) buf = await res.arrayBuffer();
+        }
+      }catch(_e){}
+    }
+    if(!buf) return { ok:false, motivo:'download-falhou' };
+    const mime = String(alvo.mimetype || 'audio/ogg').split(';')[0];
+    return { ok:true, base64: arrayBufferParaBase64(buf), mime: mime, seconds: Number(alvo.duration || 0) };
+  }
+  window.addEventListener('message', async (ev)=>{
+    if(ev.source !== window) return;
+    const d = ev.data;
+    if(!d || d.__argos !== 'get-audio') return;
+    let resp;
+    try{ resp = await baixarAudioStore(d.nome); }
+    catch(err){ resp = { ok:false, motivo: String((err && err.message) || err) }; }
+    window.postMessage(Object.assign({ __argos:'get-audio-result', reqId: d.reqId }, resp), '*');
+  });
   // ---- envio de mensagem direto pela API interna (sem abrir o chat na UI) ----
-  async function enviarViaStore(nome, texto){
+  async function enviarViaStore(nome, texto, keepUnread){
     let req = null;
     try{ if(typeof window.require === 'function') req = window.require; }catch(_e){}
     if(!req) return { ok:false, motivo:'sem-require' };
@@ -316,7 +382,8 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
       };
       const r = addAndSend(chat, msg);
       if(r && typeof r.then === 'function') await r;
-      const seen = marcarLido(req, chat); // melhor esforço: limpa o badge de não lido
+      // mídia: não limpa o badge — o dono precisa ver que chegou algo
+      const seen = keepUnread ? false : marcarLido(req, chat);
       return { ok:true, via:'store-send', seen: seen };
     }catch(e){
       return { ok:false, motivo:'send-erro: ' + String((e && e.message) || e) };
@@ -337,6 +404,36 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
     }
     return false;
   }
+  // marca o chat como NÃO LIDO (badge), para o dono perceber que precisa olhar
+  function marcarNaoLido(req, chat){
+    try{
+      const mod = req('WAWebUpdateUnreadChatAction');
+      const fn = mod && (mod.markUnread || mod.sendMarkUnread || mod.updateUnread);
+      if(typeof fn === 'function'){
+        const p = fn(chat, true);
+        if(p && typeof p.catch === 'function') p.catch(()=>{});
+        return true;
+      }
+    }catch(_e){}
+    // fallback: marca 1 não lido direto no model do chat
+    try{ chat.markUnread && chat.markUnread(); return true; }catch(_e){}
+    try{ chat.unreadCount = (chat.unreadCount || 0) + 1; return true; }catch(_e){}
+    return false;
+  }
+  window.addEventListener('message', (ev)=>{
+    if(ev.source !== window) return;
+    const d = ev.data;
+    if(!d || d.__argos !== 'mark-unread') return;
+    let resp = { ok:false };
+    try{
+      let req = null;
+      try{ if(typeof window.require === 'function') req = window.require; }catch(_e){}
+      const col = req ? getChatCollection(req) : null;
+      const chat = col ? acharChatModel(col, d.nome) : null;
+      if(req && chat) resp = { ok: marcarNaoLido(req, chat) };
+    }catch(_e){}
+    window.postMessage(Object.assign({ __argos:'mark-unread-result', reqId: d.reqId }, resp), '*');
+  });
   window.addEventListener('message', (ev)=>{
     if(ev.source !== window) return;
     const d = ev.data;
@@ -375,7 +472,7 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
     const d = ev.data;
     if(!d || d.__argos !== 'send-message') return;
     let resp;
-    try{ resp = await enviarViaStore(d.nome, d.texto); }
+    try{ resp = await enviarViaStore(d.nome, d.texto, d.keepUnread); }
     catch(err){ resp = { ok:false, motivo: String((err && err.message) || err) }; }
     window.postMessage(Object.assign({ __argos:'send-message-result', reqId: d.reqId }, resp), '*');
   });
@@ -416,7 +513,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.29. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.31. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -922,20 +1019,39 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     if(r && r.ok && r.numero) meNumber = r.numero;
     return meNumber;
   }
-  async function askAI(messages, sessionId, dedupeKey){
+  // se a última mensagem do cliente é áudio, baixa o conteúdo p/ transcrição
+  async function obterAudioSeNecessario(nome, messages){
+    try{
+      const ultima = messages[messages.length-1];
+      if(!ultima || ultima.role !== 'user' || !ultima.audio) return null;
+      const r = await bridgeRequest('get-audio', { nome: nome }, 12000);
+      if(r && r.ok && r.base64){
+        log("áudio capturado p/ transcrição (" + (r.seconds||0) + "s)");
+        return { base64: r.base64, mime: r.mime, seconds: r.seconds };
+      }
+      log("áudio não pôde ser baixado (" + ((r && r.motivo) || '?') + ")");
+    }catch(_e){}
+    return null;
+  }
+  async function askAI(messages, sessionId, dedupeKey, audio){
     try{
       log("IA <-", messages.length, "msgs (session:", sessionId, ")");
       await deviceIdPronto;
       const numero = await obterMeNumber();
+      const ultima = messages[messages.length-1];
+      const mediaType = (ultima && ultima.role === 'user') ? (ultima.mtype || undefined) : undefined;
       const r = await fetch(CFG.endpoint, {
         method:"POST",
         headers:{"Content-Type":"application/json","x-api-key":CFG.apiKey},
-        body: JSON.stringify({ messages, sessionId, dedupeKey, deviceId: deviceId || undefined, meNumber: numero || undefined }),
+        body: JSON.stringify({ messages, sessionId, dedupeKey, deviceId: deviceId || undefined, meNumber: numero || undefined, audio: audio || undefined, mediaType: mediaType }),
       });
       const j = await r.json().catch(()=>({}));
       if(!r.ok){ warn("API erro", r.status, j); setButtonStatus("⚠️ "+(j.message||j.error||r.status), false); return null; }
       if(j.skip){ log("outra instância reivindicou esta resposta"); return { skip:true }; }
       log("IA ->", j.reply);
+      // resposta de mídia: envia o texto fixo (se houver) mas deixa o chat
+      // não-lido p/ o dono ver; keepUnread vem mesmo quando reply é nulo
+      if(j.keepUnread) return { reply: j.reply || null, keepUnread: true };
       return j.reply ? { reply: j.reply } : null;
     }catch(e){ warn("fetch erro", e); setButtonStatus("⚠️ SEM API", false); return null; }
   }
@@ -974,9 +1090,21 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         setButtonStatus("🤖 LENDO...", true, 4000);
         const sessionId = CFG.apiKey + ":" + chat;
         const dedupeKey = chat + ":" + hashUltima;
-        const resp = await askAI(mensagens, sessionId, dedupeKey);
+        const audio = await obterAudioSeNecessario(chat, mensagens);
+        const resp = await askAI(mensagens, sessionId, dedupeKey, audio);
         if(!resp) return;
         if(resp.skip){ return; }
+        // mídia (imagem/doc/vídeo): texto fixo + marca não lido p/ o dono ver
+        if(resp.keepUnread){
+          if(resp.reply){
+            const campoM = buscarElemento(SELETORES_INPUT);
+            if(campoM){ await inserirTexto(campoM, resp.reply + MARCA_IA); await enviarMensagem(campoM); }
+          }
+          await bridgeRequest('mark-unread', { nome: chat }, 3000);
+          chatsPendentes.delete(chat);
+          setButtonStatus("📎 MÍDIA — VER", false, 5000);
+          return;
+        }
         reply = resp.reply;
         if(!reply) return;
         respostasProntas.set(chat, { hash: hashUltima, reply: reply });
@@ -1046,9 +1174,20 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       if(!reply){
         const sessionId = CFG.apiKey + ":" + nome;
         const dedupeKey = nome + ":" + hashUltima;
-        const resp = await askAI(mensagens, sessionId, dedupeKey);
+        const audio = await obterAudioSeNecessario(nome, mensagens);
+        const resp = await askAI(mensagens, sessionId, dedupeKey, audio);
         if(!resp) return "ok";
         if(resp.skip) return "ok"; // outra instância cuida; pendente limpa quando a resposta chegar
+        // mídia (imagem/doc/vídeo): envia o texto fixo e marca NÃO LIDO p/ o dono
+        if(resp.keepUnread){
+          if(resp.reply){
+            await bridgeRequest('send-message', { nome: nome, texto: resp.reply, keepUnread: true }, 8000);
+          }
+          await bridgeRequest('mark-unread', { nome: nome }, 3000);
+          chatsPendentes.delete(nome);
+          setButtonStatus("📎 MÍDIA — VER", false, 5000);
+          return "ok";
+        }
         reply = resp.reply;
         if(!reply) return "ok";
         respostasProntas.set(nome, { hash: hashUltima, reply: reply });
@@ -1285,7 +1424,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.29. Headless + multi-PC + limite de PCs/número por plano + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.31. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 

@@ -424,6 +424,9 @@ function AiSection() {
     temperature: 0.7,
     max_tokens: 500,
     prompt_content: "",
+    media_reply_image: "",
+    media_reply_document: "",
+    media_reply_video: "",
   });
   useEffect(() => {
     if (cfg?.config) {
@@ -433,6 +436,9 @@ function AiSection() {
         temperature: Number(c.temperature ?? 0.7),
         max_tokens: c.max_tokens ?? 500,
         prompt_content: cfg.prompt?.content ?? "",
+        media_reply_image: c.media_reply_image ?? "",
+        media_reply_document: c.media_reply_document ?? "",
+        media_reply_video: c.media_reply_video ?? "",
       }));
     }
   }, [cfg]);
@@ -447,6 +453,22 @@ function AiSection() {
       }),
     onSuccess: () => {
       toast.success("Salvo");
+      qc.invalidateQueries({ queryKey: ["my-ai-config"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const saveMedia = useMutation({
+    mutationFn: () =>
+      updCfg({
+        data: {
+          media_reply_image: form.media_reply_image,
+          media_reply_document: form.media_reply_document,
+          media_reply_video: form.media_reply_video,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Respostas de mídia salvas");
       qc.invalidateQueries({ queryKey: ["my-ai-config"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -567,6 +589,54 @@ function AiSection() {
 
           <Button onClick={() => save.mutate()} disabled={save.isPending}>
             {save.isPending ? "Salvando…" : "Salvar"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Respostas para mídia (imagem, documento e vídeo)</CardTitle>
+          <CardDescription>
+            A IA não interpreta imagens, documentos ou vídeos. Quando o cliente enviar um desses, ela
+            responde automaticamente com o texto que você definir aqui e <b>deixa a conversa marcada
+            como não lida no WhatsApp</b>, para você ver e responder. (Áudios são transcritos e
+            respondidos normalmente.)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label>Quando receber uma imagem</Label>
+            <Textarea
+              rows={2}
+              value={form.media_reply_image}
+              onChange={(e) => setForm({ ...form, media_reply_image: e.target.value })}
+              placeholder="Ex.: Recebi sua imagem! 👀 Já vou verificar e te respondo em instantes."
+            />
+          </div>
+          <div>
+            <Label>Quando receber um documento</Label>
+            <Textarea
+              rows={2}
+              value={form.media_reply_document}
+              onChange={(e) => setForm({ ...form, media_reply_document: e.target.value })}
+              placeholder="Ex.: Recebi seu documento! 📄 Vou analisar e já te retorno."
+            />
+          </div>
+          <div>
+            <Label>Quando receber um vídeo</Label>
+            <Textarea
+              rows={2}
+              value={form.media_reply_video}
+              onChange={(e) => setForm({ ...form, media_reply_video: e.target.value })}
+              placeholder="Ex.: Recebi seu vídeo! 🎥 Já vou assistir e te respondo em seguida."
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Deixe um campo em branco para a IA não responder nada àquele tipo de mídia — ela ainda
+            marca a conversa como não lida.
+          </p>
+          <Button onClick={() => saveMedia.mutate()} disabled={saveMedia.isPending}>
+            {saveMedia.isPending ? "Salvando…" : "Salvar respostas de mídia"}
           </Button>
         </CardContent>
       </Card>

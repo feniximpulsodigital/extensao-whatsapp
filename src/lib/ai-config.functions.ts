@@ -90,6 +90,9 @@ export const updateMyAiConfig = createServerFn({ method: "POST" })
       response_delay_ms: z.number().int().min(0).max(60000).optional(),
       prompt_content: z.string().min(1).max(8000).optional(),
       prompt_name: z.string().max(120).optional(),
+      media_reply_image: z.string().max(1000).optional(),
+      media_reply_document: z.string().max(1000).optional(),
+      media_reply_video: z.string().max(1000).optional(),
     }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -106,6 +109,9 @@ export const updateMyAiConfig = createServerFn({ method: "POST" })
     if (data.max_tokens !== undefined) cfgPatch.max_tokens = data.max_tokens;
     if (data.auto_reply_enabled !== undefined) cfgPatch.auto_reply_enabled = data.auto_reply_enabled;
     if (data.response_delay_ms !== undefined) cfgPatch.response_delay_ms = data.response_delay_ms;
+    if (data.media_reply_image !== undefined) cfgPatch.media_reply_image = data.media_reply_image;
+    if (data.media_reply_document !== undefined) cfgPatch.media_reply_document = data.media_reply_document;
+    if (data.media_reply_video !== undefined) cfgPatch.media_reply_video = data.media_reply_video;
 
     if (Object.keys(cfgPatch).length > 0) {
       const { error } = await supabase

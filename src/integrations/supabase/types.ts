@@ -21,6 +21,9 @@ export type Database = {
           created_at: string
           id: string
           max_tokens: number
+          media_reply_document: string
+          media_reply_image: string
+          media_reply_video: string
           model: string
           provider: string
           response_delay_ms: number
@@ -34,6 +37,9 @@ export type Database = {
           created_at?: string
           id?: string
           max_tokens?: number
+          media_reply_document?: string
+          media_reply_image?: string
+          media_reply_video?: string
           model?: string
           provider?: string
           response_delay_ms?: number
@@ -47,6 +53,9 @@ export type Database = {
           created_at?: string
           id?: string
           max_tokens?: number
+          media_reply_document?: string
+          media_reply_image?: string
+          media_reply_video?: string
           model?: string
           provider?: string
           response_delay_ms?: number
