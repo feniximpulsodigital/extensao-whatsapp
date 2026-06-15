@@ -149,7 +149,10 @@ export const adminUpdateTenant = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     await assertAdmin(supabase, userId);
     const { tenantId, ...patch } = data;
-    const { error } = await supabase.from("tenants").update(patch as any).eq("id", tenantId);
+    // trocar o plano manualmente cancela um downgrade agendado (admin é autoritativo)
+    const finalPatch: any = { ...patch };
+    if (patch.plan_id !== undefined) finalPatch.pending_plan_id = null;
+    const { error } = await supabase.from("tenants").update(finalPatch).eq("id", tenantId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

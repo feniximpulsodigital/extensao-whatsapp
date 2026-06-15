@@ -139,6 +139,9 @@ export const Route = createFileRoute("/api/public/asaas-webhook")({
               subscription_started_at: new Date().toISOString(),
               subscription_renews_at: renewsAt.toISOString(),
               last_credits_renewed_at: new Date().toISOString(),
+              // pagamento de um plano cancela qualquer downgrade agendado:
+              // o cliente acabou de escolher ativamente este plano
+              pending_plan_id: null,
             })
             .eq("id", row.tenant_id);
 
