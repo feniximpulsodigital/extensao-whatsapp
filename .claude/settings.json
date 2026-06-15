@@ -17,7 +17,18 @@
       "Bash(npx eslint *)",
       "Bash(npx tsc *)",
       "Bash(git add *)",
-      "Bash(git commit -q -m '@ *)"
+      "Bash(git commit -q -m '@ *)",
+      "Bash(node scripts/check-extension-js.mjs)",
+      "Bash(git stash *)",
+      "Bash(git push *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(sed -i 's/plan_id, plans\\(low_balance_threshold_pct\\)/plan_id, plans!tenants_plan_id_fkey\\(low_balance_threshold_pct\\)/' src/lib/ai-credits.functions.ts)",
+      "Bash(sed -i 's/\"id, whatsapp_numbers, plans\\(max_numbers\\)\"/\"id, whatsapp_numbers, plans!tenants_plan_id_fkey\\(max_numbers\\)\"/' src/lib/billing.functions.ts)",
+      "Bash(sed -i 's/created_at, plans\\(name\\)/created_at, plans!tenants_plan_id_fkey\\(name\\)/' src/lib/billing.functions.ts)",
+      "Bash(sed -i 's/\"id, plans\\(support_priority\\)\"/\"id, plans!tenants_plan_id_fkey\\(support_priority\\)\"/' src/lib/support.functions.ts)",
+      "Bash(sed -i 's/tenants\\(company_name, plans\\(name\\)\\)/tenants\\(company_name, plans!tenants_plan_id_fkey\\(name\\)\\)/' src/lib/support.functions.ts)",
+      "Bash(npm run *)",
+      "Bash(git commit -q -m ' *)"
     ]
   }
 }
