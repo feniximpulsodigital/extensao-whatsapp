@@ -19,7 +19,7 @@ async function getMyTenant(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("tenants")
-    .select("id, plans(support_priority)")
+    .select("id, plans!tenants_plan_id_fkey(support_priority)")
     .eq("owner_id", userId)
     .maybeSingle();
   if (!data) throw new Error("Conta sem empresa vinculada");
@@ -192,7 +192,7 @@ export const adminListTickets = createServerFn({ method: "GET" })
     const { data, error } = await supabaseAdmin
       .from("support_tickets")
       .select(
-        "id, subject, status, priority, created_at, last_message_at, tenant_id, tenants(company_name, plans(name))",
+        "id, subject, status, priority, created_at, last_message_at, tenant_id, tenants(company_name, plans!tenants_plan_id_fkey(name))",
       )
       .order("last_message_at", { ascending: false })
       .limit(200);
@@ -216,7 +216,7 @@ export const adminGetTicket = createServerFn({ method: "POST" })
     const { data: ticket } = await supabaseAdmin
       .from("support_tickets")
       .select(
-        "id, subject, status, priority, created_at, last_message_at, tenant_id, tenants(company_name, whatsapp_numbers, plans(name))",
+        "id, subject, status, priority, created_at, last_message_at, tenant_id, tenants(company_name, whatsapp_numbers, plans!tenants_plan_id_fkey(name))",
       )
       .eq("id", data.ticketId)
       .maybeSingle();

@@ -28,6 +28,9 @@ import {
   Upload,
   Smartphone,
   LifeBuoy,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -42,6 +45,11 @@ import {
   removeMyWhatsappNumber,
 } from "@/lib/billing.functions";
 import { getMySupportBadge } from "@/lib/support.functions";
+import {
+  getPlanChangeOptions,
+  scheduleDowngrade,
+  cancelScheduledDowngrade,
+} from "@/lib/plan-change.functions";
 import { buildMyExtension } from "@/lib/extension-builder.functions";
 import {
   getMyAiConfig,
@@ -75,7 +83,7 @@ function Dashboard() {
       const { data, error } = await supabase
         .from("tenants")
         .select(
-          "id, status, credits_balance, plan_id, whatsapp_numbers, plans(name, max_devices, max_numbers)",
+          "id, status, credits_balance, plan_id, whatsapp_numbers, plans!tenants_plan_id_fkey(name, max_devices, max_numbers)",
         )
         .eq("owner_id", user.id)
         .maybeSingle();
@@ -242,6 +250,8 @@ function Dashboard() {
           </Card>
         </div>
 
+        {!isAdmin && tenant?.status === "active" && <PlanCard />}
+
         {!isAdmin && tenant && (
           <WhatsappNumbersCard
             numbers={tenant.whatsapp_numbers ?? []}
@@ -293,6 +303,148 @@ function Dashboard() {
         {showAi && <AiSection />}
       </main>
     </div>
+  );
+}
+
+function formatBRL(cents: number) {
+  return (cents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 0,
+  });
+}
+
+function PlanCard() {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const optsFn = useServerFn(getPlanChangeOptions);
+  const downgradeFn = useServerFn(scheduleDowngrade);
+  const cancelFn = useServerFn(cancelScheduledDowngrade);
+
+  const { data } = useQuery({ queryKey: ["plan-options"], queryFn: () => optsFn() });
+  const [open, setOpen] = useState(false);
+
+  const downgrade = useMutation({
+    mutationFn: (planId: string) => downgradeFn({ data: { planId } }),
+    onSuccess: (r) => {
+      const quando = r.renewsAt
+        ? new Date(r.renewsAt).toLocaleDateString("pt-BR")
+        : "a próxima renovação";
+      toast.success(`Mudança para o plano ${r.planName} agendada para ${quando}.`);
+      qc.invalidateQueries({ queryKey: ["plan-options"] });
+      setOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const cancelDowngrade = useMutation({
+    mutationFn: () => cancelFn(),
+    onSuccess: () => {
+      toast.success("Mudança agendada cancelada.");
+      qc.invalidateQueries({ queryKey: ["plan-options"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const options = data?.options ?? [];
+  const current = options.find((p) => p.kind === "current");
+  const pending = data?.pendingPlanId ? options.find((p) => p.id === data.pendingPlanId) : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Meu plano</CardTitle>
+        <CardDescription>
+          {current ? (
+            <>
+              Você está no plano <b>{current.name}</b> ({formatBRL(current.priceForCycle)}/
+              {data?.billingCycle === "annual" ? "ano" : "mês"}).
+            </>
+          ) : (
+            "Gerencie seu plano."
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {pending && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-500 bg-amber-50 px-3 py-2 text-sm dark:bg-amber-950/30">
+            <span>
+              Mudança agendada para <b>{pending.name}</b>
+              {data?.renewsAt ? ` em ${new Date(data.renewsAt).toLocaleDateString("pt-BR")}` : " na próxima renovação"}.
+            </span>
+            <Button variant="ghost" size="sm" onClick={() => cancelDowngrade.mutate()} disabled={cancelDowngrade.isPending}>
+              Cancelar
+            </Button>
+          </div>
+        )}
+
+        {!open ? (
+          <Button variant="outline" onClick={() => setOpen(true)}>
+            Trocar de plano
+          </Button>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {options.map((p) => (
+                <div
+                  key={p.id}
+                  className={`rounded-lg border p-3 ${p.kind === "current" ? "border-primary" : ""}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">{p.name}</span>
+                    {p.kind === "current" && (
+                      <span className="inline-flex items-center gap-1 text-xs text-primary">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Atual
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 text-lg font-bold">
+                    {formatBRL(p.priceForCycle)}
+                    <span className="text-xs font-normal text-muted-foreground">
+                      /{data?.billingCycle === "annual" ? "ano" : "mês"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {p.monthly_credits.toLocaleString("pt-BR")} créditos/mês
+                  </p>
+                  {p.kind === "upgrade" && (
+                    <Button
+                      size="sm"
+                      className="mt-3 w-full"
+                      onClick={() =>
+                        navigate({ to: "/checkout", search: { plan: p.id, change: true } })
+                      }
+                    >
+                      <ArrowUpCircle className="h-4 w-4 mr-1" />
+                      Fazer upgrade
+                    </Button>
+                  )}
+                  {p.kind === "downgrade" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-3 w-full"
+                      onClick={() => downgrade.mutate(p.id)}
+                      disabled={downgrade.isPending || data?.pendingPlanId === p.id}
+                    >
+                      <ArrowDownCircle className="h-4 w-4 mr-1" />
+                      {data?.pendingPlanId === p.id ? "Agendado" : "Mudar para este"}
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              <b>Upgrade</b> é cobrado na hora e a nova cota entra ao confirmar o pagamento.{" "}
+              <b>Downgrade</b> passa a valer na próxima renovação, sem cobrança agora.
+            </p>
+            <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              Fechar
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

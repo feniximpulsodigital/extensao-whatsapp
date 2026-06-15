@@ -287,7 +287,7 @@ export const Route = createFileRoute("/api/public/ai-reply")({
 
           const { data: tenant } = await supabaseAdmin
             .from("tenants")
-            .select("id, status, credits_balance, owner_id, whatsapp_numbers, plans(max_devices)")
+            .select("id, status, credits_balance, owner_id, whatsapp_numbers, plans!tenants_plan_id_fkey(max_devices)")
             .eq("extension_api_key", apiKey)
             .maybeSingle();
           if (!tenant) return json(401, { error: "Invalid api key" });

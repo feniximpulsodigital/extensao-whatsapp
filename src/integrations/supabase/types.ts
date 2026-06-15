@@ -935,6 +935,7 @@ export type Database = {
           last_credits_renewed_at: string | null
           notes: string | null
           owner_id: string
+          pending_plan_id: string | null
           plan_id: string | null
           status: Database["public"]["Enums"]["tenant_status"]
           subscription_renews_at: string | null
@@ -960,6 +961,7 @@ export type Database = {
           last_credits_renewed_at?: string | null
           notes?: string | null
           owner_id: string
+          pending_plan_id?: string | null
           plan_id?: string | null
           status?: Database["public"]["Enums"]["tenant_status"]
           subscription_renews_at?: string | null
@@ -985,6 +987,7 @@ export type Database = {
           last_credits_renewed_at?: string | null
           notes?: string | null
           owner_id?: string
+          pending_plan_id?: string | null
           plan_id?: string | null
           status?: Database["public"]["Enums"]["tenant_status"]
           subscription_renews_at?: string | null
@@ -994,6 +997,13 @@ export type Database = {
           whatsapp_numbers?: string[]
         }
         Relationships: [
+          {
+            foreignKeyName: "tenants_pending_plan_id_fkey"
+            columns: ["pending_plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tenants_plan_id_fkey"
             columns: ["plan_id"]

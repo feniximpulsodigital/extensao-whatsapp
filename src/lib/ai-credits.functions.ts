@@ -20,7 +20,7 @@ export const getMyCreditsSummary = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data: tenant } = await supabase
       .from("tenants")
-      .select("id, credits_balance, credits_monthly_allowance, plan_id, plans(low_balance_threshold_pct)")
+      .select("id, credits_balance, credits_monthly_allowance, plan_id, plans!tenants_plan_id_fkey(low_balance_threshold_pct)")
       .eq("owner_id", userId)
       .maybeSingle();
     if (!tenant) return null;

@@ -32,7 +32,7 @@ export const addMyWhatsappNumber = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: tenant } = await supabaseAdmin
       .from("tenants")
-      .select("id, whatsapp_numbers, plans(max_numbers)")
+      .select("id, whatsapp_numbers, plans!tenants_plan_id_fkey(max_numbers)")
       .eq("owner_id", userId)
       .maybeSingle();
     if (!tenant) throw new Error("Conta sem empresa vinculada");
@@ -452,7 +452,7 @@ export const adminListTenants = createServerFn({ method: "GET" })
     const { data, error } = await supabase
       .from("tenants")
       .select(
-        "id, owner_id, company_name, status, credits_balance, billing_cycle, created_at, plans(name)",
+        "id, owner_id, company_name, status, credits_balance, billing_cycle, created_at, plans!tenants_plan_id_fkey(name)",
       )
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);

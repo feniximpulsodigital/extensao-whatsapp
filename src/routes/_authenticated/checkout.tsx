@@ -27,8 +27,9 @@ import {
 } from "@/lib/billing.functions";
 
 export const Route = createFileRoute("/_authenticated/checkout")({
-  validateSearch: (s: Record<string, unknown>): { plan?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { plan?: string; change?: boolean } => ({
     plan: typeof s.plan === "string" ? s.plan : undefined,
+    change: s.change === "1" || s.change === true,
   }),
   head: () => ({ meta: [{ title: "Pagamento — Argos" }] }),
   component: CheckoutPage,
@@ -53,13 +54,15 @@ function CheckoutPage() {
     invoiceUrl: string;
   } | null>(null);
 
-  const { plan: planParam } = Route.useSearch();
+  const { plan: planParam, change: changeMode } = Route.useSearch();
   const { data: tenant } = useQuery({ queryKey: ["tenant"], queryFn: () => fetchTenant() });
   const { data: plans, isLoading } = useQuery({ queryKey: ["plans"], queryFn: () => fetchPlans() });
 
   useEffect(() => {
-    if (tenant?.status === "active") navigate({ to: "/dashboard", replace: true });
-  }, [tenant, navigate]);
+    // Cliente ativo só é redirecionado quando NÃO está trocando de plano.
+    // Em modo troca (?change=1) ele permanece para pagar o upgrade.
+    if (tenant?.status === "active" && !changeMode) navigate({ to: "/dashboard", replace: true });
+  }, [tenant, navigate, changeMode]);
 
   // Pré-seleciona o plano vindo do cadastro (?plan=) ou já gravado no tenant.
   useEffect(() => {
@@ -129,8 +132,12 @@ function CheckoutPage() {
 
       <main className="container mx-auto max-w-5xl p-6 space-y-6">
         <div className="text-center">
-          <h1 className="text-3xl font-bold">Escolha seu plano</h1>
-          <p className="text-muted-foreground">Ative sua conta para começar a usar o Argos</p>
+          <h1 className="text-3xl font-bold">{changeMode ? "Trocar de plano" : "Escolha seu plano"}</h1>
+          <p className="text-muted-foreground">
+            {changeMode
+              ? "Escolha o novo plano. O upgrade é cobrado agora e a nova cota entra ao confirmar o pagamento."
+              : "Ative sua conta para começar a usar o Argos"}
+          </p>
         </div>
 
         <div className="flex items-center justify-center gap-3">

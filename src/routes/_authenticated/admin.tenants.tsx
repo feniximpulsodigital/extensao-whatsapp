@@ -156,6 +156,9 @@ function TenantsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Trocar o plano não altera os créditos nem gera cobrança. Use "Ajustar créditos" se quiser creditar a nova cota.
+                </p>
               </div>
               <div>
                 <Label>Cota mensal de créditos (sobrescreve o plano)</Label>
