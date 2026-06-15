@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Zap, ArrowRight, MessageCircle } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { SalesPitch } from "@/components/sales/SalesPitch";
+import { SalesPitch, CtaButton } from "@/components/sales/SalesPitch";
+import { SiteFooter } from "@/components/sales/SiteFooter";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -17,7 +18,8 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "Argos — IA que vende no seu WhatsApp 24/7" },
       {
         property: "og:description",
-        content: "Cada minuto sem resposta é uma venda perdida. Deixe a IA atender enquanto você foca no que importa.",
+        content:
+          "Cada minuto sem resposta é uma venda perdida. Deixe a IA atender enquanto você foca no que importa.",
       },
     ],
   }),
@@ -31,15 +33,25 @@ function Landing() {
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Logo size={36} className="text-lg" />
           <nav className="hidden items-center gap-6 md:flex">
-            <a href="#problemas" className="text-sm text-muted-foreground hover:text-foreground">Problema</a>
-            <a href="#solucao" className="text-sm text-muted-foreground hover:text-foreground">Solução</a>
-            <a href="#como" className="text-sm text-muted-foreground hover:text-foreground">Como funciona</a>
-            <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground">Planos</a>
+            <a href="#problemas" className="text-sm text-muted-foreground hover:text-foreground">
+              Problema
+            </a>
+            <a href="#solucao" className="text-sm text-muted-foreground hover:text-foreground">
+              Solução
+            </a>
+            <a href="#como" className="text-sm text-muted-foreground hover:text-foreground">
+              Como funciona
+            </a>
+            <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground">
+              Planos
+            </a>
           </nav>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Button variant="ghost" size="sm" asChild><Link to="/login">Entrar</Link></Button>
-            <Button size="sm" asChild><Link to="/login">Assinar agora</Link></Button>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/login">Entrar</Link>
+            </Button>
+            <CtaButton size="sm">Começar agora</CtaButton>
           </div>
         </div>
       </header>
@@ -55,33 +67,31 @@ function Landing() {
             <span className="text-primary">A Argos responde por você, 24/7.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-            Enquanto você dorme, almoça ou atende outro cliente, a Argos conversa, tira dúvida, fecha
-            pedido e agenda — direto no seu WhatsApp Web, com a cara da sua empresa.
+            Enquanto você dorme, almoça ou atende outro cliente, a Argos conversa, tira dúvidas,
+            informa preços e mantém o cliente aquecido — direto no seu WhatsApp Web, com a cara da
+            sua empresa.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Button size="lg" asChild>
-              <Link to="/login">Quero assinar agora <ArrowRight className="h-4 w-4" /></Link>
-            </Button>
+            <CtaButton>
+              Quero começar agora <ArrowRight className="h-4 w-4" />
+            </CtaButton>
             <Button size="lg" variant="outline" asChild>
-              <a href="#pricing"><MessageCircle className="h-4 w-4 mr-1" />Ver planos e benefícios</a>
+              <a href="#pricing">
+                <MessageCircle className="h-4 w-4 mr-1" />
+                Ver planos e benefícios
+              </a>
             </Button>
           </div>
           <p className="mt-4 text-xs text-muted-foreground">
-            Sem fidelidade · Cancela em 1 clique · Funciona enquanto houver 1 PC com o WhatsApp Web aberto e a extensão ativa
+            Pix ou cartão · Sem fidelidade · Funciona enquanto houver 1 PC com o WhatsApp Web aberto
+            e a extensão ativa
           </p>
         </div>
       </section>
 
       <SalesPitch variant="full" />
 
-      <footer className="border-t border-border">
-        <div className="container mx-auto flex flex-col items-center justify-between gap-4 px-4 py-8 md:flex-row">
-          <Logo size={28} className="text-sm" />
-          <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} Argos. Todos os direitos reservados.
-          </p>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

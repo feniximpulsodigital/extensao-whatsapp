@@ -8,7 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Bot, Check, Copy, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +27,9 @@ import {
 } from "@/lib/billing.functions";
 
 export const Route = createFileRoute("/_authenticated/checkout")({
+  validateSearch: (s: Record<string, unknown>): { plan?: string } => ({
+    plan: typeof s.plan === "string" ? s.plan : undefined,
+  }),
   head: () => ({ meta: [{ title: "Pagamento — Argos" }] }),
   component: CheckoutPage,
   errorComponent: ({ error }) => <div className="p-6">Erro: {error.message}</div>,
@@ -44,6 +53,7 @@ function CheckoutPage() {
     invoiceUrl: string;
   } | null>(null);
 
+  const { plan: planParam } = Route.useSearch();
   const { data: tenant } = useQuery({ queryKey: ["tenant"], queryFn: () => fetchTenant() });
   const { data: plans, isLoading } = useQuery({ queryKey: ["plans"], queryFn: () => fetchPlans() });
 
@@ -51,10 +61,24 @@ function CheckoutPage() {
     if (tenant?.status === "active") navigate({ to: "/dashboard", replace: true });
   }, [tenant, navigate]);
 
+  // Pré-seleciona o plano vindo do cadastro (?plan=) ou já gravado no tenant.
+  useEffect(() => {
+    if (selectedPlan || !plans?.length) return;
+    const candidate = [planParam, tenant?.plan_id].find(
+      (id) => id && plans.some((p) => p.id === id),
+    );
+    if (candidate) setSelectedPlan(candidate);
+  }, [planParam, plans, tenant, selectedPlan]);
+
   const pixMut = useMutation({
     mutationFn: (planId: string) => createPix({ data: { planId, billingCycle: cycle } }),
     onSuccess: (r) =>
-      setPixModal({ paymentId: r.paymentId, qr: r.pixQrCode, copyPaste: r.pixCopyPaste, invoiceUrl: r.invoiceUrl }),
+      setPixModal({
+        paymentId: r.paymentId,
+        qr: r.pixQrCode,
+        copyPaste: r.pixCopyPaste,
+        invoiceUrl: r.invoiceUrl,
+      }),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -86,7 +110,6 @@ function CheckoutPage() {
     navigate({ to: "/login", replace: true });
   };
 
-
   return (
     <div className="min-h-screen bg-muted/30">
       <header className="border-b bg-background">
@@ -98,7 +121,8 @@ function CheckoutPage() {
             <span className="font-bold">Argos</span>
           </div>
           <Button onClick={logout} variant="ghost" size="sm">
-            <LogOut className="h-4 w-4 mr-2" />Sair
+            <LogOut className="h-4 w-4 mr-2" />
+            Sair
           </Button>
         </div>
       </header>
@@ -110,8 +134,13 @@ function CheckoutPage() {
         </div>
 
         <div className="flex items-center justify-center gap-3">
-          <span className={cycle === "monthly" ? "font-semibold" : "text-muted-foreground"}>Mensal</span>
-          <Switch checked={cycle === "annual"} onCheckedChange={(c) => setCycle(c ? "annual" : "monthly")} />
+          <span className={cycle === "monthly" ? "font-semibold" : "text-muted-foreground"}>
+            Mensal
+          </span>
+          <Switch
+            checked={cycle === "annual"}
+            onCheckedChange={(c) => setCycle(c ? "annual" : "monthly")}
+          />
           <span className={cycle === "annual" ? "font-semibold" : "text-muted-foreground"}>
             Anual <span className="text-xs text-primary">(economize)</span>
           </span>
@@ -148,8 +177,14 @@ function CheckoutPage() {
                       </span>
                     </div>
                     <ul className="space-y-1 text-sm">
-                      <li className="flex items-center gap-2"><Check className="h-4 w-4 text-primary" />{p.monthly_credits} créditos/mês</li>
-                      <li className="flex items-center gap-2"><Check className="h-4 w-4 text-primary" />{p.max_knowledge_entries} entradas na base</li>
+                      <li className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-primary" />
+                        {p.monthly_credits} créditos/mês
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Check className="h-4 w-4 text-primary" />
+                        {p.max_knowledge_entries} entradas na base
+                      </li>
                     </ul>
                   </CardContent>
                 </Card>
@@ -187,7 +222,9 @@ function CheckoutPage() {
                     cycle={cycle}
                     onSubmit={async (form) => {
                       try {
-                        await createCard({ data: { planId: selectedPlan, billingCycle: cycle, ...form } });
+                        await createCard({
+                          data: { planId: selectedPlan, billingCycle: cycle, ...form },
+                        });
                         toast.success("Assinatura criada! Aguarde a confirmação.");
                         await qc.invalidateQueries();
                         setTimeout(() => navigate({ to: "/dashboard", replace: true }), 1500);
@@ -211,7 +248,11 @@ function CheckoutPage() {
           </DialogHeader>
           {pixModal && (
             <div className="space-y-4">
-              <img src={`data:image/png;base64,${pixModal.qr}`} alt="QR PIX" className="mx-auto w-64 h-64" />
+              <img
+                src={`data:image/png;base64,${pixModal.qr}`}
+                alt="QR PIX"
+                className="mx-auto w-64 h-64"
+              />
               <div>
                 <Label>Copia e cola</Label>
                 <div className="flex gap-2 mt-1">
@@ -228,7 +269,12 @@ function CheckoutPage() {
                   </Button>
                 </div>
               </div>
-              <a href={pixModal.invoiceUrl} target="_blank" rel="noreferrer" className="text-sm text-primary underline">
+              <a
+                href={pixModal.invoiceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-primary underline"
+              >
                 Ver fatura no Asaas
               </a>
             </div>

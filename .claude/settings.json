@@ -12,7 +12,12 @@
       "PowerShell(Remove-Item scripts\\\\fix-nul.mjs -Confirm:$false)",
       "PowerShell(node scripts\\\\seed-model-prices.mjs > scripts\\\\seed-model-prices.sql; Get-Content scripts\\\\seed-model-prices.sql -TotalCount 4; \\(Get-Item scripts\\\\seed-model-prices.sql\\).Length)",
       "PowerShell($sql = \\(Get-Content scripts\\\\seed-model-prices.sql -Raw\\); $sql.Length)",
-      "PowerShell(Remove-Item scripts\\\\seed-model-prices.mjs, scripts\\\\seed-model-prices.sql -Confirm:$false; npx tsc --noEmit -p tsconfig.json; \"tsc exit: $LASTEXITCODE\")"
+      "PowerShell(Remove-Item scripts\\\\seed-model-prices.mjs, scripts\\\\seed-model-prices.sql -Confirm:$false; npx tsc --noEmit -p tsconfig.json; \"tsc exit: $LASTEXITCODE\")",
+      "PowerShell(npx tsc --noEmit)",
+      "Bash(npx eslint *)",
+      "Bash(npx tsc *)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m '@ *)"
     ]
   }
 }

@@ -57,11 +57,23 @@ function LoginPage() {
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail</Label>
-                <Input id="email" type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required />
+                <Input
+                  id="email"
+                  type="email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  required
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Senha</Label>
-                <Input id="password" type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
+                <Input
+                  id="password"
+                  type="password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  required
+                />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Entrando..." : "Entrar"}
@@ -70,8 +82,17 @@ function LoginPage() {
           </CardContent>
         </Card>
 
-        <p className="mt-4 text-center text-sm">
-          <Link to="/" className="text-muted-foreground hover:text-foreground">← Voltar ao site</Link>
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          Ainda não tem conta?{" "}
+          <Link to="/assinar" className="underline hover:text-foreground">
+            Crie sua conta em minutos
+          </Link>
+          .
+        </p>
+        <p className="mt-2 text-center text-sm">
+          <Link to="/" className="text-muted-foreground hover:text-foreground">
+            ← Voltar ao site
+          </Link>
         </p>
       </div>
     </div>
