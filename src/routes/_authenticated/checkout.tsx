@@ -47,6 +47,7 @@ function CheckoutPage() {
 
   const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [pixCpfCnpj, setPixCpfCnpj] = useState("");
   const [pixModal, setPixModal] = useState<{
     paymentId: string;
     qr: string;
@@ -74,7 +75,8 @@ function CheckoutPage() {
   }, [planParam, plans, tenant, selectedPlan]);
 
   const pixMut = useMutation({
-    mutationFn: (planId: string) => createPix({ data: { planId, billingCycle: cycle } }),
+    mutationFn: (planId: string) =>
+      createPix({ data: { planId, billingCycle: cycle, cpfCnpj: pixCpfCnpj.replace(/\D/g, "") } }),
     onSuccess: (r) =>
       setPixModal({
         paymentId: r.paymentId,
@@ -211,13 +213,30 @@ function CheckoutPage() {
                   <TabsTrigger value="pix">PIX</TabsTrigger>
                   <TabsTrigger value="card">Cartão recorrente</TabsTrigger>
                 </TabsList>
-                <TabsContent value="pix" className="pt-4">
-                  <p className="text-sm text-muted-foreground mb-3">
+                <TabsContent value="pix" className="pt-4 space-y-4">
+                  <p className="text-sm text-muted-foreground">
                     Pagamento único via PIX. Após confirmação seu acesso é liberado automaticamente.
                   </p>
+                  <div className="max-w-xs">
+                    <Label htmlFor="pix-cpf">CPF ou CNPJ do pagador</Label>
+                    <Input
+                      id="pix-cpf"
+                      inputMode="numeric"
+                      placeholder="Somente números"
+                      value={pixCpfCnpj}
+                      onChange={(e) => setPixCpfCnpj(e.target.value)}
+                      required
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Obrigatório para emitir a cobrança no Asaas.
+                    </p>
+                  </div>
                   <Button
                     onClick={() => pixMut.mutate(selectedPlan)}
-                    disabled={pixMut.isPending}
+                    disabled={
+                      pixMut.isPending ||
+                      ![11, 14].includes(pixCpfCnpj.replace(/\D/g, "").length)
+                    }
                     size="lg"
                   >
                     {pixMut.isPending ? "Gerando PIX..." : "Gerar PIX"}

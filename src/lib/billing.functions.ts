@@ -111,7 +111,14 @@ export const listActivePlans = createServerFn({ method: "GET" })
 
 // ---------------- Asaas customer ----------------
 
-async function ensureAsaasCustomer(adminSupa: any, userId: string) {
+// Valida um CPF/CNPJ pela quantidade de dígitos (11 = CPF, 14 = CNPJ).
+function normalizeCpfCnpj(raw: string | null | undefined): string | null {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  if (digits.length === 11 || digits.length === 14) return digits;
+  return null;
+}
+
+async function ensureAsaasCustomer(adminSupa: any, userId: string, cpfCnpjInput?: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { asaasFetch } = await import("./asaas.server");
   void adminSupa;
@@ -122,7 +129,19 @@ async function ensureAsaasCustomer(adminSupa: any, userId: string) {
     .eq("owner_id", userId)
     .maybeSingle();
   if (!tenant) throw new Error("Tenant não encontrado");
-  if (tenant.asaas_customer_id) return tenant;
+
+  // CPF/CNPJ é obrigatório no Asaas para gerar cobrança. Usa o informado agora
+  // (e persiste em document) ou o já gravado no cadastro.
+  const cpfCnpj = normalizeCpfCnpj(cpfCnpjInput) ?? normalizeCpfCnpj(tenant.document);
+  if (!cpfCnpj) {
+    throw new Error("Informe um CPF ou CNPJ válido para gerar a cobrança.");
+  }
+  // Grava/atualiza o documento do tenant quando vier um novo válido.
+  if (cpfCnpj !== normalizeCpfCnpj(tenant.document)) {
+    await supabaseAdmin.from("tenants").update({ document: cpfCnpj }).eq("id", tenant.id);
+  }
+
+  if (tenant.asaas_customer_id) return { ...tenant, document: cpfCnpj };
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
@@ -136,14 +155,14 @@ async function ensureAsaasCustomer(adminSupa: any, userId: string) {
       name: profile?.full_name || tenant.company_name,
       email: profile?.email,
       mobilePhone: profile?.phone || undefined,
-      cpfCnpj: tenant.document || undefined,
+      cpfCnpj,
       externalReference: tenant.id,
     }),
   });
 
   await supabaseAdmin.from("tenants").update({ asaas_customer_id: created.id }).eq("id", tenant.id);
 
-  return { ...tenant, asaas_customer_id: created.id };
+  return { ...tenant, asaas_customer_id: created.id, document: cpfCnpj };
 }
 
 // ---------------- PIX charge ----------------
@@ -155,6 +174,7 @@ export const createPixCharge = createServerFn({ method: "POST" })
       .object({
         planId: z.string().uuid(),
         billingCycle: z.enum(["monthly", "annual"]),
+        cpfCnpj: z.string().min(11).max(20),
       })
       .parse(input),
   )
@@ -172,7 +192,7 @@ export const createPixCharge = createServerFn({ method: "POST" })
     const amountCents = data.billingCycle === "annual" ? plan.price_cents_annual : plan.price_cents;
     if (!amountCents || amountCents <= 0) throw new Error("Plano sem preço configurado");
 
-    const tenant = await ensureAsaasCustomer(supabaseAdmin, userId);
+    const tenant = await ensureAsaasCustomer(supabaseAdmin, userId, data.cpfCnpj);
 
     const due = new Date();
     due.setDate(due.getDate() + 1);
@@ -259,7 +279,7 @@ export const createCardSubscription = createServerFn({ method: "POST" })
     const amountCents = data.billingCycle === "annual" ? plan.price_cents_annual : plan.price_cents;
     if (!amountCents || amountCents <= 0) throw new Error("Plano sem preço configurado");
 
-    const tenant = await ensureAsaasCustomer(supabaseAdmin, userId);
+    const tenant = await ensureAsaasCustomer(supabaseAdmin, userId, data.holderCpfCnpj);
 
     const next = new Date();
     next.setDate(next.getDate() + 1);
