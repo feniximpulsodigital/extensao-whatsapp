@@ -27,7 +27,13 @@ import {
 import { ShieldCheck, Gift, HeartHandshake, UserCheck, Star } from "lucide-react";
 import { getPublicPlans } from "@/lib/plans.functions";
 import { WhatsAppDemo } from "@/components/sales/WhatsAppDemo";
-import { TESTIMONIALS, SOCIAL_PROOF_STAT, GUARANTEE_DAYS, WELCOME_BONUS } from "@/components/sales/sales-config";
+import {
+  TESTIMONIALS,
+  SOCIAL_PROOF_STAT,
+  TRUST_BADGES,
+  GUARANTEE_DAYS,
+  WELCOME_BONUS,
+} from "@/components/sales/sales-config";
 
 // CTA principal do site: leva ao cadastro self-service (/assinar).
 // Com planId, o plano já chega pré-selecionado no cadastro e no checkout.
@@ -420,8 +426,9 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
         </div>
       </section>
 
-      {/* Prova social — só aparece quando há depoimentos reais cadastrados */}
-      {TESTIMONIALS.length > 0 && (
+      {/* Prova social: depoimentos reais se houver; senão, selos de confiança
+          baseados em fatos do produto (sem inventar clientes) */}
+      {TESTIMONIALS.length > 0 ? (
         <section className="container mx-auto px-4 py-20">
           <div className="mx-auto max-w-2xl text-center">
             <span className="text-sm font-semibold uppercase tracking-wider text-primary">
@@ -451,6 +458,32 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
             ))}
           </div>
         </section>
+      ) : (
+        TRUST_BADGES.length > 0 && (
+          <section className="container mx-auto px-4 py-20">
+            <div className="mx-auto max-w-2xl text-center">
+              <span className="text-sm font-semibold uppercase tracking-wider text-primary">
+                Por que confiar na Argos
+              </span>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+                Feita para você vender mais sem perder o controle
+              </h2>
+              {SOCIAL_PROOF_STAT && (
+                <p className="mt-3 font-semibold text-primary">{SOCIAL_PROOF_STAT}</p>
+              )}
+            </div>
+            <div className="mx-auto mt-12 flex max-w-4xl flex-wrap justify-center gap-3">
+              {TRUST_BADGES.map((b) => (
+                <span
+                  key={b}
+                  className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-medium"
+                >
+                  <Check className="h-4 w-4 text-primary" /> {b}
+                </span>
+              ))}
+            </div>
+          </section>
+        )
       )}
 
       {/* Casos de uso */}

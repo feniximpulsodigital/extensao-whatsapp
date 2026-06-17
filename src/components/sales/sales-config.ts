@@ -6,8 +6,9 @@
 
 // WhatsApp comercial para o botão flutuante "Falar no WhatsApp".
 // Formato internacional, só dígitos (ex.: "5511999999999").
-// Deixe null para esconder o botão.
-export const SALES_WHATSAPP: string | null = null;
+// ⚠️ PROVISÓRIO: troque pelo SEU número comercial real antes de divulgar.
+// O número abaixo é só um placeholder para o botão aparecer.
+export const SALES_WHATSAPP: string | null = "5500000000000";
 export const SALES_WHATSAPP_MESSAGE =
   "Olá! Vi o site da Argos e quero saber como funciona para o meu negócio.";
 
@@ -28,9 +29,21 @@ export const TESTIMONIALS: Testimonial[] = [
   // },
 ];
 
-// Métrica de credibilidade exibida no hero/prova social (opcional, honesta).
+// Métrica de credibilidade exibida na prova social (opcional, honesta).
 // Ex.: "+50 empresas atendendo no WhatsApp com a Argos". null = esconde.
+// Só preencha com número VERDADEIRO.
 export const SOCIAL_PROOF_STAT: string | null = null;
+
+// Selos de confiança baseados em FATOS do produto (não em clientes).
+// Aparecem quando ainda não há depoimentos reais, para a seção não ficar
+// vazia — sem inventar prova social de pessoas.
+export const TRUST_BADGES: string[] = [
+  "IA treinada no seu próprio negócio",
+  "Responde em segundos, 24 horas por dia",
+  "Funciona no seu WhatsApp atual, sem trocar de número",
+  "Você assume a conversa quando quiser",
+  "Sem fidelidade — cancele a qualquer momento",
+];
 
 // Garantia de reembolso (dias). 0 = esconde a faixa de garantia.
 export const GUARANTEE_DAYS = 7;
