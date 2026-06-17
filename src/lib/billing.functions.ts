@@ -17,6 +17,29 @@ export const getMyTenant = createServerFn({ method: "GET" })
     return data;
   });
 
+// Fatura em aberto (não paga) mais recente do cliente — usada no painel para
+// regularizar quando a conta está suspensa por falta de pagamento.
+export const getMyOpenInvoice = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("id")
+      .eq("owner_id", userId)
+      .maybeSingle();
+    if (!tenant) return null;
+    const { data } = await supabase
+      .from("payments")
+      .select("id, status, invoice_url, due_date, amount_cents, billing_cycle, created_at")
+      .eq("tenant_id", tenant.id)
+      .in("status", ["pending", "failed"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return data ?? null;
+  });
+
 // Números de WhatsApp autorizados — a IA só responde quando o WhatsApp Web
 // conectado for um dos números da lista (verificado pelo endpoint da
 // extensão). A quantidade é limitada por plans.max_numbers (NULL = ilimitado).

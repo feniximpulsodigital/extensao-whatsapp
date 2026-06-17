@@ -44,6 +44,7 @@ import {
   getMyExtensionApiKey,
   addMyWhatsappNumber,
   removeMyWhatsappNumber,
+  getMyOpenInvoice,
 } from "@/lib/billing.functions";
 import { getMySupportBadge, getMyRefundEligibility, requestRefund } from "@/lib/support.functions";
 import {
@@ -94,6 +95,14 @@ function Dashboard() {
   });
   const { data: credits } = useQuery({ queryKey: ["credits-summary"], queryFn: () => summary() });
   const { data: extKey } = useQuery({ queryKey: ["extension-key"], queryFn: () => extKeyFn() });
+
+  // Fatura em aberto: usada no aviso de conta suspensa por falta de pagamento.
+  const openInvoiceFn = useServerFn(getMyOpenInvoice);
+  const { data: openInvoice } = useQuery({
+    queryKey: ["open-invoice"],
+    queryFn: () => openInvoiceFn(),
+    enabled: !isAdmin,
+  });
 
   // Notificação de resposta do suporte: badge no botão + toast quando chega
   const supportBadgeFn = useServerFn(getMySupportBadge);
@@ -184,6 +193,51 @@ function Dashboard() {
           <h1 className="text-3xl font-bold">Olá, {user.email}</h1>
           <p className="text-muted-foreground">Seu painel Argos</p>
         </div>
+
+        {!isAdmin && tenant?.status === "suspended" && (
+          <Card className="border-destructive bg-destructive/10">
+            <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+                <div>
+                  <p className="font-semibold text-destructive">Conta suspensa por falta de pagamento</p>
+                  <p className="text-sm text-muted-foreground">
+                    Sua IA está <strong>pausada</strong> e não responde no WhatsApp até a fatura ser
+                    paga. Pague o PIX em aberto para reativar automaticamente.
+                  </p>
+                </div>
+              </div>
+              {openInvoice?.invoice_url && (
+                <Button asChild className="shrink-0">
+                  <a href={openInvoice.invoice_url} target="_blank" rel="noreferrer">
+                    Pagar fatura agora
+                  </a>
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {!isAdmin && tenant?.status === "pending_payment" && openInvoice?.invoice_url && (
+          <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+            <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                <div>
+                  <p className="font-semibold">Pagamento pendente</p>
+                  <p className="text-sm text-muted-foreground">
+                    Há uma fatura aguardando pagamento. Assim que confirmar, seu acesso é liberado.
+                  </p>
+                </div>
+              </div>
+              <Button asChild variant="outline" className="shrink-0">
+                <a href={openInvoice.invoice_url} target="_blank" rel="noreferrer">
+                  Ver fatura
+                </a>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {credits?.lowBalance && (
           <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
