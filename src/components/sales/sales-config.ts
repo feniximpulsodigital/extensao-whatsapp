@@ -6,9 +6,7 @@
 
 // WhatsApp comercial para o botão flutuante "Falar no WhatsApp".
 // Formato internacional, só dígitos (ex.: "5511999999999").
-// ⚠️ PROVISÓRIO: troque pelo SEU número comercial real antes de divulgar.
-// O número abaixo é só um placeholder para o botão aparecer.
-export const SALES_WHATSAPP: string | null = "5500000000000";
+export const SALES_WHATSAPP: string | null = "5548992045185";
 export const SALES_WHATSAPP_MESSAGE =
   "Olá! Vi o site da Argos e quero saber como funciona para o meu negócio.";
 
