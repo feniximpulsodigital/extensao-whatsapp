@@ -811,6 +811,7 @@ export type Database = {
       }
       support_tickets: {
         Row: {
+          category: string
           created_at: string
           id: string
           last_message_at: string
@@ -821,6 +822,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          category?: string
           created_at?: string
           id?: string
           last_message_at?: string
@@ -831,6 +833,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          category?: string
           created_at?: string
           id?: string
           last_message_at?: string

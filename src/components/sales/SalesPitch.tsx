@@ -206,6 +206,10 @@ function PricingSection({
                     )}
                   </CardHeader>
                   <CardContent>
+                    <p className="mb-4 rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                      Menos que o custo de <strong className="text-foreground">perder um único
+                      cliente</strong> no mês. Uma venda extra já paga o plano.
+                    </p>
                     <ul className="space-y-2">
                       {p.features.map((feat) => (
                         <li key={feat} className="flex items-center gap-2 text-sm">
@@ -255,10 +259,11 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
             O problema
           </span>
           <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
-            Cada mensagem sem resposta é um cliente que vai para o concorrente
+            Você sabe que precisa responder rápido. O dia a dia não deixa.
           </h2>
           <p className="mt-4 text-muted-foreground">
-            Você sabe que precisa responder rápido. Mas a realidade do dia a dia é outra.
+            Não é falta de vontade — é volume, horário e cansaço. E é exatamente aí que a venda
+            escapa.
           </p>
         </div>
         <div className="mx-auto mt-12 grid max-w-5xl gap-6 md:grid-cols-3">
@@ -398,6 +403,9 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
                   </li>
                 ))}
               </ul>
+              <CtaButton className="mt-8">
+                Quero isso no meu WhatsApp <ArrowRight className="h-4 w-4" />
+              </CtaButton>
             </div>
             <WhatsAppDemo />
           </div>
@@ -413,8 +421,11 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
           </h2>
           <div className="mx-auto mt-10 grid max-w-4xl gap-8 text-center md:grid-cols-3">
             {[
-              { stat: "Segundos", label: "para responder qualquer cliente, a qualquer hora do dia" },
               { stat: "24/7", label: "atendendo de madrugada, no feriado e no fim de semana" },
+              {
+                stat: "Áudios",
+                label: "transcritos automaticamente — a IA entende e responde quem manda áudio",
+              },
               { stat: "Zero", label: "mensagens esquecidas no vácuo esperando alguém ver" },
             ].map((r) => (
               <div key={r.label}>
@@ -573,21 +584,11 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
           ))}
         </div>
 
-        <div className="mx-auto mt-8 max-w-3xl rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
-          <p className="font-semibold text-foreground">Importante: como a Argos fica online</p>
-          <p className="mt-1 text-muted-foreground">
-            A Argos funciona acoplada ao seu WhatsApp Web. Para a IA responder seus clientes, é
-            necessário ter pelo menos
-            <strong className="text-foreground">
-              {" "}
-              um computador ligado, com o Chrome aberto, a extensão da Argos instalada e o WhatsApp
-              Web conectado
-            </strong>
-            . Se todos os computadores forem desligados ou o WhatsApp Web for fechado, a IA pausa
-            até voltar a estar online. Conforme o seu plano, você pode instalar em mais de um
-            computador para garantir disponibilidade.
-          </p>
-        </div>
+        <p className="mx-auto mt-8 max-w-3xl text-center text-xs text-muted-foreground">
+          A IA funciona acoplada ao WhatsApp Web: basta um computador ligado com o Chrome e o
+          WhatsApp Web abertos. Conforme o plano, você instala em mais de um para garantir que nunca
+          fique fora do ar. <a href="#faq" className="underline hover:text-foreground">Tudo no FAQ.</a>
+        </p>
       </section>
 
       {/* Risco-zero: garantia + bônus, logo antes do preço */}

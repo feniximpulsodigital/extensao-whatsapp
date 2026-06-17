@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, Flame, Check, X } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { SalesPitch, CtaButton } from "@/components/sales/SalesPitch";
+import { WhatsAppDemo } from "@/components/sales/WhatsAppDemo";
 import { SiteFooter } from "@/components/sales/SiteFooter";
 import { WhatsAppFloat } from "@/components/sales/WhatsAppFloat";
 
@@ -64,44 +65,55 @@ function SalesPage() {
         </div>
       </header>
 
-      {/* Hero vendas — bloco escuro com verde, alto contraste */}
+      {/* Hero vendas — bloco escuro com verde, alto contraste.
+          Promessa no título, dor no subtítulo, prova visual (mockup) ao lado. */}
       <section className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-primary to-emerald-800 text-white">
         <div className="pointer-events-none absolute -top-24 left-1/4 h-72 w-72 rounded-full bg-emerald-400/30 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 right-1/4 h-72 w-72 rounded-full bg-emerald-300/20 blur-3xl" />
-        <div className="container relative mx-auto px-4 py-20 md:py-28 text-center">
-          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-semibold backdrop-blur">
-            <Flame className="h-3.5 w-3.5 text-emerald-300" /> No seu WhatsApp atual — sem trocar de
-            número, sem app novo
+        <div className="container relative mx-auto grid items-center gap-12 px-4 py-16 md:py-24 lg:grid-cols-2">
+          <div className="text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-semibold backdrop-blur">
+              <Flame className="h-3.5 w-3.5 text-emerald-300" /> No seu WhatsApp atual — sem trocar de
+              número, sem app novo
+            </div>
+            <h1 className="mt-6 text-4xl font-extrabold tracking-tight md:text-5xl xl:text-6xl">
+              Sua IA respondendo cada cliente em segundos,{" "}
+              <span className="bg-gradient-to-r from-emerald-300 to-white bg-clip-text text-transparent">
+                24 horas por dia
+              </span>
+            </h1>
+            <p className="mx-auto mt-6 max-w-xl text-lg text-white/80 lg:mx-0">
+              Quem responde primeiro leva a venda. A Argos atende na hora, com o tom da sua empresa —
+              de madrugada, no feriado e no fim de semana — enquanto você toca o negócio. Nenhum
+              cliente fica mais no vácuo.
+            </p>
+            <div className="mt-8 flex flex-wrap justify-center gap-3 lg:justify-start">
+              <Button size="lg" variant="secondary" className="font-semibold shadow-lg" asChild>
+                <Link to="/assinar" search={{ plan: undefined }}>
+                  Quero começar agora <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                asChild
+              >
+                <a href="#pricing">Ver planos</a>
+              </Button>
+            </div>
+            <p className="mt-5 text-xs text-white/70">
+              ✓ Ativação em minutos · ✓ Pix ou cartão · ✓ Sem fidelidade · ✓ Cancela quando quiser
+            </p>
           </div>
-          <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-extrabold tracking-tight md:text-6xl">
-            Cada mensagem sem resposta é{" "}
-            <span className="bg-gradient-to-r from-emerald-300 to-white bg-clip-text text-transparent">
-              dinheiro indo pro concorrente
-            </span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-white/80">
-            O cliente manda mensagem, ninguém responde em 5 minutos, ele já fechou com outro. A Argos
-            responde na hora, 24 horas por dia, com o tom da sua empresa — enquanto você toca o
-            negócio.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Button size="lg" variant="secondary" className="font-semibold shadow-lg" asChild>
-              <Link to="/assinar" search={{ plan: undefined }}>
-                Quero parar de perder venda <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white"
-              asChild
-            >
-              <a href="#pricing">Ver planos</a>
-            </Button>
+
+          {/* Prova visual: a conversa acontecendo */}
+          <div className="relative mx-auto w-full max-w-md">
+            <div className="pointer-events-none absolute -inset-4 rounded-3xl bg-emerald-300/20 blur-2xl" />
+            <div className="relative">
+              <WhatsAppDemo />
+            </div>
           </div>
-          <p className="mt-5 text-xs text-white/70">
-            ✓ Ativação em minutos · ✓ Pix ou cartão · ✓ Sem fidelidade · ✓ Cancela quando quiser
-          </p>
         </div>
       </section>
 
@@ -112,7 +124,7 @@ function SalesPage() {
             A diferença
           </span>
           <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
-            Como é seu WhatsApp hoje vs. com a Argos
+            O que muda no seu WhatsApp a partir de hoje
           </h2>
         </div>
         <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-2">
@@ -157,12 +169,17 @@ function SalesPage() {
             </ul>
           </div>
         </div>
+        <div className="mt-10 text-center">
+          <CtaButton size="lg">
+            Quero esse resultado <ArrowRight className="h-4 w-4" />
+          </CtaButton>
+        </div>
       </section>
 
       <SalesPitch variant="compact" />
 
       {/* FAQ vendas */}
-      <section className="bg-muted/40 py-20">
+      <section id="faq" className="bg-muted/40 py-20">
         <div className="container mx-auto px-4">
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-3xl font-bold tracking-tight md:text-4xl">Perguntas frequentes</h2>
@@ -184,6 +201,10 @@ function SalesPage() {
               {
                 q: "Como funciona o pagamento e o cancelamento?",
                 a: "Assinatura mensal (ou anual com desconto) via Pix ou cartão, sem fidelidade. Você cancela quando quiser, sem multa nem ligação de retenção. Cada plano inclui créditos de IA por mês, e dá para comprar extras se precisar.",
+              },
+              {
+                q: "E se eu não gostar? Tem garantia?",
+                a: "Tem. Você tem 7 dias de garantia a partir do início da assinatura: é só clicar em “Solicitar reembolso” no seu painel (no card de garantia) que nossa equipe processa a devolução e entra em contato. Sem burocracia.",
               },
               {
                 q: "Como crio minha conta?",

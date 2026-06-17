@@ -26,6 +26,9 @@ async function getMyTenant(userId: string) {
   return data;
 }
 
+// Garantia de reembolso (dias) — deve bater com GUARANTEE_DAYS da landing.
+const REFUND_WINDOW_DAYS = 7;
+
 // ---------------- Cliente ----------------
 
 export const createMyTicket = createServerFn({ method: "POST" })
@@ -55,6 +58,99 @@ export const createMyTicket = createServerFn({ method: "POST" })
     return { ok: true, ticketId: ticket.id };
   });
 
+// Elegibilidade de reembolso: dentro de REFUND_WINDOW_DAYS desde o início da
+// assinatura e sem pedido de reembolso ainda em aberto.
+export const getMyRefundEligibility = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: tenant } = await supabaseAdmin
+      .from("tenants")
+      .select("id, subscription_started_at, created_at")
+      .eq("owner_id", context.userId)
+      .maybeSingle();
+    if (!tenant) return { eligible: false, reason: "no-tenant" as const, daysLeft: 0 };
+
+    const start = tenant.subscription_started_at ?? tenant.created_at;
+    const startMs = new Date(start).getTime();
+    const deadlineMs = startMs + REFUND_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    const daysLeft = Math.max(0, Math.ceil((deadlineMs - Date.now()) / (24 * 60 * 60 * 1000)));
+    const withinWindow = Date.now() <= deadlineMs;
+
+    const { data: existing } = await supabaseAdmin
+      .from("support_tickets")
+      .select("id")
+      .eq("tenant_id", tenant.id)
+      .eq("category", "refund")
+      .neq("status", "closed")
+      .limit(1);
+    const hasOpenRefund = (existing ?? []).length > 0;
+
+    return {
+      eligible: withinWindow && !hasOpenRefund,
+      reason: !withinWindow ? ("expired" as const) : hasOpenRefund ? ("pending" as const) : ("ok" as const),
+      daysLeft,
+      windowDays: REFUND_WINDOW_DAYS,
+    };
+  });
+
+// Cliente solicita reembolso: abre um ticket categorizado como "refund".
+export const requestRefund = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ reason: z.string().trim().max(2000).optional() }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: tenant } = await supabaseAdmin
+      .from("tenants")
+      .select("id, subscription_started_at, created_at, plans!tenants_plan_id_fkey(support_priority)")
+      .eq("owner_id", context.userId)
+      .maybeSingle();
+    if (!tenant) throw new Error("Conta sem empresa vinculada");
+
+    const start = tenant.subscription_started_at ?? tenant.created_at;
+    const deadlineMs =
+      new Date(start).getTime() + REFUND_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    if (Date.now() > deadlineMs) {
+      throw new Error(
+        `O prazo de garantia de ${REFUND_WINDOW_DAYS} dias já passou. Se precisar, abra um ticket de suporte.`,
+      );
+    }
+    const { data: existing } = await supabaseAdmin
+      .from("support_tickets")
+      .select("id")
+      .eq("tenant_id", tenant.id)
+      .eq("category", "refund")
+      .neq("status", "closed")
+      .limit(1);
+    if ((existing ?? []).length > 0) {
+      throw new Error("Você já tem uma solicitação de reembolso em andamento.");
+    }
+
+    const priority = (tenant.plans as { support_priority: number } | null)?.support_priority ?? 1;
+    const { data: ticket, error } = await supabaseAdmin
+      .from("support_tickets")
+      .insert({
+        tenant_id: tenant.id,
+        subject: "Solicitação de reembolso (garantia)",
+        category: "refund",
+        priority,
+        status: "open",
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    const body =
+      `Solicito o reembolso dentro da garantia de ${REFUND_WINDOW_DAYS} dias.` +
+      (data.reason ? `\n\nMotivo: ${data.reason}` : "");
+    const { error: mErr } = await supabaseAdmin
+      .from("support_messages")
+      .insert({ ticket_id: ticket.id, sender: "client", body });
+    if (mErr) throw new Error(mErr.message);
+    return { ok: true, ticketId: ticket.id };
+  });
+
 export const listMyTickets = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -62,7 +158,7 @@ export const listMyTickets = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: tickets, error } = await supabaseAdmin
       .from("support_tickets")
-      .select("id, subject, status, priority, created_at, last_message_at")
+      .select("id, subject, status, priority, category, created_at, last_message_at")
       .eq("tenant_id", tenant.id)
       .order("last_message_at", { ascending: false })
       .limit(100);
@@ -192,7 +288,7 @@ export const adminListTickets = createServerFn({ method: "GET" })
     const { data, error } = await supabaseAdmin
       .from("support_tickets")
       .select(
-        "id, subject, status, priority, created_at, last_message_at, tenant_id, tenants(company_name, plans!tenants_plan_id_fkey(name))",
+        "id, subject, status, priority, category, created_at, last_message_at, tenant_id, tenants(company_name, plans!tenants_plan_id_fkey(name))",
       )
       .order("last_message_at", { ascending: false })
       .limit(200);
@@ -216,11 +312,22 @@ export const adminGetTicket = createServerFn({ method: "POST" })
     const { data: ticket } = await supabaseAdmin
       .from("support_tickets")
       .select(
-        "id, subject, status, priority, created_at, last_message_at, tenant_id, tenants(company_name, whatsapp_numbers, plans!tenants_plan_id_fkey(name))",
+        "id, subject, status, priority, category, created_at, last_message_at, tenant_id, tenants(company_name, owner_id, whatsapp_numbers, plans!tenants_plan_id_fkey(name))",
       )
       .eq("id", data.ticketId)
       .maybeSingle();
     if (!ticket) throw new Error("Ticket não encontrado");
+    // Contato do cliente (e-mail/telefone do cadastro) para reembolso/atendimento
+    let contact: { email: string | null; phone: string | null } = { email: null, phone: null };
+    const ownerId = (ticket.tenants as { owner_id?: string } | null)?.owner_id;
+    if (ownerId) {
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("email, phone")
+        .eq("id", ownerId)
+        .maybeSingle();
+      if (profile) contact = { email: profile.email, phone: profile.phone };
+    }
     const { data: messages } = await supabaseAdmin
       .from("support_messages")
       .select("id, sender, body, created_at")
@@ -232,7 +339,7 @@ export const adminGetTicket = createServerFn({ method: "POST" })
       .eq("ticket_id", ticket.id)
       .eq("sender", "client")
       .is("read_at", null);
-    return { ticket, messages: messages ?? [] };
+    return { ticket, messages: messages ?? [], contact };
   });
 
 export const adminReplyTicket = createServerFn({ method: "POST" })

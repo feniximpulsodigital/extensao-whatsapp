@@ -31,6 +31,7 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
   CheckCircle2,
+  ShieldCheck,
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -44,7 +45,7 @@ import {
   addMyWhatsappNumber,
   removeMyWhatsappNumber,
 } from "@/lib/billing.functions";
-import { getMySupportBadge } from "@/lib/support.functions";
+import { getMySupportBadge, getMyRefundEligibility, requestRefund } from "@/lib/support.functions";
 import {
   getPlanChangeOptions,
   scheduleDowngrade,
@@ -252,6 +253,8 @@ function Dashboard() {
 
         {!isAdmin && tenant?.status === "active" && <PlanCard />}
 
+        {!isAdmin && tenant?.status === "active" && <RefundCard />}
+
         {!isAdmin && tenant && (
           <WhatsappNumbersCard
             numbers={tenant.whatsapp_numbers ?? []}
@@ -444,6 +447,81 @@ function PlanCard() {
           </div>
         )}
       </CardContent>
+    </Card>
+  );
+}
+
+function RefundCard() {
+  const qc = useQueryClient();
+  const eligFn = useServerFn(getMyRefundEligibility);
+  const refundFn = useServerFn(requestRefund);
+  const { data: elig } = useQuery({
+    queryKey: ["refund-eligibility"],
+    queryFn: () => eligFn(),
+  });
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+
+  const request = useMutation({
+    mutationFn: () => refundFn({ data: { reason: reason.trim() || undefined } }),
+    onSuccess: () => {
+      toast.success("Solicitação de reembolso enviada. Nossa equipe vai entrar em contato.");
+      setOpen(false);
+      setReason("");
+      qc.invalidateQueries({ queryKey: ["refund-eligibility"] });
+      qc.invalidateQueries({ queryKey: ["my-tickets"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Só aparece dentro da janela de garantia. Se já houver pedido em aberto,
+  // mostramos um aviso em vez do botão.
+  if (!elig) return null;
+  if (elig.reason === "expired" || elig.reason === "no-tenant") return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5 text-primary" />
+          Garantia de {elig.windowDays} dias
+        </CardTitle>
+        <CardDescription>
+          {elig.reason === "pending"
+            ? "Você já tem uma solicitação de reembolso em andamento. Acompanhe em Suporte."
+            : `Não era para você? Dentro de ${elig.windowDays} dias do início da assinatura você pode pedir o reembolso. Restam ${elig.daysLeft} dia${elig.daysLeft === 1 ? "" : "s"}.`}
+        </CardDescription>
+      </CardHeader>
+      {elig.reason !== "pending" && (
+        <CardContent>
+          {!open ? (
+            <Button variant="outline" onClick={() => setOpen(true)}>
+              Solicitar reembolso
+            </Button>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="refund-reason">Conta pra gente o motivo (opcional)</Label>
+                <Textarea
+                  id="refund-reason"
+                  rows={3}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="O que não funcionou pra você? Seu feedback nos ajuda a melhorar."
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={() => request.mutate()} disabled={request.isPending}>
+                  {request.isPending ? "Enviando…" : "Confirmar solicitação"}
+                </Button>
+                <Button variant="ghost" onClick={() => setOpen(false)} disabled={request.isPending}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      )}
     </Card>
   );
 }

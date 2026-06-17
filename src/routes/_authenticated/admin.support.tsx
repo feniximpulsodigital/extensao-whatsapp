@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Send, Star } from "lucide-react";
+import { Send, Star, BadgeDollarSign, Mail, Phone } from "lucide-react";
 import { toast } from "sonner";
 import {
   adminListTickets,
@@ -37,12 +37,20 @@ function AdminSupportPage() {
 
   const [selected, setSelected] = useState<string | null>(null);
   const [reply, setReply] = useState("");
+  const [filter, setFilter] = useState<"all" | "refund">("all");
 
-  const { data: tickets } = useQuery({
+  const { data: allTickets } = useQuery({
     queryKey: ["admin-tickets"],
     queryFn: () => listFn(),
     refetchInterval: 20_000,
   });
+  const refundCount = (allTickets ?? []).filter(
+    (t) => (t as { category?: string }).category === "refund" && t.status !== "closed",
+  ).length;
+  const tickets =
+    filter === "refund"
+      ? (allTickets ?? []).filter((t) => (t as { category?: string }).category === "refund")
+      : allTickets;
   const { data: thread } = useQuery({
     queryKey: ["admin-ticket", selected],
     queryFn: () => getFn({ data: { ticketId: selected! } }),
@@ -85,6 +93,28 @@ function AdminSupportPage() {
         <p className="text-muted-foreground">
           Fila ordenada por prioridade do plano — clientes de planos maiores aparecem primeiro.
         </p>
+        <div className="mt-3 flex gap-2">
+          <Button
+            variant={filter === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilter("all")}
+          >
+            Todos
+          </Button>
+          <Button
+            variant={filter === "refund" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilter("refund")}
+          >
+            <BadgeDollarSign className="h-4 w-4 mr-1" />
+            Reembolsos
+            {refundCount > 0 && (
+              <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-bold text-white">
+                {refundCount}
+              </span>
+            )}
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
@@ -112,12 +142,20 @@ function AdminSupportPage() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-medium leading-tight">{t.subject}</p>
-                    {t.priority >= maxPriority && maxPriority > 1 && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-600">
-                        <Star className="h-3 w-3" />
-                        Prioritário
-                      </span>
-                    )}
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      {(t as { category?: string }).category === "refund" && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white">
+                          <BadgeDollarSign className="h-3 w-3" />
+                          Reembolso
+                        </span>
+                      )}
+                      {t.priority >= maxPriority && maxPriority > 1 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-600">
+                          <Star className="h-3 w-3" />
+                          Prioritário
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {tenant?.company_name ?? "—"}
@@ -151,7 +189,15 @@ function AdminSupportPage() {
             <Card>
               <CardHeader className="flex-row items-start justify-between space-y-0">
                 <div>
-                  <CardTitle className="text-lg">{thread.ticket.subject}</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    {thread.ticket.subject}
+                    {(thread.ticket as { category?: string }).category === "refund" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white">
+                        <BadgeDollarSign className="h-3 w-3" />
+                        Reembolso
+                      </span>
+                    )}
+                  </CardTitle>
                   <CardDescription>
                     {(() => {
                       const tenant = thread.ticket.tenants as {
@@ -163,9 +209,6 @@ function AdminSupportPage() {
                         <>
                           {tenant?.company_name ?? "—"}
                           {tenant?.plans?.name ? ` · Plano ${tenant.plans.name}` : ""}
-                          {tenant?.whatsapp_numbers?.length
-                            ? ` · WhatsApp ${tenant.whatsapp_numbers.join(", ")}`
-                            : ""}
                         </>
                       );
                     })()}
@@ -183,6 +226,49 @@ function AdminSupportPage() {
                 )}
               </CardHeader>
               <CardContent className="space-y-4">
+                {(() => {
+                  const tenant = thread.ticket.tenants as {
+                    whatsapp_numbers: string[] | null;
+                  } | null;
+                  const contact = thread.contact as {
+                    email: string | null;
+                    phone: string | null;
+                  } | null;
+                  const waNumbers = tenant?.whatsapp_numbers ?? [];
+                  const waFallback = contact?.phone?.replace(/\D/g, "");
+                  const wa = waNumbers[0] ?? (waFallback || null);
+                  const isRefund = (thread.ticket as { category?: string }).category === "refund";
+                  if (!contact?.email && !contact?.phone && !wa) return null;
+                  return (
+                    <div
+                      className={`flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm ${
+                        isRefund ? "border-amber-500/50 bg-amber-500/10" : "bg-muted/40"
+                      }`}
+                    >
+                      <span className="font-medium text-muted-foreground">Contato do cliente:</span>
+                      {contact?.email && (
+                        <a
+                          href={`mailto:${contact.email}`}
+                          className="inline-flex items-center gap-1 rounded-full border bg-background px-2.5 py-1 hover:bg-muted"
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                          {contact.email}
+                        </a>
+                      )}
+                      {wa && (
+                        <a
+                          href={`https://wa.me/${wa}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded-full border bg-background px-2.5 py-1 hover:bg-muted"
+                        >
+                          <Phone className="h-3.5 w-3.5" />
+                          WhatsApp {wa}
+                        </a>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div className="space-y-3">
                   {thread.messages.map((m) => (
                     <div
