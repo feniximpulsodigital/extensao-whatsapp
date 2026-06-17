@@ -141,23 +141,39 @@ async function ensureAsaasCustomer(adminSupa: any, userId: string, cpfCnpjInput?
     await supabaseAdmin.from("tenants").update({ document: cpfCnpj }).eq("id", tenant.id);
   }
 
-  if (tenant.asaas_customer_id) return { ...tenant, document: cpfCnpj };
-
   const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("full_name, email, phone")
     .eq("id", userId)
     .maybeSingle();
 
+  const customerBody = {
+    name: profile?.full_name || tenant.company_name,
+    email: profile?.email,
+    mobilePhone: profile?.phone || undefined,
+    cpfCnpj,
+    externalReference: tenant.id,
+  };
+
+  // Cliente já existe no Asaas: garante que ele tenha o CPF/CNPJ atualizado
+  // (clientes criados antes podem ter ficado sem documento — o Asaas recusa a
+  // cobrança nesse caso). Atualiza via PUT em vez de só retornar.
+  if (tenant.asaas_customer_id) {
+    // Atualiza o cliente no Asaas (POST /customers/{id}) para garantir o
+    // CPF/CNPJ — clientes criados antes podem ter ficado sem documento, e o
+    // Asaas recusa a cobrança nesse caso.
+    await asaasFetch(`/customers/${tenant.asaas_customer_id}`, {
+      method: "POST",
+      body: JSON.stringify(customerBody),
+    }).catch(() => {
+      // se o update falhar, segue; o erro real (se houver) aparece na cobrança
+    });
+    return { ...tenant, document: cpfCnpj };
+  }
+
   const created = await asaasFetch<{ id: string }>("/customers", {
     method: "POST",
-    body: JSON.stringify({
-      name: profile?.full_name || tenant.company_name,
-      email: profile?.email,
-      mobilePhone: profile?.phone || undefined,
-      cpfCnpj,
-      externalReference: tenant.id,
-    }),
+    body: JSON.stringify(customerBody),
   });
 
   await supabaseAdmin.from("tenants").update({ asaas_customer_id: created.id }).eq("id", tenant.id);
