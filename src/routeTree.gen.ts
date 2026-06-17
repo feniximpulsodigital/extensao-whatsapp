@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VendasRouteImport } from './routes/vendas'
 import { Route as TermosRouteImport } from './routes/termos'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AssinarRouteImport } from './routes/assinar'
@@ -44,6 +45,11 @@ const VendasRoute = VendasRouteImport.update({
 const TermosRoute = TermosRouteImport.update({
   id: '/termos',
   path: '/termos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacidadeRoute = PrivacidadeRouteImport.update({
@@ -179,6 +185,7 @@ export interface FileRoutesByFullPath {
   '/assinar': typeof AssinarRoute
   '/login': typeof LoginRoute
   '/privacidade': typeof PrivacidadeRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/termos': typeof TermosRoute
   '/vendas': typeof VendasRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
@@ -206,6 +213,7 @@ export interface FileRoutesByTo {
   '/assinar': typeof AssinarRoute
   '/login': typeof LoginRoute
   '/privacidade': typeof PrivacidadeRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/termos': typeof TermosRoute
   '/vendas': typeof VendasRoute
   '/buy-credits': typeof AuthenticatedBuyCreditsRoute
@@ -234,6 +242,7 @@ export interface FileRoutesById {
   '/assinar': typeof AssinarRoute
   '/login': typeof LoginRoute
   '/privacidade': typeof PrivacidadeRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/termos': typeof TermosRoute
   '/vendas': typeof VendasRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
@@ -263,6 +272,7 @@ export interface FileRouteTypes {
     | '/assinar'
     | '/login'
     | '/privacidade'
+    | '/reset-password'
     | '/termos'
     | '/vendas'
     | '/admin'
@@ -290,6 +300,7 @@ export interface FileRouteTypes {
     | '/assinar'
     | '/login'
     | '/privacidade'
+    | '/reset-password'
     | '/termos'
     | '/vendas'
     | '/buy-credits'
@@ -317,6 +328,7 @@ export interface FileRouteTypes {
     | '/assinar'
     | '/login'
     | '/privacidade'
+    | '/reset-password'
     | '/termos'
     | '/vendas'
     | '/_authenticated/admin'
@@ -346,6 +358,7 @@ export interface RootRouteChildren {
   AssinarRoute: typeof AssinarRoute
   LoginRoute: typeof LoginRoute
   PrivacidadeRoute: typeof PrivacidadeRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   TermosRoute: typeof TermosRoute
   VendasRoute: typeof VendasRoute
   InviteTokenRoute: typeof InviteTokenRoute
@@ -368,6 +381,13 @@ declare module '@tanstack/react-router' {
       path: '/termos'
       fullPath: '/termos'
       preLoaderRoute: typeof TermosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacidade': {
@@ -595,6 +615,7 @@ const rootRouteChildren: RootRouteChildren = {
   AssinarRoute: AssinarRoute,
   LoginRoute: LoginRoute,
   PrivacidadeRoute: PrivacidadeRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   TermosRoute: TermosRoute,
   VendasRoute: VendasRoute,
   InviteTokenRoute: InviteTokenRoute,
