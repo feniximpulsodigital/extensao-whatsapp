@@ -24,8 +24,10 @@ import {
   CalendarClock,
   Store,
 } from "lucide-react";
+import { ShieldCheck, Gift, HeartHandshake, UserCheck, Star } from "lucide-react";
 import { getPublicPlans } from "@/lib/plans.functions";
 import { WhatsAppDemo } from "@/components/sales/WhatsAppDemo";
+import { TESTIMONIALS, SOCIAL_PROOF_STAT, GUARANTEE_DAYS, WELCOME_BONUS } from "@/components/sales/sales-config";
 
 // CTA principal do site: leva ao cadastro self-service (/assinar).
 // Com planId, o plano já chega pré-selecionado no cadastro e no checkout.
@@ -333,6 +335,34 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
               </div>
             ))}
           </div>
+
+          {/* Objeção nº1: "e se a IA responder errado pro meu cliente?" */}
+          <div className="mx-auto mt-8 grid max-w-5xl gap-4 md:grid-cols-3">
+            <div className="rounded-lg border bg-background p-5">
+              <UserCheck className="h-6 w-6 text-primary" />
+              <h3 className="mt-3 font-semibold">E se ela não souber responder?</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                A IA não inventa. Quando não tem a informação, ela avisa o cliente que vai verificar
+                e deixa a conversa marcada para você assumir.
+              </p>
+            </div>
+            <div className="rounded-lg border bg-background p-5">
+              <HeartHandshake className="h-6 w-6 text-primary" />
+              <h3 className="mt-3 font-semibold">Você no controle, sempre</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Entrou na conversa? A IA percebe na hora e sai da frente. Você liga e desliga a
+                qualquer momento, por contato.
+              </p>
+            </div>
+            <div className="rounded-lg border bg-background p-5">
+              <Brain className="h-6 w-6 text-primary" />
+              <h3 className="mt-3 font-semibold">Fica melhor a cada dia</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Quanto mais você ensina (perguntas, preços, arquivos), mais precisa e natural ela
+                responde. Você ajusta quando quiser.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -389,6 +419,39 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
           </div>
         </div>
       </section>
+
+      {/* Prova social — só aparece quando há depoimentos reais cadastrados */}
+      {TESTIMONIALS.length > 0 && (
+        <section className="container mx-auto px-4 py-20">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="text-sm font-semibold uppercase tracking-wider text-primary">
+              Quem usa, aprova
+            </span>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+              Negócios que pararam de perder cliente no WhatsApp
+            </h2>
+            {SOCIAL_PROOF_STAT && (
+              <p className="mt-3 font-semibold text-primary">{SOCIAL_PROOF_STAT}</p>
+            )}
+          </div>
+          <div className="mx-auto mt-12 grid max-w-5xl gap-6 md:grid-cols-3">
+            {TESTIMONIALS.map((t) => (
+              <Card key={t.name}>
+                <CardContent className="pt-6">
+                  <div className="flex gap-0.5 text-primary">
+                    {Array.from({ length: t.rating ?? 5 }).map((_, i) => (
+                      <Star key={i} className="h-4 w-4 fill-current" />
+                    ))}
+                  </div>
+                  <p className="mt-3 text-sm">“{t.quote}”</p>
+                  <p className="mt-4 text-sm font-semibold">{t.name}</p>
+                  <p className="text-xs text-muted-foreground">{t.role}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Casos de uso */}
       {variant === "full" && (
@@ -493,6 +556,35 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
           </p>
         </div>
       </section>
+
+      {/* Risco-zero: garantia + bônus, logo antes do preço */}
+      {(GUARANTEE_DAYS > 0 || WELCOME_BONUS) && (
+        <section className="container mx-auto px-4 pt-20">
+          <div className="mx-auto grid max-w-4xl gap-4 md:grid-cols-2">
+            {GUARANTEE_DAYS > 0 && (
+              <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-5">
+                <ShieldCheck className="h-7 w-7 shrink-0 text-primary" />
+                <div>
+                  <h3 className="font-semibold">Garantia de {GUARANTEE_DAYS} dias</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Testou e não era pra você? Devolvemos o valor dentro de {GUARANTEE_DAYS} dias.
+                    Sem burocracia, sem perguntas difíceis.
+                  </p>
+                </div>
+              </div>
+            )}
+            {WELCOME_BONUS && (
+              <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-5">
+                <Gift className="h-7 w-7 shrink-0 text-primary" />
+                <div>
+                  <h3 className="font-semibold">Comece com o pé direito</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{WELCOME_BONUS}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Planos */}
       <PricingSection plans={plans} isLoading={isLoading} isError={isError} />

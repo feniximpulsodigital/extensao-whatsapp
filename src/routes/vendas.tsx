@@ -6,6 +6,7 @@ import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SalesPitch, CtaButton } from "@/components/sales/SalesPitch";
 import { SiteFooter } from "@/components/sales/SiteFooter";
+import { WhatsAppFloat } from "@/components/sales/WhatsAppFloat";
 
 export const Route = createFileRoute("/vendas")({
   head: () => ({
@@ -58,10 +59,13 @@ function SalesPage() {
               dinheiro indo pro concorrente
             </span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+          <p className="mx-auto mt-4 max-w-xl text-sm font-medium text-primary">
+            Uma extensão que coloca IA no seu WhatsApp Web — sem trocar de número, sem app novo.
+          </p>
+          <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
             O cliente manda mensagem, ninguém responde em 5 minutos, ele já fechou com outro. A Argos
             responde na hora, 24 horas por dia, com o tom da sua empresa — enquanto você toca o
-            negócio (ou dorme).
+            negócio.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <CtaButton>
@@ -139,51 +143,31 @@ function SalesPage() {
             {[
               {
                 q: "Preciso trocar de número de WhatsApp?",
-                a: "Não. Você cadastra seu número atual no painel e a IA responde nele, dentro do WhatsApp Web que você já usa.",
-              },
-              {
-                q: "Posso usar mais de um número de WhatsApp?",
-                a: "Sim, nos planos que incluem múltiplos números. Você cadastra cada número no painel e instala a extensão num computador com o WhatsApp Web daquele número. A IA atende todos com a mesma base de conhecimento.",
+                a: "Não. Você usa seu número atual, dentro do WhatsApp Web que já conhece. É só cadastrar o número no painel.",
               },
               {
                 q: "A IA responde do jeito da minha empresa?",
-                a: "Sim. Você cadastra o tom, as informações e as respostas certas. A IA usa tudo isso. Quanto mais você ensina, mais natural fica.",
+                a: "Sim. Você cadastra o tom de voz, os preços, as informações e as respostas certas — e pode até enviar arquivos. A IA usa tudo isso e fica mais natural quanto mais você ensina. Se não souber algo, ela não inventa: avisa que vai verificar e deixa a conversa para você assumir.",
               },
               {
                 q: "E se eu quiser assumir a conversa?",
-                a: "É só responder. A Argos entende e devolve o controle para você. Liga e desliga quando quiser.",
+                a: "É só responder. A Argos percebe na hora, sai da frente e devolve o controle para você. Liga e desliga quando quiser, por contato.",
               },
               {
-                q: "Funciona no celular?",
-                a: "A IA roda no WhatsApp Web (computador). As mensagens chegam normalmente no celular, mas é o desktop que mantém ela ativa.",
-              },
-              {
-                q: "Precisa deixar um computador ligado?",
-                a: "Sim. A Argos só responde enquanto pelo menos um computador estiver ligado, com o Chrome aberto, a extensão da Argos instalada e o WhatsApp Web conectado. Se todos forem desligados ou o WhatsApp Web for fechado, a IA pausa até voltar a estar online. Por isso muitos clientes deixam um PC dedicado ligado 24h.",
-              },
-              {
-                q: "Posso usar em mais de um computador?",
-                a: "Depende do plano. O Starter permite 1 computador ativo por vez; os planos maiores permitem mais máquinas ao mesmo tempo — útil para garantir que sempre haja um PC online respondendo.",
+                q: "Como funciona o pagamento e o cancelamento?",
+                a: "Assinatura mensal (ou anual com desconto) via Pix ou cartão, sem fidelidade. Você cancela quando quiser, sem multa nem ligação de retenção. Cada plano inclui créditos de IA por mês, e dá para comprar extras se precisar.",
               },
               {
                 q: "Como crio minha conta?",
-                a: "Direto pelo site: você escolhe o plano, preenche seus dados, paga via Pix ou cartão e o acesso libera na hora em que o pagamento confirma. Leva poucos minutos.",
-              },
-              {
-                q: "Como funciona o pagamento?",
-                a: "Assinatura mensal paga via Pix ou cartão de crédito recorrente, sem fidelidade. Cada plano inclui uma quantidade de créditos de IA por mês, e dá para comprar créditos extras se precisar.",
+                a: "Direto pelo site: escolhe o plano, preenche seus dados, paga via Pix ou cartão e o acesso libera na hora em que o pagamento confirma. Leva poucos minutos.",
               },
               {
                 q: "Como funciona o suporte?",
-                a: "Por tickets dentro do próprio painel: você abre o chamado, nossa equipe responde e você recebe um aviso. Planos superiores têm prioridade na fila e são respondidos mais rápido.",
+                a: "Por tickets no painel: você abre o chamado, nossa equipe responde e você recebe um aviso. Planos superiores têm prioridade na fila.",
               },
               {
-                q: "Posso cancelar a qualquer momento?",
-                a: "Pode. Sem multa, sem fidelidade, sem ligação de retenção.",
-              },
-              {
-                q: "Preciso instalar algo complicado?",
-                a: "Não. É uma extensão do Chrome que você baixa pelo painel e instala em poucos cliques. Você continua usando o WhatsApp Web normalmente — e, conforme o plano, pode ativar em um ou mais computadores.",
+                q: "É difícil de instalar? Funciona no celular?",
+                a: "É uma extensão do Chrome que instala em poucos cliques — sem nada complicado. A IA roda no WhatsApp Web (no computador); as mensagens continuam chegando normalmente no seu celular. Para a IA ficar ativa, basta um computador ligado com o Chrome e o WhatsApp Web abertos. Conforme o plano, você pode usar mais de um computador e mais de um número.",
               },
             ].map((f) => (
               <details key={f.q} className="rounded-lg border bg-background p-4 group">
@@ -212,6 +196,7 @@ function SalesPage() {
       </section>
 
       <SiteFooter />
+      <WhatsAppFloat />
     </div>
   );
 }

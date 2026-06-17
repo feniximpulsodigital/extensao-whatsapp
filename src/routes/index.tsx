@@ -5,6 +5,7 @@ import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SalesPitch, CtaButton } from "@/components/sales/SalesPitch";
 import { WhatsAppDemo } from "@/components/sales/WhatsAppDemo";
+import { WhatsAppFloat } from "@/components/sales/WhatsAppFloat";
 import { SiteFooter } from "@/components/sales/SiteFooter";
 
 export const Route = createFileRoute("/")({
@@ -69,7 +70,10 @@ function Landing() {
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
               <Zap className="h-3 w-3" /> Responde em segundos — antes do seu concorrente
             </div>
-            <h1 className="mt-6 text-4xl font-bold tracking-tight md:text-5xl xl:text-6xl">
+            <p className="mt-5 text-sm font-medium text-primary">
+              Uma extensão que coloca IA no seu WhatsApp Web — sem trocar de número, sem app novo.
+            </p>
+            <h1 className="mt-3 text-4xl font-bold tracking-tight md:text-5xl xl:text-6xl">
               Seu WhatsApp vendendo{" "}
               <span className="bg-gradient-to-r from-primary to-emerald-400 bg-clip-text text-transparent">
                 24 horas por dia
@@ -77,7 +81,7 @@ function Landing() {
               , mesmo quando você não está.
             </h1>
             <p className="mx-auto mt-6 max-w-xl text-lg text-muted-foreground lg:mx-0">
-              A Argos é uma IA treinada no seu negócio que atende, tira dúvidas e fecha conversa no
+              A Argos é uma IA treinada no seu negócio que atende, tira dúvidas e conduz a conversa no
               seu próprio WhatsApp Web — com a cara da sua empresa. O cliente é respondido na hora.
               Você não perde mais nenhuma venda no vácuo.
             </p>
@@ -113,6 +117,7 @@ function Landing() {
       <SalesPitch variant="full" />
 
       <SiteFooter />
+      <WhatsAppFloat />
     </div>
   );
 }
