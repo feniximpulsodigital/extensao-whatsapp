@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Zap, ArrowRight, MessageCircle } from "lucide-react";
+import { Zap, ArrowRight, Clock, Star } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SalesPitch, CtaButton } from "@/components/sales/SalesPitch";
+import { WhatsAppDemo } from "@/components/sales/WhatsAppDemo";
 import { SiteFooter } from "@/components/sales/SiteFooter";
 
 export const Route = createFileRoute("/")({
@@ -57,35 +58,55 @@ function Landing() {
       </header>
 
       {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="container mx-auto px-4 py-24 text-center">
-          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs">
-            <Zap className="h-3 w-3 text-primary" /> A IA que responde antes do seu concorrente
+      <section className="relative overflow-hidden border-b border-border">
+        {/* glow de fundo */}
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-primary/10 via-background to-background" />
+        <div className="pointer-events-none absolute -top-24 left-1/2 -z-10 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
+
+        <div className="container mx-auto grid items-center gap-12 px-4 py-16 md:py-24 lg:grid-cols-2">
+          {/* coluna texto */}
+          <div className="text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+              <Zap className="h-3 w-3" /> Responde em segundos — antes do seu concorrente
+            </div>
+            <h1 className="mt-6 text-4xl font-bold tracking-tight md:text-5xl xl:text-6xl">
+              Seu WhatsApp vendendo{" "}
+              <span className="bg-gradient-to-r from-primary to-emerald-400 bg-clip-text text-transparent">
+                24 horas por dia
+              </span>
+              , mesmo quando você não está.
+            </h1>
+            <p className="mx-auto mt-6 max-w-xl text-lg text-muted-foreground lg:mx-0">
+              A Argos é uma IA treinada no seu negócio que atende, tira dúvidas e fecha conversa no
+              seu próprio WhatsApp Web — com a cara da sua empresa. O cliente é respondido na hora.
+              Você não perde mais nenhuma venda no vácuo.
+            </p>
+            <div className="mt-8 flex flex-wrap justify-center gap-3 lg:justify-start">
+              <CtaButton>
+                Quero vender 24h <ArrowRight className="h-4 w-4" />
+              </CtaButton>
+              <Button size="lg" variant="outline" asChild>
+                <a href="#como">Ver como funciona</a>
+              </Button>
+            </div>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground lg:justify-start">
+              <span className="inline-flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5 text-primary" /> Pronto em minutos
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <Star className="h-3.5 w-3.5 text-primary" /> Sem fidelidade
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <Zap className="h-3.5 w-3.5 text-primary" /> Usa o seu número atual
+              </span>
+            </div>
           </div>
-          <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-bold tracking-tight md:text-6xl">
-            Pare de perder cliente no WhatsApp.{" "}
-            <span className="text-primary">A Argos responde por você, 24/7.</span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-            Enquanto você dorme, almoça ou atende outro cliente, a Argos conversa, tira dúvidas,
-            informa preços e mantém o cliente aquecido — direto no seu WhatsApp Web, com a cara da
-            sua empresa.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <CtaButton>
-              Quero começar agora <ArrowRight className="h-4 w-4" />
-            </CtaButton>
-            <Button size="lg" variant="outline" asChild>
-              <a href="#pricing">
-                <MessageCircle className="h-4 w-4 mr-1" />
-                Ver planos e benefícios
-              </a>
-            </Button>
+
+          {/* coluna visual: a prova do produto */}
+          <div className="relative mx-auto w-full max-w-md">
+            <div className="pointer-events-none absolute -inset-4 -z-10 rounded-3xl bg-primary/10 blur-2xl" />
+            <WhatsAppDemo />
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">
-            Pix ou cartão · Sem fidelidade · Funciona enquanto houver 1 PC com o WhatsApp Web aberto
-            e a extensão ativa
-          </p>
         </div>
       </section>
 

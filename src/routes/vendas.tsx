@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowRight, Flame, Check, X } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
@@ -44,26 +45,34 @@ function SalesPage() {
       </header>
 
       {/* Hero vendas — mais agressivo */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-primary/5 to-background">
+      <section className="relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-primary/10 via-background to-background" />
+        <div className="pointer-events-none absolute -top-24 left-1/2 -z-10 h-72 w-[36rem] -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
         <div className="container mx-auto px-4 py-20 md:py-28 text-center">
           <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-            <Flame className="h-3 w-3" /> IA no WhatsApp Web que você já usa — sem trocar de número
+            <Flame className="h-3 w-3" /> No seu WhatsApp atual — sem trocar de número, sem app novo
           </div>
           <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-bold tracking-tight md:text-6xl">
-            Você está perdendo vendas no WhatsApp{" "}
-            <span className="text-primary">todos os dias</span> — e nem fica sabendo
+            Cada mensagem sem resposta é{" "}
+            <span className="bg-gradient-to-r from-primary to-emerald-400 bg-clip-text text-transparent">
+              dinheiro indo pro concorrente
+            </span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-            Cliente manda mensagem, ninguém responde em 5 minutos, ele já está conversando com o
-            concorrente. A Argos resolve isso enquanto você toma café.
+            O cliente manda mensagem, ninguém responde em 5 minutos, ele já fechou com outro. A Argos
+            responde na hora, 24 horas por dia, com o tom da sua empresa — enquanto você toca o
+            negócio (ou dorme).
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <CtaButton>
-              Quero começar agora <ArrowRight className="h-4 w-4" />
+              Quero parar de perder venda <ArrowRight className="h-4 w-4" />
             </CtaButton>
+            <Button size="lg" variant="outline" asChild>
+              <a href="#pricing">Ver planos</a>
+            </Button>
           </div>
           <p className="mt-4 text-xs text-muted-foreground">
-            ✓ Ativação em minutos · ✓ Pix ou cartão · ✓ Sem fidelidade
+            ✓ Ativação em minutos · ✓ Pix ou cartão · ✓ Sem fidelidade · ✓ Cancela quando quiser
           </p>
         </div>
       </section>

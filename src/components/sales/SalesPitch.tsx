@@ -336,62 +336,55 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
         </div>
       </section>
 
-      {/* Veja em ação */}
-      <section className="container mx-auto px-4 py-20">
-        <div className="mx-auto grid max-w-5xl items-center gap-10 md:grid-cols-2">
-          <div>
-            <span className="text-sm font-semibold uppercase tracking-wider text-primary">
-              Veja em ação
-            </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
-              22h47, loja fechada — e a venda acontecendo
-            </h2>
-            <p className="mt-4 text-muted-foreground">
-              É assim que uma conversa flui com a Argos: o cliente pergunta, a IA responde na hora
-              com as informações que você cadastrou e conduz até o fechamento.
-            </p>
-            <ul className="mt-6 space-y-3 text-sm">
-              {[
-                "Responde com seus preços, produtos e regras de entrega",
-                "Mantém o tom da sua marca em cada mensagem",
-                "Se você entrar na conversa, a IA percebe e sai da frente",
-              ].map((i) => (
-                <li key={i} className="flex gap-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> {i}
-                </li>
-              ))}
-            </ul>
+      {/* Veja em ação — só na /vendas; na home o mockup já está no hero */}
+      {variant === "compact" && (
+        <section className="container mx-auto px-4 py-20">
+          <div className="mx-auto grid max-w-5xl items-center gap-10 md:grid-cols-2">
+            <div>
+              <span className="text-sm font-semibold uppercase tracking-wider text-primary">
+                Veja em ação
+              </span>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+                22h47, loja fechada — e a venda acontecendo
+              </h2>
+              <p className="mt-4 text-muted-foreground">
+                É assim que uma conversa flui com a Argos: o cliente pergunta, a IA responde na hora
+                com as informações que você cadastrou e conduz até o fechamento.
+              </p>
+              <ul className="mt-6 space-y-3 text-sm">
+                {[
+                  "Responde com seus preços, produtos e regras de entrega",
+                  "Mantém o tom da sua marca em cada mensagem",
+                  "Se você entrar na conversa, a IA percebe e sai da frente",
+                ].map((i) => (
+                  <li key={i} className="flex gap-2">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> {i}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <WhatsAppDemo />
           </div>
-          <WhatsAppDemo />
-        </div>
-      </section>
+        </section>
+      )}
 
-      {/* O que muda na prática */}
-      <section className="bg-muted/40 py-20">
-        <div className="container mx-auto px-4">
-          <div className="mx-auto max-w-2xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-wider text-primary">
-              Na prática
-            </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
-              O que muda no seu atendimento
-            </h2>
-          </div>
-          <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-3">
+      {/* O que muda na prática — faixa de destaque */}
+      <section className="relative overflow-hidden bg-primary py-16 text-primary-foreground">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary to-emerald-600/80" />
+        <div className="container relative mx-auto px-4">
+          <h2 className="text-center text-2xl font-bold tracking-tight md:text-3xl">
+            O que muda no seu atendimento a partir de hoje
+          </h2>
+          <div className="mx-auto mt-10 grid max-w-4xl gap-8 text-center md:grid-cols-3">
             {[
-              {
-                stat: "Segundos",
-                label: "para responder qualquer cliente, a qualquer hora do dia",
-              },
+              { stat: "Segundos", label: "para responder qualquer cliente, a qualquer hora do dia" },
               { stat: "24/7", label: "atendendo de madrugada, no feriado e no fim de semana" },
               { stat: "Zero", label: "mensagens esquecidas no vácuo esperando alguém ver" },
             ].map((r) => (
-              <Card key={r.label}>
-                <CardContent className="pt-6 text-center">
-                  <div className="text-4xl font-bold text-primary">{r.stat}</div>
-                  <p className="mt-2 text-sm text-muted-foreground">{r.label}</p>
-                </CardContent>
-              </Card>
+              <div key={r.label}>
+                <div className="text-5xl font-extrabold tracking-tight">{r.stat}</div>
+                <p className="mt-2 text-sm text-primary-foreground/85">{r.label}</p>
+              </div>
             ))}
           </div>
         </div>
@@ -554,24 +547,35 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
 
       {/* CTA final */}
       <section className="container mx-auto px-4 py-20">
-        <div className="mx-auto max-w-3xl rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-background p-10 text-center">
-          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
-            Quantos clientes você vai perder esta semana?
-          </h2>
-          <p className="mt-4 text-muted-foreground">
-            Cada dia sem resposta rápida é venda indo embora. A ativação leva poucos minutos.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <CtaButton>
-              Quero começar agora <ArrowRight className="h-4 w-4" />
-            </CtaButton>
-            <Button size="lg" variant="outline" asChild>
-              <a href="#pricing">Ver planos</a>
-            </Button>
+        <div className="relative mx-auto max-w-3xl overflow-hidden rounded-3xl bg-primary p-10 text-center text-primary-foreground md:p-14">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary via-primary to-emerald-600/80" />
+          <div className="relative">
+            <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
+              Quantos clientes você vai perder esta semana?
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-primary-foreground/85">
+              Cada dia sem resposta rápida é venda indo embora. Ative a Argos em poucos minutos e
+              nenhum cliente fica mais no vácuo.
+            </p>
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <Button size="lg" variant="secondary" className="font-semibold" asChild>
+                <Link to="/assinar" search={{ plan: undefined }}>
+                  Quero começar agora <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-primary-foreground/40 bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+                asChild
+              >
+                <a href="#pricing">Ver planos</a>
+              </Button>
+            </div>
+            <p className="mt-4 text-xs text-primary-foreground/75">
+              Pix ou cartão · Sem fidelidade · Cancele quando quiser
+            </p>
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">
-            Pix ou cartão · Sem fidelidade · Cancele quando quiser
-          </p>
         </div>
       </section>
     </>
