@@ -1,11 +1,31 @@
+import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Flame, Check, X } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { SalesPitch, CtaButton } from "@/components/sales/SalesPitch";
 import { SiteFooter } from "@/components/sales/SiteFooter";
 import { WhatsAppFloat } from "@/components/sales/WhatsAppFloat";
+
+// A página de vendas tem um único tema (claro): fundos brancos fazem os blocos
+// verdes (hero, faixas, CTA) estourarem com o máximo de contraste e dão a cara
+// de produto sério/confiável que converte. Travamos o tema enquanto a vendas
+// está montada e restauramos a preferência do visitante ao sair.
+function useLockedLightTheme() {
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    const hadDark = root.classList.contains("dark");
+    root.classList.remove("dark");
+    root.classList.add("light");
+    return () => {
+      if (hadDark) {
+        root.classList.remove("light");
+        root.classList.add("dark");
+      }
+    };
+  }, []);
+}
 
 export const Route = createFileRoute("/vendas")({
   head: () => ({
@@ -28,6 +48,7 @@ export const Route = createFileRoute("/vendas")({
 });
 
 function SalesPage() {
+  useLockedLightTheme();
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border sticky top-0 z-40 bg-background/80 backdrop-blur">
@@ -36,7 +57,6 @@ function SalesPage() {
             <Logo size={32} />
           </Link>
           <div className="flex items-center gap-2">
-            <ThemeToggle />
             <CtaButton size="sm">
               Quero começar agora <ArrowRight className="h-4 w-4" />
             </CtaButton>
