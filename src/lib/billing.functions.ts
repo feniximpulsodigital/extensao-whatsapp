@@ -233,6 +233,7 @@ export const createCheckout = createServerFn({ method: "POST" })
       .object({
         planId: z.string().uuid(),
         billingCycle: z.enum(["monthly", "annual"]),
+        method: z.enum(["card", "pix"]),
         cpfCnpj: z
           .string()
           .transform((s) => s.replace(/\D/g, ""))
@@ -265,16 +266,20 @@ export const createCheckout = createServerFn({ method: "POST" })
     due.setDate(due.getDate() + 1);
     const description = `${plan.name} — ${data.billingCycle === "annual" ? "Anual" : "Mensal"}`;
 
+    // Método escolhido pelo cliente. Usamos o billingType específico (não
+    // UNDEFINED) para que a fatura hospedada do Asaas mostre só cartão ou só
+    // PIX — sem boleto nem débito em conta. O pagamento segue acontecendo na
+    // página segura do Asaas (cartão nunca toca nosso servidor).
+    const billingType = data.method === "pix" ? "PIX" : "CREDIT_CARD";
+
     let sub: { id: string };
     let charge: { id: string; invoiceUrl: string } | undefined;
     try {
-      // billingType UNDEFINED: a fatura hospedada deixa o cliente escolher
-      // cartão de crédito ou PIX e pagar na página do Asaas.
       sub = await asaasFetch<{ id: string }>("/subscriptions", {
         method: "POST",
         body: JSON.stringify({
           customer: tenant.asaas_customer_id,
-          billingType: "UNDEFINED",
+          billingType,
           value: amountCents / 100,
           nextDueDate: due.toISOString().slice(0, 10),
           cycle: data.billingCycle === "annual" ? "YEARLY" : "MONTHLY",
@@ -307,7 +312,7 @@ export const createCheckout = createServerFn({ method: "POST" })
       asaas_payment_id: charge.id,
       amount_cents: amountCents,
       status: "pending",
-      billing_type: "UNDEFINED",
+      billing_type: billingType,
       billing_cycle: data.billingCycle,
       kind: "subscription",
       invoice_url: charge.invoiceUrl,

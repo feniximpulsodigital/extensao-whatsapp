@@ -30,6 +30,8 @@ function CheckoutPage() {
 
   const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  // Cartão é o método preferencial (pré-selecionado).
+  const [method, setMethod] = useState<"card" | "pix">("card");
   const [cpfCnpj, setCpfCnpj] = useState("");
 
   const { plan: planParam, change: changeMode } = Route.useSearch();
@@ -55,7 +57,7 @@ function CheckoutPage() {
 
   const pay = useMutation({
     mutationFn: (planId: string) =>
-      checkout({ data: { planId, billingCycle: cycle, cpfCnpj } }),
+      checkout({ data: { planId, billingCycle: cycle, method, cpfCnpj } }),
     onSuccess: (r) => {
       // Redireciona para a página de pagamento segura e hospedada do Asaas,
       // onde o cliente escolhe cartão ou PIX. Nenhum dado de cartão passa por
@@ -181,17 +183,63 @@ function CheckoutPage() {
                 <p className="text-xs text-muted-foreground">Necessário para emitir a cobrança.</p>
               </div>
 
-              {/* Métodos disponíveis na página de pagamento (informativo) */}
-              <div className="flex flex-wrap gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1.5 text-sm">
-                  <CreditCard className="h-4 w-4 text-primary" /> Cartão de crédito
-                  <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
-                    recomendado
-                  </span>
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1.5 text-sm">
-                  <QrCode className="h-4 w-4 text-primary" /> PIX
-                </span>
+              {/* Escolha do método — cartão é o preferencial */}
+              <div>
+                <Label className="mb-2 block">Como você quer pagar?</Label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setMethod("card")}
+                    className={`relative flex items-start gap-3 rounded-xl border-2 p-4 text-left transition ${
+                      method === "card"
+                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                        : "border-border hover:border-primary/40"
+                    }`}
+                  >
+                    <span className="absolute -top-2.5 right-3 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                      RECOMENDADO
+                    </span>
+                    <div
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                        method === "card" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                      }`}
+                    >
+                      <CreditCard className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold">Cartão de crédito</p>
+                      <p className="text-xs text-muted-foreground">
+                        Renova sozinho todo {cycle === "annual" ? "ano" : "mês"}.
+                      </p>
+                    </div>
+                    {method === "card" && <Check className="absolute bottom-3 right-3 h-4 w-4 text-primary" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMethod("pix")}
+                    className={`relative flex items-start gap-3 rounded-xl border-2 p-4 text-left transition ${
+                      method === "pix"
+                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                        : "border-border hover:border-primary/40"
+                    }`}
+                  >
+                    <div
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                        method === "pix" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                      }`}
+                    >
+                      <QrCode className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold">PIX</p>
+                      <p className="text-xs text-muted-foreground">
+                        Nova cobrança PIX a cada {cycle === "annual" ? "ano" : "mês"}.
+                      </p>
+                    </div>
+                    {method === "pix" && <Check className="absolute bottom-3 right-3 h-4 w-4 text-primary" />}
+                  </button>
+                </div>
               </div>
 
               <Button
@@ -200,7 +248,11 @@ function CheckoutPage() {
                 disabled={pay.isPending || !docOk}
                 onClick={() => pay.mutate(selectedPlan)}
               >
-                {pay.isPending ? "Abrindo pagamento…" : "Ir para o pagamento"}
+                {pay.isPending
+                  ? "Abrindo pagamento…"
+                  : method === "card"
+                    ? "Pagar com cartão"
+                    : "Pagar com PIX"}
               </Button>
 
               <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
