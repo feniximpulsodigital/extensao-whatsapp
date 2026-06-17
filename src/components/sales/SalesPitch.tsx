@@ -293,7 +293,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
       </section>
 
       {/* Solução */}
-      <section id="solucao" className="bg-muted/40 py-20">
+      <section id="solucao" className="bg-gradient-to-b from-primary/5 via-muted/40 to-background py-20">
         <div className="container mx-auto px-4">
           <div className="mx-auto max-w-2xl text-center">
             <span className="text-sm font-semibold uppercase tracking-wider text-primary">

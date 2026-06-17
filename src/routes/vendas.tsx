@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { ArrowRight, Flame, Check, X } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -45,37 +44,42 @@ function SalesPage() {
         </div>
       </header>
 
-      {/* Hero vendas — mais agressivo */}
-      <section className="relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-primary/10 via-background to-background" />
-        <div className="pointer-events-none absolute -top-24 left-1/2 -z-10 h-72 w-[36rem] -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
-        <div className="container mx-auto px-4 py-20 md:py-28 text-center">
-          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-            <Flame className="h-3 w-3" /> No seu WhatsApp atual — sem trocar de número, sem app novo
+      {/* Hero vendas — bloco escuro com verde, alto contraste */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-primary to-emerald-800 text-white">
+        <div className="pointer-events-none absolute -top-24 left-1/4 h-72 w-72 rounded-full bg-emerald-400/30 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 right-1/4 h-72 w-72 rounded-full bg-emerald-300/20 blur-3xl" />
+        <div className="container relative mx-auto px-4 py-20 md:py-28 text-center">
+          <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-xs font-semibold backdrop-blur">
+            <Flame className="h-3.5 w-3.5 text-emerald-300" /> No seu WhatsApp atual — sem trocar de
+            número, sem app novo
           </div>
-          <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-bold tracking-tight md:text-6xl">
+          <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-extrabold tracking-tight md:text-6xl">
             Cada mensagem sem resposta é{" "}
-            <span className="bg-gradient-to-r from-primary to-emerald-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-emerald-300 to-white bg-clip-text text-transparent">
               dinheiro indo pro concorrente
             </span>
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-sm font-medium text-primary">
-            Uma extensão que coloca IA no seu WhatsApp Web — sem trocar de número, sem app novo.
-          </p>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-white/80">
             O cliente manda mensagem, ninguém responde em 5 minutos, ele já fechou com outro. A Argos
             responde na hora, 24 horas por dia, com o tom da sua empresa — enquanto você toca o
             negócio.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <CtaButton>
-              Quero parar de perder venda <ArrowRight className="h-4 w-4" />
-            </CtaButton>
-            <Button size="lg" variant="outline" asChild>
+            <Button size="lg" variant="secondary" className="font-semibold shadow-lg" asChild>
+              <Link to="/assinar" search={{ plan: undefined }}>
+                Quero parar de perder venda <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white"
+              asChild
+            >
               <a href="#pricing">Ver planos</a>
             </Button>
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">
+          <p className="mt-5 text-xs text-white/70">
             ✓ Ativação em minutos · ✓ Pix ou cartão · ✓ Sem fidelidade · ✓ Cancela quando quiser
           </p>
         </div>
@@ -84,50 +88,54 @@ function SalesPage() {
       {/* Antes / depois */}
       <section className="container mx-auto px-4 py-20">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
+          <span className="text-sm font-semibold uppercase tracking-wider text-primary">
+            A diferença
+          </span>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
             Como é seu WhatsApp hoje vs. com a Argos
           </h2>
         </div>
         <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-2">
-          <Card className="border-destructive/30">
-            <CardContent className="pt-6">
-              <h3 className="font-bold text-lg mb-4 text-destructive">Sem Argos</h3>
-              <ul className="space-y-3 text-sm">
-                {[
-                  "Mensagens acumulam fora do horário",
-                  "Equipe responde as mesmas coisas o dia inteiro",
-                  "Cliente espera horas, vai pro concorrente",
-                  "Você perde venda à noite e final de semana",
-                  "Sobrecarga, atrasos, clientes irritados",
-                ].map((i) => (
-                  <li key={i} className="flex gap-2">
-                    <X className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-                    {i}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-          <Card className="border-primary/50 shadow-lg">
-            <CardContent className="pt-6">
-              <h3 className="font-bold text-lg mb-4 text-primary">Com Argos</h3>
-              <ul className="space-y-3 text-sm">
-                {[
-                  "IA responde em segundos, 24 horas por dia",
-                  "Equipe foca em casos complexos e vendas grandes",
-                  "Cliente recebe atenção na hora e fecha contigo",
-                  "Vende dormindo, no domingo e no feriado",
-                  "Usa seu WhatsApp Web normal, só instala a extensão no Chrome",
-                  "Você assume qualquer conversa quando quiser — a IA percebe e sai da frente",
-                ].map((i) => (
-                  <li key={i} className="flex gap-2">
-                    <Check className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                    {i}
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6">
+            <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-destructive">
+              <X className="h-5 w-5" /> Sem Argos
+            </h3>
+            <ul className="space-y-3 text-sm">
+              {[
+                "Mensagens acumulam fora do horário",
+                "Equipe responde as mesmas coisas o dia inteiro",
+                "Cliente espera horas, vai pro concorrente",
+                "Você perde venda à noite e final de semana",
+                "Sobrecarga, atrasos, clientes irritados",
+              ].map((i) => (
+                <li key={i} className="flex gap-2">
+                  <X className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                  {i}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary to-emerald-700 p-6 text-white shadow-xl">
+            <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+            <h3 className="mb-4 flex items-center gap-2 text-lg font-bold">
+              <Check className="h-5 w-5 text-emerald-200" /> Com Argos
+            </h3>
+            <ul className="space-y-3 text-sm">
+              {[
+                "IA responde em segundos, 24 horas por dia",
+                "Equipe foca em casos complexos e vendas grandes",
+                "Cliente recebe atenção na hora e fecha contigo",
+                "Vende dormindo, no domingo e no feriado",
+                "Usa seu WhatsApp Web normal, só instala a extensão no Chrome",
+                "Você assume qualquer conversa quando quiser — a IA percebe e sai da frente",
+              ].map((i) => (
+                <li key={i} className="flex gap-2">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-200" />
+                  {i}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -183,16 +191,22 @@ function SalesPage() {
       </section>
 
       {/* CTA final reforçado */}
-      <section className="container mx-auto px-4 py-20 text-center">
-        <h2 className="text-3xl font-bold tracking-tight md:text-5xl">
-          Pronto pra parar de perder venda?
-        </h2>
-        <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-          A ativação leva poucos minutos. A partir daí, nenhum cliente fica sem resposta.
-        </p>
-        <CtaButton className="mt-8">
-          Quero começar agora <ArrowRight className="h-4 w-4" />
-        </CtaButton>
+      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-primary to-emerald-800 py-20 text-center text-white">
+        <div className="pointer-events-none absolute -top-20 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-emerald-400/25 blur-3xl" />
+        <div className="container relative mx-auto px-4">
+          <h2 className="text-3xl font-extrabold tracking-tight md:text-5xl">
+            Pronto pra parar de perder venda?
+          </h2>
+          <p className="mx-auto mt-4 max-w-xl text-white/80">
+            A ativação leva poucos minutos. A partir daí, nenhum cliente fica sem resposta.
+          </p>
+          <Button size="lg" variant="secondary" className="mt-8 font-semibold shadow-lg" asChild>
+            <Link to="/assinar" search={{ plan: undefined }}>
+              Quero começar agora <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+          <p className="mt-4 text-xs text-white/70">Sem fidelidade · Cancele quando quiser</p>
+        </div>
       </section>
 
       <SiteFooter />
