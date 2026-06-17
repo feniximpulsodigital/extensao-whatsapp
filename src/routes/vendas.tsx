@@ -107,10 +107,12 @@ function SalesPage() {
             </p>
           </div>
 
-          {/* Prova visual: a conversa acontecendo */}
+          {/* Prova visual: a conversa acontecendo.
+              Envolto num cartão claro para isolar o text-white do hero — sem
+              ele os balões do cliente e a legenda ficariam invisíveis. */}
           <div className="relative mx-auto w-full max-w-md">
             <div className="pointer-events-none absolute -inset-4 rounded-3xl bg-emerald-300/20 blur-2xl" />
-            <div className="relative">
+            <div className="relative rounded-2xl bg-background p-3 text-foreground shadow-2xl">
               <WhatsAppDemo />
             </div>
           </div>

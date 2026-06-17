@@ -28,7 +28,11 @@
       "Bash(sed -i 's/\"id, plans\\(support_priority\\)\"/\"id, plans!tenants_plan_id_fkey\\(support_priority\\)\"/' src/lib/support.functions.ts)",
       "Bash(sed -i 's/tenants\\(company_name, plans\\(name\\)\\)/tenants\\(company_name, plans!tenants_plan_id_fkey\\(name\\)\\)/' src/lib/support.functions.ts)",
       "Bash(npm run *)",
-      "Bash(git commit -q -m ' *)"
+      "Bash(git commit -q -m ' *)",
+      "PowerShell(Get-Process git,git-filter-branch -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Process git -ErrorAction SilentlyContinue | Select-Object Name,Id; Write-Output \"=== output ===\"; if \\(\\(Get-Item \"C:\\\\Users\\\\wolves\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--PROJETOS-GITHUB-extensao-whatsapp\\\\6fced084-ef9f-483e-82a6-da6224b89644\\\\tasks\\\\bok0zyb6h.output\"\\).Length -gt 0\\) { Get-Content \"C:\\\\Users\\\\wolves\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--PROJETOS-GITHUB-extensao-whatsapp\\\\6fced084-ef9f-483e-82a6-da6224b89644\\\\tasks\\\\bok0zyb6h.output\" -Tail 15 } else { Write-Output \"\\(vazio\\)\" })",
+      "PowerShell($p = Get-Process git -ErrorAction SilentlyContinue; if \\($p\\) { Write-Output \"AINDA RODANDO: $\\($p.Count\\) processos git\" } else { Write-Output \"CONCLUIDO: nenhum processo git ativo\" })",
+      "PowerShell($p = Get-Process git -ErrorAction SilentlyContinue; if \\($p\\) { Write-Output \"AINDA RODANDO: $\\($p.Count\\) git\" } else { Write-Output \"CONCLUIDO\" }; Write-Output \"=== .env no historico \\(vazio = removido\\) ===\"; git log --oneline --all -- .env 2>&1 | Select-Object -First 5)"
     ]
   }
 }
