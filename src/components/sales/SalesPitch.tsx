@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
@@ -56,6 +57,176 @@ function formatBRL(cents: number) {
     currency: "BRL",
     minimumFractionDigits: 0,
   });
+}
+
+type PlanForPricing = {
+  id: string;
+  name: string;
+  description: string | null;
+  priceCents: number;
+  priceCentsAnnual: number;
+  monthlyCredits: number;
+  features: string[];
+  highlight: boolean;
+};
+
+// Desconto anual vs. 12x o mensal (ex.: 17% = "2 meses grátis").
+function annualDiscountPct(monthly: number, annual: number) {
+  if (!monthly || !annual) return 0;
+  const full = monthly * 12;
+  if (annual >= full) return 0;
+  return Math.round(((full - annual) / full) * 100);
+}
+
+function PricingSection({
+  plans,
+  isLoading,
+  isError,
+}: {
+  plans: PlanForPricing[];
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
+  // só oferece o toggle anual se ao menos um plano tem preço anual configurado
+  const hasAnnual = plans.some((p) => p.priceCentsAnnual > 0);
+
+  return (
+    <section id="pricing" className="bg-muted/40 py-20">
+      <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-2xl text-center">
+          <span className="text-sm font-semibold uppercase tracking-wider text-primary">Planos</span>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+            Cabe no bolso. Paga sozinho na primeira venda extra.
+          </h2>
+          <p className="mt-4 text-muted-foreground">
+            Pix ou cartão · Sem fidelidade · Cancele quando quiser
+          </p>
+        </div>
+
+        {hasAnnual && (
+          <div className="mt-8 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setCycle("monthly")}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                cycle === "monthly" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Mensal
+            </button>
+            <button
+              type="button"
+              onClick={() => setCycle("annual")}
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                cycle === "annual" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Anual
+              <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-[11px] font-bold text-green-600 dark:text-green-400">
+                economize
+              </span>
+            </button>
+          </div>
+        )}
+
+        {isLoading ? (
+          <p className="mt-12 text-center text-sm text-muted-foreground">Carregando planos…</p>
+        ) : isError || plans.length === 0 ? (
+          <div className="mt-12 text-center">
+            <p className="text-sm text-muted-foreground">
+              Não foi possível carregar os planos agora. Crie sua conta e escolha o plano na etapa de
+              pagamento.
+            </p>
+            <CtaButton className="mt-6">
+              Criar minha conta <ArrowRight className="h-4 w-4" />
+            </CtaButton>
+          </div>
+        ) : (
+          <div
+            className={`mx-auto mt-10 grid max-w-5xl items-start gap-6 ${plans.length >= 3 ? "md:grid-cols-3" : "md:grid-cols-2"}`}
+          >
+            {plans.map((p) => {
+              const annual = p.priceCentsAnnual > 0;
+              const showAnnual = cycle === "annual" && annual;
+              const price = showAnnual ? p.priceCentsAnnual : p.priceCents;
+              const perMonthEquivalent = showAnnual ? Math.round(p.priceCentsAnnual / 12) : p.priceCents;
+              const discount = annualDiscountPct(p.priceCents, p.priceCentsAnnual);
+              return (
+                <Card
+                  key={p.id}
+                  className={p.highlight ? "border-primary shadow-lg relative md:-mt-2" : "relative"}
+                >
+                  {p.highlight && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                      Mais escolhido
+                    </div>
+                  )}
+                  <CardHeader>
+                    <CardTitle>{p.name}</CardTitle>
+                    {p.description && <CardDescription>{p.description}</CardDescription>}
+                    {showAnnual ? (
+                      <>
+                        <div className="mt-2 flex items-baseline gap-2">
+                          <span className="text-3xl font-bold">{formatBRL(perMonthEquivalent)}</span>
+                          <span className="text-sm font-normal text-muted-foreground">/mês</span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {formatBRL(p.priceCentsAnnual)} à vista no plano anual
+                          {discount > 0 && (
+                            <span className="ml-1 font-semibold text-green-600 dark:text-green-400">
+                              · economize {discount}%
+                            </span>
+                          )}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="mt-2 flex items-baseline gap-2">
+                          <span className="text-3xl font-bold">{formatBRL(p.priceCents)}</span>
+                          <span className="text-sm font-normal text-muted-foreground">/mês</span>
+                        </div>
+                        {annual && discount > 0 && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            ou {formatBRL(Math.round(p.priceCentsAnnual / 12))}/mês no anual
+                            <span className="ml-1 font-semibold text-green-600 dark:text-green-400">
+                              (−{discount}%)
+                            </span>
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {p.features.map((feat) => (
+                        <li key={feat} className="flex items-center gap-2 text-sm">
+                          <Check className="h-4 w-4 text-primary shrink-0" /> {feat}
+                        </li>
+                      ))}
+                    </ul>
+                    <CtaButton
+                      className="mt-6 w-full"
+                      size="default"
+                      variant={p.highlight ? "default" : "outline"}
+                      planId={p.id}
+                    >
+                      Assinar este plano <ArrowRight className="h-4 w-4" />
+                    </CtaButton>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        <p className="mx-auto mt-8 max-w-xl text-center text-xs text-muted-foreground">
+          Todos os planos incluem IA 24/7, transcrição de áudios e suporte humano. Sem taxa de setup.
+          Comece hoje e cancele quando quiser.
+        </p>
+      </div>
+    </section>
+  );
 }
 
 export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" }) {
@@ -331,76 +502,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
       </section>
 
       {/* Planos */}
-      <section id="pricing" className="bg-muted/40 py-20">
-        <div className="container mx-auto px-4">
-          <div className="mx-auto max-w-2xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-wider text-primary">
-              Planos
-            </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
-              Cabe no bolso. Paga sozinho na primeira venda extra.
-            </h2>
-            <p className="mt-4 text-muted-foreground">
-              Pix ou cartão · Sem fidelidade · Cancele quando quiser
-            </p>
-          </div>
-          {isLoading ? (
-            <p className="mt-12 text-center text-sm text-muted-foreground">Carregando planos…</p>
-          ) : isError || plans.length === 0 ? (
-            <div className="mt-12 text-center">
-              <p className="text-sm text-muted-foreground">
-                Não foi possível carregar os planos agora. Crie sua conta e escolha o plano na etapa
-                de pagamento.
-              </p>
-              <CtaButton className="mt-6">
-                Criar minha conta <ArrowRight className="h-4 w-4" />
-              </CtaButton>
-            </div>
-          ) : (
-            <div
-              className={`mx-auto mt-12 grid max-w-5xl gap-6 ${plans.length >= 3 ? "md:grid-cols-3" : "md:grid-cols-2"}`}
-            >
-              {plans.map((p) => (
-                <Card key={p.id} className={p.highlight ? "border-primary shadow-lg relative" : ""}>
-                  {p.highlight && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
-                      Mais escolhido
-                    </div>
-                  )}
-                  <CardHeader>
-                    <CardTitle>{p.name}</CardTitle>
-                    {p.description && <CardDescription>{p.description}</CardDescription>}
-                    <div className="mt-2 text-3xl font-bold">
-                      {formatBRL(p.priceCents)}
-                      <span className="text-sm font-normal text-muted-foreground">/mês</span>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {p.monthlyCredits.toLocaleString("pt-BR")} créditos de IA por mês
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-2">
-                      {p.features.map((feat) => (
-                        <li key={feat} className="flex items-center gap-2 text-sm">
-                          <Check className="h-4 w-4 text-primary shrink-0" /> {feat}
-                        </li>
-                      ))}
-                    </ul>
-                    <CtaButton
-                      className="mt-6 w-full"
-                      size="default"
-                      variant={p.highlight ? "default" : "outline"}
-                      planId={p.id}
-                    >
-                      Assinar este plano <ArrowRight className="h-4 w-4" />
-                    </CtaButton>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
+      <PricingSection plans={plans} isLoading={isLoading} isError={isError} />
 
       {/* Garantia / objeções */}
       {variant === "full" && (
