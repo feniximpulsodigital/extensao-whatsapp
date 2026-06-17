@@ -1,30 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Bot, Check, Copy, LogOut } from "lucide-react";
+import { Bot, Check, LogOut, CreditCard, QrCode, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  listActivePlans,
-  createPixCharge,
-  createCardSubscription,
-  checkPaymentStatus,
-  getMyTenant,
-} from "@/lib/billing.functions";
+import { listActivePlans, createCheckout, getMyTenant } from "@/lib/billing.functions";
 
 export const Route = createFileRoute("/_authenticated/checkout")({
   validateSearch: (s: Record<string, unknown>): { plan?: string; change?: boolean } => ({
@@ -38,22 +24,13 @@ export const Route = createFileRoute("/_authenticated/checkout")({
 
 function CheckoutPage() {
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const fetchPlans = useServerFn(listActivePlans);
   const fetchTenant = useServerFn(getMyTenant);
-  const createPix = useServerFn(createPixCharge);
-  const createCard = useServerFn(createCardSubscription);
-  const checkStatus = useServerFn(checkPaymentStatus);
+  const checkout = useServerFn(createCheckout);
 
   const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const [pixCpfCnpj, setPixCpfCnpj] = useState("");
-  const [pixModal, setPixModal] = useState<{
-    paymentId: string;
-    qr: string;
-    copyPaste: string;
-    invoiceUrl: string;
-  } | null>(null);
+  const [cpfCnpj, setCpfCnpj] = useState("");
 
   const { plan: planParam, change: changeMode } = Route.useSearch();
   const { data: tenant } = useQuery({ queryKey: ["tenant"], queryFn: () => fetchTenant() });
@@ -74,39 +51,19 @@ function CheckoutPage() {
     if (candidate) setSelectedPlan(candidate);
   }, [planParam, plans, tenant, selectedPlan]);
 
-  const pixMut = useMutation({
+  const docOk = [11, 14].includes(cpfCnpj.replace(/\D/g, "").length);
+
+  const pay = useMutation({
     mutationFn: (planId: string) =>
-      createPix({ data: { planId, billingCycle: cycle, cpfCnpj: pixCpfCnpj.replace(/\D/g, "") } }),
-    onSuccess: (r) =>
-      setPixModal({
-        paymentId: r.paymentId,
-        qr: r.pixQrCode,
-        copyPaste: r.pixCopyPaste,
-        invoiceUrl: r.invoiceUrl,
-      }),
+      checkout({ data: { planId, billingCycle: cycle, cpfCnpj } }),
+    onSuccess: (r) => {
+      // Redireciona para a página de pagamento segura e hospedada do Asaas,
+      // onde o cliente escolhe cartão ou PIX. Nenhum dado de cartão passa por
+      // aqui. A confirmação/ativação acontece pelo webhook do Asaas.
+      window.location.href = r.invoiceUrl;
+    },
     onError: (e: Error) => toast.error(e.message),
   });
-
-  // Poll PIX status
-  useEffect(() => {
-    if (!pixModal) return;
-    const i = setInterval(async () => {
-      try {
-        const r = await checkStatus({ data: { paymentId: pixModal.paymentId } });
-        if (r.status === "confirmed" || r.status === "received") {
-          clearInterval(i);
-          toast.success("Pagamento confirmado!");
-          const { invalidateAuthGate } = await import("./route");
-          invalidateAuthGate();
-          await qc.invalidateQueries();
-          navigate({ to: "/dashboard", replace: true });
-        }
-      } catch {
-        /* keep polling */
-      }
-    }, 4000);
-    return () => clearInterval(i);
-  }, [pixModal, checkStatus, navigate, qc]);
 
   const logout = async () => {
     const { invalidateAuthGate } = await import("./route");
@@ -205,203 +162,56 @@ function CheckoutPage() {
         {selectedPlan && (
           <Card>
             <CardHeader>
-              <CardTitle>Forma de pagamento</CardTitle>
+              <CardTitle>Pagamento</CardTitle>
+              <CardDescription>
+                Você será levado à página de pagamento segura para concluir a assinatura.
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="pix">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="pix">PIX recorrente</TabsTrigger>
-                  <TabsTrigger value="card">Cartão recorrente</TabsTrigger>
-                </TabsList>
-                <TabsContent value="pix" className="pt-4 space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Assinatura via PIX. Você paga o primeiro PIX agora e, a cada{" "}
-                    {cycle === "annual" ? "ano" : "mês"}, o Asaas envia uma nova cobrança PIX para
-                    renovar. Após a confirmação, seu acesso é liberado automaticamente.
-                  </p>
-                  <div className="max-w-xs">
-                    <Label htmlFor="pix-cpf">CPF ou CNPJ do pagador</Label>
-                    <Input
-                      id="pix-cpf"
-                      inputMode="numeric"
-                      placeholder="Somente números"
-                      value={pixCpfCnpj}
-                      onChange={(e) => setPixCpfCnpj(e.target.value)}
-                      required
-                    />
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Obrigatório para emitir a cobrança no Asaas.
-                    </p>
-                  </div>
-                  <Button
-                    onClick={() => pixMut.mutate(selectedPlan)}
-                    disabled={
-                      pixMut.isPending ||
-                      ![11, 14].includes(pixCpfCnpj.replace(/\D/g, "").length)
-                    }
-                    size="lg"
-                  >
-                    {pixMut.isPending ? "Gerando PIX..." : "Gerar PIX"}
-                  </Button>
-                </TabsContent>
-                <TabsContent value="card" className="pt-4">
-                  <CardForm
-                    planId={selectedPlan}
-                    cycle={cycle}
-                    onSubmit={async (form) => {
-                      try {
-                        await createCard({
-                          data: { planId: selectedPlan, billingCycle: cycle, ...form },
-                        });
-                        toast.success("Assinatura criada! Aguarde a confirmação.");
-                        await qc.invalidateQueries();
-                        setTimeout(() => navigate({ to: "/dashboard", replace: true }), 1500);
-                      } catch (e) {
-                        toast.error((e as Error).message);
-                      }
-                    }}
-                  />
-                </TabsContent>
-              </Tabs>
+            <CardContent className="space-y-5">
+              <div className="max-w-sm space-y-2">
+                <Label htmlFor="cpf">CPF ou CNPJ do pagador</Label>
+                <Input
+                  id="cpf"
+                  inputMode="numeric"
+                  placeholder="Somente números"
+                  value={cpfCnpj}
+                  onChange={(e) => setCpfCnpj(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">Necessário para emitir a cobrança.</p>
+              </div>
+
+              {/* Métodos disponíveis na página de pagamento (informativo) */}
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1.5 text-sm">
+                  <CreditCard className="h-4 w-4 text-primary" /> Cartão de crédito
+                  <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
+                    recomendado
+                  </span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1.5 text-sm">
+                  <QrCode className="h-4 w-4 text-primary" /> PIX
+                </span>
+              </div>
+
+              <Button
+                size="lg"
+                className="w-full"
+                disabled={pay.isPending || !docOk}
+                onClick={() => pay.mutate(selectedPlan)}
+              >
+                {pay.isPending ? "Abrindo pagamento…" : "Ir para o pagamento"}
+              </Button>
+
+              <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+                <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+                Pagamento processado com segurança pelo Asaas. Seus dados de cartão não passam pela
+                Argos. Sem fidelidade, cancele quando quiser.
+              </p>
             </CardContent>
           </Card>
         )}
       </main>
-
-      <Dialog open={!!pixModal} onOpenChange={(o) => !o && setPixModal(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Pague com PIX</DialogTitle>
-            <DialogDescription>Aguardando confirmação...</DialogDescription>
-          </DialogHeader>
-          {pixModal && (
-            <div className="space-y-4">
-              <img
-                src={`data:image/png;base64,${pixModal.qr}`}
-                alt="QR PIX"
-                className="mx-auto w-64 h-64"
-              />
-              <div>
-                <Label>Copia e cola</Label>
-                <div className="flex gap-2 mt-1">
-                  <Input readOnly value={pixModal.copyPaste} />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      navigator.clipboard.writeText(pixModal.copyPaste);
-                      toast.success("Copiado!");
-                    }}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <a
-                href={pixModal.invoiceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm text-primary underline"
-              >
-                Ver fatura no Asaas
-              </a>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
-  );
-}
-
-function CardForm({
-  onSubmit,
-}: {
-  planId: string;
-  cycle: "monthly" | "annual";
-  onSubmit: (data: {
-    holderName: string;
-    cardNumber: string;
-    expiryMonth: string;
-    expiryYear: string;
-    ccv: string;
-    holderEmail: string;
-    holderCpfCnpj: string;
-    holderPostalCode: string;
-    holderAddressNumber: string;
-    holderPhone: string;
-  }) => Promise<void>;
-}) {
-  const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({
-    holderName: "",
-    cardNumber: "",
-    expiryMonth: "",
-    expiryYear: "",
-    ccv: "",
-    holderEmail: "",
-    holderCpfCnpj: "",
-    holderPostalCode: "",
-    holderAddressNumber: "",
-    holderPhone: "",
-  });
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm({ ...form, [k]: e.target.value });
-
-  return (
-    <form
-      className="space-y-4"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        await onSubmit(form);
-        setLoading(false);
-      }}
-    >
-      <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2">
-          <Label>Nome no cartão</Label>
-          <Input value={form.holderName} onChange={set("holderName")} required />
-        </div>
-        <div className="col-span-2">
-          <Label>Número do cartão</Label>
-          <Input value={form.cardNumber} onChange={set("cardNumber")} required />
-        </div>
-        <div>
-          <Label>Mês (MM)</Label>
-          <Input maxLength={2} value={form.expiryMonth} onChange={set("expiryMonth")} required />
-        </div>
-        <div>
-          <Label>Ano (AAAA)</Label>
-          <Input maxLength={4} value={form.expiryYear} onChange={set("expiryYear")} required />
-        </div>
-        <div>
-          <Label>CVV</Label>
-          <Input maxLength={4} value={form.ccv} onChange={set("ccv")} required />
-        </div>
-        <div>
-          <Label>CPF/CNPJ</Label>
-          <Input value={form.holderCpfCnpj} onChange={set("holderCpfCnpj")} required />
-        </div>
-        <div className="col-span-2">
-          <Label>E-mail</Label>
-          <Input type="email" value={form.holderEmail} onChange={set("holderEmail")} required />
-        </div>
-        <div>
-          <Label>CEP</Label>
-          <Input value={form.holderPostalCode} onChange={set("holderPostalCode")} required />
-        </div>
-        <div>
-          <Label>Número do endereço</Label>
-          <Input value={form.holderAddressNumber} onChange={set("holderAddressNumber")} required />
-        </div>
-        <div className="col-span-2">
-          <Label>Telefone</Label>
-          <Input value={form.holderPhone} onChange={set("holderPhone")} required />
-        </div>
-      </div>
-      <Button type="submit" disabled={loading} size="lg" className="w-full">
-        {loading ? "Processando..." : "Assinar"}
-      </Button>
-    </form>
   );
 }

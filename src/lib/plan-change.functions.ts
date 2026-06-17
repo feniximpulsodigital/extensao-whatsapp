@@ -3,9 +3,9 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 // Troca de plano pelo cliente:
-// - Upgrade (plano mais caro): cobra agora via checkout (reusa createPixCharge/
-//   createCardSubscription, que gravam payments.plan_id; o webhook aplica o
-//   plano e credita a cota ao confirmar).
+// - Upgrade (plano mais caro): cobra agora via checkout (reusa createCheckout,
+//   que grava payments.plan_id; o webhook aplica o plano e credita a cota ao
+//   confirmar).
 // - Downgrade (plano mais barato): agenda em tenants.pending_plan_id; o cron de
 //   renovação aplica na virada do ciclo. Não cobra nem credita agora.
 

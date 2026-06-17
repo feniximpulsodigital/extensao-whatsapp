@@ -23,17 +23,42 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   });
 }
 
+// Cabeçalhos de segurança aplicados a todas as respostas. Mitigam clickjacking
+// (frame-ancestors/X-Frame-Options), sniffing de MIME, vazamento de referrer e
+// forçam HTTPS (HSTS). Mantemos a CSP pragmática: não restringimos script-src
+// inline porque o SSR/hydration do framework injeta scripts inline — uma CSP
+// rígida demais quebraria o app. O foco aqui é impedir que a página seja
+// embutida em iframe malicioso (ex.: phishing na tela de pagamento).
+function applySecurityHeaders(response: Response): Response {
+  const h = response.headers;
+  if (!h.has("X-Content-Type-Options")) h.set("X-Content-Type-Options", "nosniff");
+  if (!h.has("X-Frame-Options")) h.set("X-Frame-Options", "DENY");
+  if (!h.has("Referrer-Policy")) h.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  if (!h.has("Strict-Transport-Security")) {
+    h.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  if (!h.has("Content-Security-Policy")) {
+    h.set("Content-Security-Policy", "frame-ancestors 'none'");
+  }
+  if (!h.has("Permissions-Policy")) {
+    h.set("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+  }
+  return response;
+}
+
 export default createServerEntry({
   async fetch(request) {
     try {
       const response = await handler.fetch(request);
-      return await normalizeCatastrophicSsrResponse(response);
+      return applySecurityHeaders(await normalizeCatastrophicSsrResponse(response));
     } catch (error) {
       console.error(error);
-      return new Response(renderErrorPage(), {
-        status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
+      return applySecurityHeaders(
+        new Response(renderErrorPage(), {
+          status: 500,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+      );
     }
   },
 });

@@ -2,6 +2,21 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+// Rate limit simples em memória para o checkout: trava tentativas repetidas de
+// iniciar pagamento (mitiga card testing / abuso). Por usuário.
+const checkoutAttempts = new Map<string, number[]>();
+const CHECKOUT_MAX = 5;
+const CHECKOUT_WINDOW_MS = 5 * 60_000;
+function assertCheckoutRateLimit(userId: string) {
+  const now = Date.now();
+  const hits = (checkoutAttempts.get(userId) ?? []).filter((t) => now - t < CHECKOUT_WINDOW_MS);
+  if (hits.length >= CHECKOUT_MAX) {
+    throw new Error("Muitas tentativas de pagamento. Aguarde alguns minutos e tente de novo.");
+  }
+  hits.push(now);
+  checkoutAttempts.set(userId, hits);
+}
+
 // ---------------- Public/auth queries ----------------
 
 export const getMyTenant = createServerFn({ method: "GET" })
@@ -204,21 +219,34 @@ async function ensureAsaasCustomer(adminSupa: any, userId: string, cpfCnpjInput?
   return { ...tenant, asaas_customer_id: created.id, document: cpfCnpj };
 }
 
-// ---------------- PIX charge ----------------
+// ---------------- Checkout (assinatura hospedada Asaas) ----------------
 
-export const createPixCharge = createServerFn({ method: "POST" })
+// Cria a assinatura no Asaas com billingType UNDEFINED e devolve a invoiceUrl
+// da primeira cobrança. O cliente paga (cartão OU PIX) na página segura e
+// hospedada do Asaas — os dados de cartão NUNCA passam pelo nosso servidor
+// (escopo PCI mínimo). A assinatura segue recorrente; se uma fatura vence sem
+// pagamento, o webhook (PAYMENT_OVERDUE) suspende o tenant e a IA pausa.
+export const createCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
     z
       .object({
         planId: z.string().uuid(),
         billingCycle: z.enum(["monthly", "annual"]),
-        cpfCnpj: z.string().min(11).max(20),
+        cpfCnpj: z
+          .string()
+          .transform((s) => s.replace(/\D/g, ""))
+          .refine((d) => d.length === 11 || d.length === 14, {
+            message: "CPF ou CNPJ inválido.",
+          }),
       })
       .parse(input),
   )
   .handler(async ({ context, data }) => {
     const { userId } = context;
+    // Rate limit: no máximo 5 tentativas de checkout em 5 min por usuário.
+    assertCheckoutRateLimit(userId);
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { asaasFetch } = await import("./asaas.server");
 
@@ -237,150 +265,62 @@ export const createPixCharge = createServerFn({ method: "POST" })
     due.setDate(due.getDate() + 1);
     const description = `${plan.name} — ${data.billingCycle === "annual" ? "Anual" : "Mensal"}`;
 
-    // Assinatura PIX recorrente: o Asaas gera uma nova cobrança PIX a cada
-    // ciclo e envia a fatura ao cliente. Se a fatura vencer sem pagamento, o
-    // webhook (PAYMENT_OVERDUE) suspende o tenant e a IA para de responder.
-    const sub = await asaasFetch<{ id: string }>("/subscriptions", {
-      method: "POST",
-      body: JSON.stringify({
-        customer: tenant.asaas_customer_id,
-        billingType: "PIX",
-        value: amountCents / 100,
-        nextDueDate: due.toISOString().slice(0, 10),
-        cycle: data.billingCycle === "annual" ? "YEARLY" : "MONTHLY",
-        description,
-        externalReference: tenant.id,
-      }),
+    let sub: { id: string };
+    let charge: { id: string; invoiceUrl: string } | undefined;
+    try {
+      // billingType UNDEFINED: a fatura hospedada deixa o cliente escolher
+      // cartão de crédito ou PIX e pagar na página do Asaas.
+      sub = await asaasFetch<{ id: string }>("/subscriptions", {
+        method: "POST",
+        body: JSON.stringify({
+          customer: tenant.asaas_customer_id,
+          billingType: "UNDEFINED",
+          value: amountCents / 100,
+          nextDueDate: due.toISOString().slice(0, 10),
+          cycle: data.billingCycle === "annual" ? "YEARLY" : "MONTHLY",
+          description,
+          externalReference: tenant.id,
+        }),
+      });
+
+      await supabaseAdmin
+        .from("tenants")
+        .update({ asaas_subscription_id: sub.id, billing_cycle: data.billingCycle })
+        .eq("id", tenant.id);
+
+      const list = await asaasFetch<{ data: { id: string; invoiceUrl: string }[] }>(
+        `/subscriptions/${sub.id}/payments`,
+      );
+      charge = list.data?.[0];
+    } catch (e) {
+      // Não vaza detalhe interno do provedor para o cliente.
+      console.error("createCheckout asaas error", e);
+      throw new Error("Não foi possível iniciar o pagamento agora. Tente novamente em instantes.");
+    }
+    if (!charge) {
+      throw new Error("Cobrança ainda não gerada. Tente novamente em instantes.");
+    }
+
+    const { error: payErr } = await supabaseAdmin.from("payments").insert({
+      tenant_id: tenant.id,
+      plan_id: plan.id,
+      asaas_payment_id: charge.id,
+      amount_cents: amountCents,
+      status: "pending",
+      billing_type: "UNDEFINED",
+      billing_cycle: data.billingCycle,
+      kind: "subscription",
+      invoice_url: charge.invoiceUrl,
+      due_date: due.toISOString().slice(0, 10),
+      description,
     });
-
-    // Guarda a assinatura no tenant (usado para cancelar na exclusão/troca).
-    await supabaseAdmin
-      .from("tenants")
-      .update({ asaas_subscription_id: sub.id, billing_cycle: data.billingCycle })
-      .eq("id", tenant.id);
-
-    // Busca a primeira cobrança gerada pela assinatura para exibir o QR agora.
-    const list = await asaasFetch<{ data: { id: string; invoiceUrl: string }[] }>(
-      `/subscriptions/${sub.id}/payments`,
-    );
-    const charge = list.data?.[0];
-    if (!charge) throw new Error("Assinatura criada, mas a cobrança PIX ainda não foi gerada. Tente novamente em instantes.");
-
-    const qr = await asaasFetch<{ encodedImage: string; payload: string }>(
-      `/payments/${charge.id}/pixQrCode`,
-    );
-
-    const { data: payment, error: payErr } = await supabaseAdmin
-      .from("payments")
-      .insert({
-        tenant_id: tenant.id,
-        plan_id: plan.id,
-        asaas_payment_id: charge.id,
-        amount_cents: amountCents,
-        status: "pending",
-        billing_type: "PIX",
-        billing_cycle: data.billingCycle,
-        kind: "subscription",
-        invoice_url: charge.invoiceUrl,
-        due_date: due.toISOString().slice(0, 10),
-        pix_qr_code: qr.encodedImage,
-        pix_copy_paste: qr.payload,
-        description,
-      })
-      .select("id")
-      .single();
     if (payErr) throw new Error(payErr.message);
 
-    return {
-      paymentId: payment.id,
-      asaasPaymentId: charge.id,
-      invoiceUrl: charge.invoiceUrl,
-      pixQrCode: qr.encodedImage,
-      pixCopyPaste: qr.payload,
-    };
-  });
-
-// ---------------- Card subscription ----------------
-
-export const createCardSubscription = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input) =>
-    z
-      .object({
-        planId: z.string().uuid(),
-        billingCycle: z.enum(["monthly", "annual"]),
-        holderName: z.string().min(1),
-        cardNumber: z.string().min(13).max(19),
-        expiryMonth: z.string().length(2),
-        expiryYear: z.string().length(4),
-        ccv: z.string().min(3).max(4),
-        holderEmail: z.string().email(),
-        holderCpfCnpj: z.string().min(11),
-        holderPostalCode: z.string().min(8),
-        holderAddressNumber: z.string().min(1),
-        holderPhone: z.string().min(10),
-        remoteIp: z.string().optional(),
-      })
-      .parse(input),
-  )
-  .handler(async ({ context, data }) => {
-    const { userId } = context;
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { asaasFetch } = await import("./asaas.server");
-
-    const { data: plan, error: pErr } = await supabaseAdmin
-      .from("plans")
-      .select("id, name, price_cents, price_cents_annual")
-      .eq("id", data.planId)
-      .maybeSingle();
-    if (pErr || !plan) throw new Error("Plano inválido");
-    const amountCents = data.billingCycle === "annual" ? plan.price_cents_annual : plan.price_cents;
-    if (!amountCents || amountCents <= 0) throw new Error("Plano sem preço configurado");
-
-    const tenant = await ensureAsaasCustomer(supabaseAdmin, userId, data.holderCpfCnpj);
-
-    const next = new Date();
-    next.setDate(next.getDate() + 1);
-
-    const sub = await asaasFetch<{ id: string }>("/subscriptions", {
-      method: "POST",
-      body: JSON.stringify({
-        customer: tenant.asaas_customer_id,
-        billingType: "CREDIT_CARD",
-        value: amountCents / 100,
-        nextDueDate: next.toISOString().slice(0, 10),
-        cycle: data.billingCycle === "annual" ? "YEARLY" : "MONTHLY",
-        description: `${plan.name} — ${data.billingCycle === "annual" ? "Anual" : "Mensal"}`,
-        externalReference: tenant.id,
-        creditCard: {
-          holderName: data.holderName,
-          number: data.cardNumber.replace(/\s/g, ""),
-          expiryMonth: data.expiryMonth,
-          expiryYear: data.expiryYear,
-          ccv: data.ccv,
-        },
-        creditCardHolderInfo: {
-          name: data.holderName,
-          email: data.holderEmail,
-          cpfCnpj: data.holderCpfCnpj.replace(/\D/g, ""),
-          postalCode: data.holderPostalCode.replace(/\D/g, ""),
-          addressNumber: data.holderAddressNumber,
-          phone: data.holderPhone.replace(/\D/g, ""),
-        },
-        remoteIp: data.remoteIp,
-      }),
-    });
-
-    await supabaseAdmin
-      .from("tenants")
-      .update({
-        asaas_subscription_id: sub.id,
-        plan_id: plan.id,
-        billing_cycle: data.billingCycle,
-      })
-      .eq("id", tenant.id);
-
-    return { subscriptionId: sub.id };
+    // autoRedirect garante que abrir a invoiceUrl leve direto ao pagamento.
+    const url = charge.invoiceUrl.includes("?")
+      ? `${charge.invoiceUrl}&autoRedirect=true`
+      : `${charge.invoiceUrl}?autoRedirect=true`;
+    return { invoiceUrl: url };
   });
 
 // ---------------- Polling ----------------
