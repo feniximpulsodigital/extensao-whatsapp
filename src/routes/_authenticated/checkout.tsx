@@ -210,12 +210,14 @@ function CheckoutPage() {
             <CardContent>
               <Tabs defaultValue="pix">
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="pix">PIX</TabsTrigger>
+                  <TabsTrigger value="pix">PIX recorrente</TabsTrigger>
                   <TabsTrigger value="card">Cartão recorrente</TabsTrigger>
                 </TabsList>
                 <TabsContent value="pix" className="pt-4 space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    Pagamento único via PIX. Após confirmação seu acesso é liberado automaticamente.
+                    Assinatura via PIX. Você paga o primeiro PIX agora e, a cada{" "}
+                    {cycle === "annual" ? "ano" : "mês"}, o Asaas envia uma nova cobrança PIX para
+                    renovar. Após a confirmação, seu acesso é liberado automaticamente.
                   </p>
                   <div className="max-w-xs">
                     <Label htmlFor="pix-cpf">CPF ou CNPJ do pagador</Label>

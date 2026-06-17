@@ -212,18 +212,36 @@ export const createPixCharge = createServerFn({ method: "POST" })
 
     const due = new Date();
     due.setDate(due.getDate() + 1);
+    const description = `${plan.name} — ${data.billingCycle === "annual" ? "Anual" : "Mensal"}`;
 
-    const charge = await asaasFetch<{ id: string; invoiceUrl: string }>("/payments", {
+    // Assinatura PIX recorrente: o Asaas gera uma nova cobrança PIX a cada
+    // ciclo e envia a fatura ao cliente. Se a fatura vencer sem pagamento, o
+    // webhook (PAYMENT_OVERDUE) suspende o tenant e a IA para de responder.
+    const sub = await asaasFetch<{ id: string }>("/subscriptions", {
       method: "POST",
       body: JSON.stringify({
         customer: tenant.asaas_customer_id,
         billingType: "PIX",
         value: amountCents / 100,
-        dueDate: due.toISOString().slice(0, 10),
-        description: `${plan.name} — ${data.billingCycle === "annual" ? "Anual" : "Mensal"}`,
+        nextDueDate: due.toISOString().slice(0, 10),
+        cycle: data.billingCycle === "annual" ? "YEARLY" : "MONTHLY",
+        description,
         externalReference: tenant.id,
       }),
     });
+
+    // Guarda a assinatura no tenant (usado para cancelar na exclusão/troca).
+    await supabaseAdmin
+      .from("tenants")
+      .update({ asaas_subscription_id: sub.id, billing_cycle: data.billingCycle })
+      .eq("id", tenant.id);
+
+    // Busca a primeira cobrança gerada pela assinatura para exibir o QR agora.
+    const list = await asaasFetch<{ data: { id: string; invoiceUrl: string }[] }>(
+      `/subscriptions/${sub.id}/payments`,
+    );
+    const charge = list.data?.[0];
+    if (!charge) throw new Error("Assinatura criada, mas a cobrança PIX ainda não foi gerada. Tente novamente em instantes.");
 
     const qr = await asaasFetch<{ encodedImage: string; payload: string }>(
       `/payments/${charge.id}/pixQrCode`,
@@ -239,11 +257,12 @@ export const createPixCharge = createServerFn({ method: "POST" })
         status: "pending",
         billing_type: "PIX",
         billing_cycle: data.billingCycle,
+        kind: "subscription",
         invoice_url: charge.invoiceUrl,
         due_date: due.toISOString().slice(0, 10),
         pix_qr_code: qr.encodedImage,
         pix_copy_paste: qr.payload,
-        description: `${plan.name} — ${data.billingCycle === "annual" ? "Anual" : "Mensal"}`,
+        description,
       })
       .select("id")
       .single();
@@ -488,7 +507,7 @@ export const adminListTenants = createServerFn({ method: "GET" })
     const { data, error } = await supabase
       .from("tenants")
       .select(
-        "id, owner_id, company_name, status, credits_balance, billing_cycle, created_at, plans!tenants_plan_id_fkey(name)",
+        "id, owner_id, company_name, status, credits_balance, billing_cycle, whatsapp_numbers, created_at, plans!tenants_plan_id_fkey(name)",
       )
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);

@@ -157,6 +157,60 @@ export const adminUpdateTenant = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ---------------- Delete tenant (destrutivo) ----------------
+
+// Exclui o cliente por completo: cancela a assinatura no Asaas (se houver) e
+// remove o usuário de login. Como tenants.owner_id e todas as tabelas-filhas
+// têm ON DELETE CASCADE, apagar o auth.user derruba tenant, créditos, tickets,
+// base de conhecimento e pagamentos em cadeia. Ação irreversível.
+export const adminDeleteTenant = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ tenantId: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, userId } = context;
+    await assertAdmin(supabase, userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: tenant } = await supabaseAdmin
+      .from("tenants")
+      .select("id, owner_id, asaas_subscription_id")
+      .eq("id", data.tenantId)
+      .maybeSingle();
+    if (!tenant) throw new Error("Cliente não encontrado");
+
+    // Trava de segurança: nunca apagar a si mesmo nem outro admin.
+    if (tenant.owner_id === userId) {
+      throw new Error("Você não pode excluir a própria conta.");
+    }
+    const { data: ownerRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", tenant.owner_id)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (ownerRole) throw new Error("Não é possível excluir uma conta de administrador.");
+
+    // Cancela a assinatura recorrente no Asaas para não seguir cobrando o cartão.
+    if (tenant.asaas_subscription_id) {
+      try {
+        const { asaasFetch } = await import("./asaas.server");
+        await asaasFetch(`/subscriptions/${tenant.asaas_subscription_id}`, { method: "DELETE" });
+      } catch {
+        // best-effort: se o cancelamento falhar, segue a exclusão; o admin pode
+        // cancelar manualmente no painel do Asaas.
+      }
+    }
+
+    // Apaga o usuário de login → cascata remove tenant e tudo relacionado.
+    const del = await supabaseAdmin.auth.admin.deleteUser(tenant.owner_id);
+    if (del.error) {
+      // fallback: se por algum motivo o auth user não existir, apaga o tenant direto
+      const { error: tErr } = await supabaseAdmin.from("tenants").delete().eq("id", tenant.id);
+      if (tErr) throw new Error(del.error.message);
+    }
+    return { ok: true };
+  });
+
 // ---------------- Add credits manually ----------------
 
 export const adminAddCredits = createServerFn({ method: "POST" })

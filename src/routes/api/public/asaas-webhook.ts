@@ -171,6 +171,19 @@ export const Route = createFileRoute("/api/public/asaas-webhook")({
             .eq("id", row.id);
         }
 
+        // Inadimplência: fatura recorrente venceu sem pagamento → suspende o
+        // tenant. A IA para de responder (ai-reply exige status active) até o
+        // pagamento ser confirmado, quando o bloco isPaid acima reativa.
+        // Só suspende cobrança de assinatura/plano, não pacote de créditos.
+        const overdueTenant = tenantId ?? row?.tenant_id ?? null;
+        if (event === "PAYMENT_OVERDUE" && overdueTenant && row?.kind !== "credit_pack") {
+          await supabaseAdmin
+            .from("tenants")
+            .update({ status: "suspended" as any })
+            .eq("id", overdueTenant)
+            .eq("status", "active");
+        }
+
         return new Response(JSON.stringify({ ok: true }), {
           headers: { "Content-Type": "application/json" },
         });

@@ -10,10 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pencil, Plus, KeyRound, Coins } from "lucide-react";
+import { Pencil, Plus, KeyRound, Coins, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { adminListTenants, adminListPlans } from "@/lib/billing.functions";
-import { adminUpdateTenant, adminAddCredits, adminGeneratePasswordLink, adminCreateInvite } from "@/lib/admin-users.functions";
+import { adminUpdateTenant, adminAddCredits, adminGeneratePasswordLink, adminCreateInvite, adminDeleteTenant } from "@/lib/admin-users.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/tenants")({
   component: TenantsPage,
@@ -26,6 +26,7 @@ function TenantsPage() {
   const addCredits = useServerFn(adminAddCredits);
   const resetPwd = useServerFn(adminGeneratePasswordLink);
   const createInvite = useServerFn(adminCreateInvite);
+  const deleteTenant = useServerFn(adminDeleteTenant);
   const qc = useQueryClient();
 
   const { data: tenants, isLoading, error: tenantsError } = useQuery({ queryKey: ["admin-tenants"], queryFn: () => list() });
@@ -35,6 +36,8 @@ function TenantsPage() {
   const [creditModal, setCreditModal] = useState<{ id: string; name: string } | null>(null);
   const [creditAmount, setCreditAmount] = useState(0);
   const [creditNote, setCreditNote] = useState("");
+  const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [invite, setInvite] = useState({
     email: "", fullName: "", companyName: "", phone: "",
@@ -51,6 +54,16 @@ function TenantsPage() {
   const cred = useMutation({
     mutationFn: () => addCredits({ data: { tenantId: creditModal!.id, amount: creditAmount, description: creditNote || undefined } }),
     onSuccess: () => { toast.success("Créditos ajustados"); qc.invalidateQueries({ queryKey: ["admin-tenants"] }); setCreditModal(null); setCreditAmount(0); setCreditNote(""); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const del = useMutation({
+    mutationFn: () => deleteTenant({ data: { tenantId: deleting!.id } }),
+    onSuccess: () => {
+      toast.success("Cliente excluído");
+      qc.invalidateQueries({ queryKey: ["admin-tenants"] });
+      setDeleting(null);
+      setDeleteConfirm("");
+    },
     onError: (e: Error) => toast.error(e.message),
   });
   const inv = useMutation({
@@ -91,6 +104,7 @@ function TenantsPage() {
                 <TableRow>
                   <TableHead>Empresa</TableHead>
                   <TableHead>E-mail de acesso</TableHead>
+                  <TableHead>WhatsApp</TableHead>
                   <TableHead>Plano</TableHead>
                   <TableHead>Ciclo</TableHead>
                   <TableHead>Créditos</TableHead>
@@ -101,14 +115,14 @@ function TenantsPage() {
               <TableBody>
                 {tenantsError && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-sm text-destructive">
+                    <TableCell colSpan={8} className="text-center text-sm text-destructive">
                       Erro ao carregar clientes: {(tenantsError as Error).message}
                     </TableCell>
                   </TableRow>
                 )}
                 {!tenantsError && !isLoading && (tenants ?? []).length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
                       Nenhum cliente ainda.
                     </TableCell>
                   </TableRow>
@@ -117,6 +131,9 @@ function TenantsPage() {
                   <TableRow key={t.id}>
                     <TableCell className="font-medium">{t.company_name}</TableCell>
                     <TableCell className="text-muted-foreground">{t.owner_email ?? "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {t.whatsapp_numbers?.length ? t.whatsapp_numbers.join(", ") : "—"}
+                    </TableCell>
                     <TableCell>{t.plans?.name ?? "—"}</TableCell>
                     <TableCell>{t.billing_cycle ?? "—"}</TableCell>
                     <TableCell>{t.credits_balance}</TableCell>
@@ -133,6 +150,7 @@ function TenantsPage() {
                           }
                         } catch (e) { toast.error((e as Error).message); }
                       }}><KeyRound className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" title="Excluir cliente" className="text-destructive hover:text-destructive" onClick={() => { setDeleting({ id: t.id, name: t.company_name }); setDeleteConfirm(""); }}><Trash2 className="h-4 w-4" /></Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -198,6 +216,39 @@ function TenantsPage() {
             <div><Label>Quantidade (use negativo para descontar)</Label><Input type="number" value={creditAmount} onChange={(e) => setCreditAmount(parseInt(e.target.value || "0"))} /></div>
             <div><Label>Descrição</Label><Input value={creditNote} onChange={(e) => setCreditNote(e.target.value)} placeholder="Ex: bônus boas-vindas" /></div>
             <DialogFooter><Button onClick={() => cred.mutate()} disabled={cred.isPending || creditAmount === 0}>{cred.isPending ? "Aplicando…" : "Aplicar"}</Button></DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete tenant */}
+      <Dialog open={!!deleting} onOpenChange={(o) => { if (!o) { setDeleting(null); setDeleteConfirm(""); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Excluir cliente</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Isto <strong className="text-destructive">apaga permanentemente</strong> o cliente
+              {" "}<strong>{deleting?.name}</strong>: conta de acesso, créditos, tickets, base de
+              conhecimento e histórico de pagamentos. A assinatura no Asaas (se houver) é cancelada.
+              Esta ação <strong>não pode ser desfeita</strong>.
+            </p>
+            <div>
+              <Label>Para confirmar, digite o nome da empresa: <strong>{deleting?.name}</strong></Label>
+              <Input
+                value={deleteConfirm}
+                onChange={(e) => setDeleteConfirm(e.target.value)}
+                placeholder={deleting?.name}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => { setDeleting(null); setDeleteConfirm(""); }}>Cancelar</Button>
+              <Button
+                variant="destructive"
+                onClick={() => del.mutate()}
+                disabled={del.isPending || deleteConfirm.trim() !== deleting?.name}
+              >
+                {del.isPending ? "Excluindo…" : "Excluir definitivamente"}
+              </Button>
+            </DialogFooter>
           </div>
         </DialogContent>
       </Dialog>
