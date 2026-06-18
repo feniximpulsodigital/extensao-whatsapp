@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.33",
+  version: "1.0.34",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -313,38 +313,60 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
     }
     let buf = null;
     const erros = [];
-    // 1) DownloadManager.downloadAndMaybeDecrypt (helper de baixo nível)
-    try{
-      let dl = null;
-      try{ const mod = req('WAWebDownloadManager'); dl = mod && (mod.downloadManager || mod.default || mod); }catch(_e){ erros.push('mod-dm:'+(_e&&_e.message)); }
-      if(dl && typeof dl.downloadAndMaybeDecrypt === 'function'){
-        const out = await dl.downloadAndMaybeDecrypt({
-          directPath: campo('directPath'), encFilehash: campo('encFilehash'), filehash: campo('filehash'),
-          mediaKey: campo('mediaKey'), type: alvo.type, signal: (new AbortController()).signal,
-          mediaKeyTimestamp: campo('mediaKeyTimestamp'),
-        });
-        buf = await paraBuffer(out) || (out instanceof ArrayBuffer ? out : null);
-      } else { erros.push('sem-downloadAndMaybeDecrypt'); }
-    }catch(e){ erros.push('dm:'+(e&&e.message)); }
-    // 2) downloadMedia no próprio model (API de alto nível)
-    if(!buf){
-      try{
-        if(typeof alvo.downloadMedia === 'function'){
-          const res = await alvo.downloadMedia({ downloadEvenIfExpensive:true, isUserInitiated:true });
-          buf = await paraBuffer(res);
-        } else { erros.push('sem-downloadMedia'); }
-      }catch(e){ erros.push('dlmedia:'+(e&&e.message)); }
+    // Extrai um ArrayBuffer de um Blob obtido de uma URL (blob:/data:/https) ou
+    // de um objeto blob interno do WhatsApp.
+    async function blobUrlParaBuffer(u){
+      try{ const r = await fetch(u); const b = await r.blob(); return await b.arrayBuffer(); }
+      catch(_e){ return null; }
     }
-    // 3) módulo WAWebDownloadMediaFromMessage (canônico em versões recentes)
+    async function paraBuffer2(res){
+      const b = await paraBuffer(res);
+      if(b) return b;
+      if(typeof res === 'string' && (res.indexOf('blob:')===0 || res.indexOf('data:')===0 || res.indexOf('http')===0)){
+        return await blobUrlParaBuffer(res);
+      }
+      return null;
+    }
+    // 1) downloadMedia() do próprio model. Em muitas versões ele NÃO retorna o
+    //    conteúdo: popula o blob/url dentro de alvo.mediaData. Tratamos os dois.
+    if(typeof alvo.downloadMedia === 'function'){
+      try{
+        const res = await alvo.downloadMedia({ downloadEvenIfExpensive:true, isUserInitiated:true });
+        buf = await paraBuffer2(res);
+        if(!buf){
+          // procura o blob/url que o downloadMedia tenha populado no mediaData
+          const md2 = alvo.mediaData || md || {};
+          const cand = md2.mediaBlob || md2.fullSizeBlob || md2._blob || md2.preview || null;
+          if(cand){
+            if(cand._blob instanceof Blob) buf = await cand._blob.arrayBuffer();
+            else if(cand instanceof Blob) buf = await cand.arrayBuffer();
+            else if(typeof cand.forceToBlob === 'function'){ const bb = await cand.forceToBlob(); if(bb) buf = await bb.arrayBuffer(); }
+          }
+          if(!buf){
+            const u = md2.mediaUrl || md2.url || (cand && (cand.url || cand._url)) || null;
+            if(u) buf = await blobUrlParaBuffer(u);
+          }
+        }
+      }catch(e){ erros.push('dlmedia:'+(e&&e.message)); }
+    } else { erros.push('sem-downloadMedia'); }
+    // 2) método download() (alternativo em versões novas)
+    if(!buf && typeof alvo.download === 'function'){
+      try{ const res = await alvo.download(); buf = await paraBuffer2(res); }
+      catch(e){ erros.push('download:'+(e&&e.message)); }
+    }
+    // 3) DownloadManager.downloadAndMaybeDecrypt passando o mediaObject do model
+    //    (passar campos soltos quebrava com 'addAnnotations').
     if(!buf){
       try{
-        const mod = req('WAWebDownloadMediaFromMessage');
-        const fn = mod && (mod.downloadMedia || mod.default || (typeof mod === 'function' ? mod : null));
-        if(typeof fn === 'function'){
-          const res = await fn(alvo);
-          buf = await paraBuffer(res);
-        } else { erros.push('sem-downloadMediaFromMessage'); }
-      }catch(e){ erros.push('dmfm:'+(e&&e.message)); }
+        let dl = null;
+        try{ const mod = req('WAWebDownloadManager'); dl = mod && (mod.downloadManager || mod.default || mod); }catch(_e){ erros.push('mod-dm:'+(_e&&_e.message)); }
+        const mediaObj = alvo.mediaObject || (alvo.mediaData && alvo.mediaData.mediaObject) || null;
+        if(dl && typeof dl.downloadAndMaybeDecrypt === 'function' && mediaObj){
+          const out = await dl.downloadAndMaybeDecrypt(mediaObj);
+          buf = await paraBuffer2(out) || (out instanceof ArrayBuffer ? out : null);
+        } else if(!mediaObj){ erros.push('sem-mediaObject'); }
+        else { erros.push('sem-downloadAndMaybeDecrypt'); }
+      }catch(e){ erros.push('dm:'+(e&&e.message)); }
     }
     if(!buf) return { ok:false, motivo:'download-falhou', detalhe: erros.join(' | ').slice(0,300) };
     const mime = String(alvo.mimetype || campo('mimetype') || 'audio/ogg').split(';')[0];
@@ -539,7 +561,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.33. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.34. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -1491,7 +1513,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ checarAviso(); }, 120000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); checarAviso(); }, 2500);
-  log("extensão ativa v1.0.33. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.34. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
