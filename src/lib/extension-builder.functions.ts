@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.36",
+  version: "1.0.37",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -328,31 +328,41 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
       return null;
     }
     const sleep = (ms)=> new Promise((r)=>setTimeout(r, ms));
-    // Lê o blob/url que o WhatsApp popula no mediaData depois de decifrar.
-    async function lerDoMediaData(){
-      const md2 = alvo.mediaData || md || {};
-      const cand = md2.mediaBlob || md2.fullSizeBlob || md2._blob || md2.preview || null;
-      if(cand){
-        try{
-          if(cand._blob instanceof Blob) return await cand._blob.arrayBuffer();
-          if(cand instanceof Blob) return await cand.arrayBuffer();
-          if(typeof cand.forceToBlob === 'function'){ const bb = await cand.forceToBlob(); if(bb) return await bb.arrayBuffer(); }
-        }catch(_e){}
-      }
-      const u = md2.mediaUrl || md2.url || (cand && (cand.url || cand._url)) || null;
-      if(u){ const b = await blobUrlParaBuffer(u); if(b) return b; }
+    // Procura recursivamente um Blob, ArrayBuffer ou URL (blob:/data:) dentro
+    // de um objeto — o WhatsApp guarda o áudio decifrado em chaves que mudam
+    // entre versões, então varremos em vez de adivinhar o nome.
+    async function acharBufferEm(obj, prof){
+      if(obj == null || prof > 3) return null;
+      try{
+        if(obj instanceof Blob) return await obj.arrayBuffer();
+        if(obj instanceof ArrayBuffer) return obj;
+        if(typeof obj === 'string'){
+          if(obj.indexOf('blob:')===0 || obj.indexOf('data:')===0) return await blobUrlParaBuffer(obj);
+          return null;
+        }
+        if(typeof obj.arrayBuffer === 'function' && !(obj instanceof Response)) { try{ return await obj.arrayBuffer(); }catch(_e){} }
+        if(obj._blob instanceof Blob) return await obj._blob.arrayBuffer();
+        if(typeof obj.forceToBlob === 'function'){ try{ const bb = await obj.forceToBlob(); if(bb && bb.arrayBuffer) return await bb.arrayBuffer(); }catch(_e){} }
+        if(typeof obj !== 'object') return null;
+        // chaves prováveis primeiro, depois varredura geral
+        const ordem = ['mediaBlob','fullSizeBlob','_blob','blob','body','buffer','data','file','mediaUrl','url','_url','preview'];
+        for(const k of ordem){ if(obj[k] != null){ const r = await acharBufferEm(obj[k], prof+1); if(r) return r; } }
+        for(const k in obj){ if(ordem.indexOf(k)>=0) continue; try{ const v = obj[k]; if(v && (v instanceof Blob || v instanceof ArrayBuffer || (typeof v==='object'))){ const r = await acharBufferEm(v, prof+1); if(r) return r; } }catch(_e){} }
+      }catch(_e){}
       return null;
     }
+    async function lerDoMediaData(){
+      return await acharBufferEm(alvo.mediaData || md || {}, 0);
+    }
     // 1) downloadMedia() do model + poke: dispara o download/decifragem e
-    //    espera o mediaStage RESOLVED, lendo o blob que o WA popula. É a via
-    //    mais estável (a downloadAndMaybeDecrypt direta quebra com 'addAnnotations'
-    //    nesta versão do WhatsApp Web).
+    //    espera o mediaStage RESOLVED, lendo o blob que o WA popula.
+    let resKeys = '';
     if(typeof alvo.downloadMedia === 'function'){
       try{
         const res = await alvo.downloadMedia({ downloadEvenIfExpensive:true, isUserInitiated:true });
-        buf = await paraBuffer2(res);
+        if(res && typeof res === 'object'){ try{ resKeys = Object.keys(res).join(','); }catch(_e){} }
+        buf = await acharBufferEm(res, 0);
         if(!buf) buf = await lerDoMediaData();
-        // se ainda não resolveu, espera o estágio (até ~5s)
         for(let i=0; !buf && i<10; i++){
           await sleep(500);
           buf = await lerDoMediaData();
@@ -361,7 +371,7 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
     } else { erros.push('sem-downloadMedia'); }
     // 2) método download() do model (alternativo)
     if(!buf && typeof alvo.download === 'function'){
-      try{ const res = await alvo.download(); buf = await paraBuffer2(res) || await lerDoMediaData(); }
+      try{ const res = await alvo.download(); buf = await acharBufferEm(res, 0) || await lerDoMediaData(); }
       catch(e){ erros.push('download:'+(e&&e.message)); }
     }
     // 3) por último, downloadAndMaybeDecrypt (pode quebrar nesta versão)
@@ -380,7 +390,9 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
     if(!buf){
       const md3 = alvo.mediaData || {};
       erros.push('stage:'+(md3.mediaStage||'?'));
-      return { ok:false, motivo:'download-falhou', detalhe: erros.join(' | ').slice(0,300) };
+      if(resKeys) erros.push('resKeys:'+resKeys);
+      try{ erros.push('mdKeys:'+Object.keys(md3).join(',')); }catch(_e){}
+      return { ok:false, motivo:'download-falhou', detalhe: erros.join(' | ').slice(0,400) };
     }
     const mime = String(alvo.mimetype || campo('mimetype') || 'audio/ogg').split(';')[0];
     return { ok:true, base64: arrayBufferParaBase64(buf), mime: mime, seconds: Number(alvo.duration || campo('duration') || 0) };
@@ -574,7 +586,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.36. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.37. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -1526,7 +1538,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ checarAviso(); }, 120000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); checarAviso(); }, 2500);
-  log("extensão ativa v1.0.36. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.37. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
