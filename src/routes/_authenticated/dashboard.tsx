@@ -32,6 +32,8 @@ import {
   ArrowDownCircle,
   CheckCircle2,
   ShieldCheck,
+  Megaphone,
+  X,
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -47,6 +49,7 @@ import {
   getMyOpenInvoice,
 } from "@/lib/billing.functions";
 import { getMySupportBadge, getMyRefundEligibility, requestRefund } from "@/lib/support.functions";
+import { getActiveAnnouncement } from "@/lib/announcements.functions";
 import {
   getPlanChangeOptions,
   scheduleDowngrade,
@@ -103,6 +106,19 @@ function Dashboard() {
     queryFn: () => openInvoiceFn(),
     enabled: !isAdmin,
   });
+
+  // Comunicado do admin (um ativo por vez), dispensável pelo cliente.
+  const announcementFn = useServerFn(getActiveAnnouncement);
+  const { data: announcement } = useQuery({
+    queryKey: ["announcement"],
+    queryFn: () => announcementFn(),
+    refetchInterval: 60_000,
+  });
+  const [dismissed, setDismissed] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem("argos-announcement-dismissed");
+  });
+  const showAnnouncement = !!announcement && dismissed !== announcement.id;
 
   // Notificação de resposta do suporte: badge no botão + toast quando chega
   const supportBadgeFn = useServerFn(getMySupportBadge);
@@ -189,6 +205,43 @@ function Dashboard() {
       </header>
 
       <main className="container mx-auto p-6 space-y-6">
+        {showAnnouncement && announcement && (
+          <div
+            className={`flex items-start gap-3 rounded-lg border p-4 ${
+              announcement.level === "critical"
+                ? "border-destructive/50 bg-destructive/10"
+                : announcement.level === "warning"
+                  ? "border-amber-500/50 bg-amber-500/10"
+                  : "border-primary/40 bg-primary/5"
+            }`}
+          >
+            <Megaphone
+              className={`mt-0.5 h-5 w-5 shrink-0 ${
+                announcement.level === "critical"
+                  ? "text-destructive"
+                  : announcement.level === "warning"
+                    ? "text-amber-600"
+                    : "text-primary"
+              }`}
+            />
+            <div className="min-w-0 flex-1">
+              {announcement.title && <p className="font-semibold">{announcement.title}</p>}
+              <p className="whitespace-pre-wrap text-sm text-muted-foreground">{announcement.body}</p>
+            </div>
+            <button
+              type="button"
+              aria-label="Dispensar aviso"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                localStorage.setItem("argos-announcement-dismissed", announcement.id);
+                setDismissed(announcement.id);
+              }}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         <div>
           <h1 className="text-3xl font-bold">Olá, {user.email}</h1>
           <p className="text-muted-foreground">Seu painel Argos</p>

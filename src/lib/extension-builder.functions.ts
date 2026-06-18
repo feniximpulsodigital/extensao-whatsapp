@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.32",
+  version: "1.0.33",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -539,7 +539,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.32. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.33. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -1443,14 +1443,55 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   }
 
   // ============================================================
+  // AVISOS DO ADMIN (comunicado para todos)
+  // ============================================================
+  const ANNOUNCE_ID = "argos-announcement";
+  function announcementUrl(){
+    try{ return CFG.endpoint.replace(/\\/ai-reply\\/?$/, "/announcement"); }
+    catch(_e){ return null; }
+  }
+  function mostrarAviso(a){
+    if(document.getElementById(ANNOUNCE_ID)) document.getElementById(ANNOUNCE_ID).remove();
+    const cor = a.level === 'critical' ? '#dc2626' : (a.level === 'warning' ? '#d97706' : '#16a34a');
+    const bar = document.createElement('div');
+    bar.id = ANNOUNCE_ID;
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:'+cor+';color:#fff;padding:10px 44px 10px 16px;font:14px/1.4 system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25)';
+    const txt = document.createElement('div');
+    txt.innerHTML = (a.title ? '<strong>'+String(a.title).replace(/</g,'&lt;')+'</strong> — ' : '') + String(a.body||'').replace(/</g,'&lt;');
+    const fechar = document.createElement('button');
+    fechar.textContent = '✕';
+    fechar.title = 'Fechar aviso';
+    fechar.style.cssText = 'position:absolute;top:8px;right:12px;background:transparent;border:0;color:#fff;font-size:16px;cursor:pointer';
+    fechar.onclick = ()=>{ try{ localStorage.setItem('argos-announcement-dismissed', a.id); }catch(_e){} bar.remove(); };
+    bar.appendChild(txt); bar.appendChild(fechar);
+    (document.body || document.documentElement).appendChild(bar);
+  }
+  async function checarAviso(){
+    try{
+      const url = announcementUrl();
+      if(!url) return;
+      const r = await fetch(url, { headers: { 'x-api-key': CFG.apiKey } });
+      if(!r.ok) return;
+      const j = await r.json().catch(()=>({}));
+      const a = j && j.announcement;
+      if(!a || !a.id){ const ex = document.getElementById(ANNOUNCE_ID); if(ex) ex.remove(); return; }
+      let dispensado = null;
+      try{ dispensado = localStorage.getItem('argos-announcement-dismissed'); }catch(_e){}
+      if(dispensado === a.id) return; // já fechou este aviso
+      mostrarAviso(a);
+    }catch(_e){}
+  }
+
+  // ============================================================
   // LOOPS
   // ============================================================
   setInterval(()=>{ ensureToggleButton(); onChatMaybeChanged(); attachObserver(); }, 1500);
   setInterval(()=>{ pollingChatAberto().catch((e)=>warn("polling", e)); }, 5000);
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
+  setInterval(()=>{ checarAviso(); }, 120000);
 
-  setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.32. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + IA desliga ao intervir manualmente (reative no botão).");
+  setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); checarAviso(); }, 2500);
+  log("extensão ativa v1.0.33. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 

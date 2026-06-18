@@ -26,6 +26,7 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as ApiPublicCronCreditsRenewRouteImport } from './routes/api/public/cron-credits-renew'
 import { Route as ApiPublicAsaasWebhookRouteImport } from './routes/api/public/asaas-webhook'
+import { Route as ApiPublicAnnouncementRouteImport } from './routes/api/public/announcement'
 import { Route as ApiPublicAiReplyRouteImport } from './routes/api/public/ai-reply'
 import { Route as AuthenticatedAdminUsageRouteImport } from './routes/_authenticated/admin.usage'
 import { Route as AuthenticatedAdminTenantsRouteImport } from './routes/_authenticated/admin.tenants'
@@ -34,6 +35,7 @@ import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authenticated/admin.plans'
 import { Route as AuthenticatedAdminInvitesRouteImport } from './routes/_authenticated/admin.invites'
 import { Route as AuthenticatedAdminBrandingRouteImport } from './routes/_authenticated/admin.branding'
+import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin.announcements'
 import { Route as AuthenticatedAdminAiCreditsRouteImport } from './routes/_authenticated/admin.ai-credits'
 import { Route as AuthenticatedAdminAiConfigRouteImport } from './routes/_authenticated/admin.ai-config'
 
@@ -122,6 +124,11 @@ const ApiPublicAsaasWebhookRoute = ApiPublicAsaasWebhookRouteImport.update({
   path: '/api/public/asaas-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicAnnouncementRoute = ApiPublicAnnouncementRouteImport.update({
+  id: '/api/public/announcement',
+  path: '/api/public/announcement',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicAiReplyRoute = ApiPublicAiReplyRouteImport.update({
   id: '/api/public/ai-reply',
   path: '/api/public/ai-reply',
@@ -167,6 +174,12 @@ const AuthenticatedAdminBrandingRoute =
     path: '/branding',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminAnnouncementsRoute =
+  AuthenticatedAdminAnnouncementsRouteImport.update({
+    id: '/announcements',
+    path: '/announcements',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAiCreditsRoute =
   AuthenticatedAdminAiCreditsRouteImport.update({
     id: '/ai-credits',
@@ -196,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/invite/$token': typeof InviteTokenRoute
   '/admin/ai-config': typeof AuthenticatedAdminAiConfigRoute
   '/admin/ai-credits': typeof AuthenticatedAdminAiCreditsRoute
+  '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/branding': typeof AuthenticatedAdminBrandingRoute
   '/admin/invites': typeof AuthenticatedAdminInvitesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
@@ -204,6 +218,7 @@ export interface FileRoutesByFullPath {
   '/admin/tenants': typeof AuthenticatedAdminTenantsRoute
   '/admin/usage': typeof AuthenticatedAdminUsageRoute
   '/api/public/ai-reply': typeof ApiPublicAiReplyRoute
+  '/api/public/announcement': typeof ApiPublicAnnouncementRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -223,6 +238,7 @@ export interface FileRoutesByTo {
   '/invite/$token': typeof InviteTokenRoute
   '/admin/ai-config': typeof AuthenticatedAdminAiConfigRoute
   '/admin/ai-credits': typeof AuthenticatedAdminAiCreditsRoute
+  '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/branding': typeof AuthenticatedAdminBrandingRoute
   '/admin/invites': typeof AuthenticatedAdminInvitesRoute
   '/admin/plans': typeof AuthenticatedAdminPlansRoute
@@ -231,6 +247,7 @@ export interface FileRoutesByTo {
   '/admin/tenants': typeof AuthenticatedAdminTenantsRoute
   '/admin/usage': typeof AuthenticatedAdminUsageRoute
   '/api/public/ai-reply': typeof ApiPublicAiReplyRoute
+  '/api/public/announcement': typeof ApiPublicAnnouncementRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -253,6 +270,7 @@ export interface FileRoutesById {
   '/invite/$token': typeof InviteTokenRoute
   '/_authenticated/admin/ai-config': typeof AuthenticatedAdminAiConfigRoute
   '/_authenticated/admin/ai-credits': typeof AuthenticatedAdminAiCreditsRoute
+  '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/_authenticated/admin/branding': typeof AuthenticatedAdminBrandingRoute
   '/_authenticated/admin/invites': typeof AuthenticatedAdminInvitesRoute
   '/_authenticated/admin/plans': typeof AuthenticatedAdminPlansRoute
@@ -261,6 +279,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/tenants': typeof AuthenticatedAdminTenantsRoute
   '/_authenticated/admin/usage': typeof AuthenticatedAdminUsageRoute
   '/api/public/ai-reply': typeof ApiPublicAiReplyRoute
+  '/api/public/announcement': typeof ApiPublicAnnouncementRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -283,6 +302,7 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/admin/ai-config'
     | '/admin/ai-credits'
+    | '/admin/announcements'
     | '/admin/branding'
     | '/admin/invites'
     | '/admin/plans'
@@ -291,6 +311,7 @@ export interface FileRouteTypes {
     | '/admin/tenants'
     | '/admin/usage'
     | '/api/public/ai-reply'
+    | '/api/public/announcement'
     | '/api/public/asaas-webhook'
     | '/api/public/cron-credits-renew'
     | '/admin/'
@@ -310,6 +331,7 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/admin/ai-config'
     | '/admin/ai-credits'
+    | '/admin/announcements'
     | '/admin/branding'
     | '/admin/invites'
     | '/admin/plans'
@@ -318,6 +340,7 @@ export interface FileRouteTypes {
     | '/admin/tenants'
     | '/admin/usage'
     | '/api/public/ai-reply'
+    | '/api/public/announcement'
     | '/api/public/asaas-webhook'
     | '/api/public/cron-credits-renew'
     | '/admin'
@@ -339,6 +362,7 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/_authenticated/admin/ai-config'
     | '/_authenticated/admin/ai-credits'
+    | '/_authenticated/admin/announcements'
     | '/_authenticated/admin/branding'
     | '/_authenticated/admin/invites'
     | '/_authenticated/admin/plans'
@@ -347,6 +371,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/tenants'
     | '/_authenticated/admin/usage'
     | '/api/public/ai-reply'
+    | '/api/public/announcement'
     | '/api/public/asaas-webhook'
     | '/api/public/cron-credits-renew'
     | '/_authenticated/admin/'
@@ -363,6 +388,7 @@ export interface RootRouteChildren {
   VendasRoute: typeof VendasRoute
   InviteTokenRoute: typeof InviteTokenRoute
   ApiPublicAiReplyRoute: typeof ApiPublicAiReplyRoute
+  ApiPublicAnnouncementRoute: typeof ApiPublicAnnouncementRoute
   ApiPublicAsaasWebhookRoute: typeof ApiPublicAsaasWebhookRoute
   ApiPublicCronCreditsRenewRoute: typeof ApiPublicCronCreditsRenewRoute
 }
@@ -488,6 +514,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAsaasWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/announcement': {
+      id: '/api/public/announcement'
+      path: '/api/public/announcement'
+      fullPath: '/api/public/announcement'
+      preLoaderRoute: typeof ApiPublicAnnouncementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/ai-reply': {
       id: '/api/public/ai-reply'
       path: '/api/public/ai-reply'
@@ -544,6 +577,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminBrandingRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/announcements': {
+      id: '/_authenticated/admin/announcements'
+      path: '/announcements'
+      fullPath: '/admin/announcements'
+      preLoaderRoute: typeof AuthenticatedAdminAnnouncementsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/ai-credits': {
       id: '/_authenticated/admin/ai-credits'
       path: '/ai-credits'
@@ -564,6 +604,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAiConfigRoute: typeof AuthenticatedAdminAiConfigRoute
   AuthenticatedAdminAiCreditsRoute: typeof AuthenticatedAdminAiCreditsRoute
+  AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
   AuthenticatedAdminBrandingRoute: typeof AuthenticatedAdminBrandingRoute
   AuthenticatedAdminInvitesRoute: typeof AuthenticatedAdminInvitesRoute
   AuthenticatedAdminPlansRoute: typeof AuthenticatedAdminPlansRoute
@@ -577,6 +618,7 @@ interface AuthenticatedAdminRouteChildren {
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAiConfigRoute: AuthenticatedAdminAiConfigRoute,
   AuthenticatedAdminAiCreditsRoute: AuthenticatedAdminAiCreditsRoute,
+  AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
   AuthenticatedAdminBrandingRoute: AuthenticatedAdminBrandingRoute,
   AuthenticatedAdminInvitesRoute: AuthenticatedAdminInvitesRoute,
   AuthenticatedAdminPlansRoute: AuthenticatedAdminPlansRoute,
@@ -620,6 +662,7 @@ const rootRouteChildren: RootRouteChildren = {
   VendasRoute: VendasRoute,
   InviteTokenRoute: InviteTokenRoute,
   ApiPublicAiReplyRoute: ApiPublicAiReplyRoute,
+  ApiPublicAnnouncementRoute: ApiPublicAnnouncementRoute,
   ApiPublicAsaasWebhookRoute: ApiPublicAsaasWebhookRoute,
   ApiPublicCronCreditsRenewRoute: ApiPublicCronCreditsRenewRoute,
 }
