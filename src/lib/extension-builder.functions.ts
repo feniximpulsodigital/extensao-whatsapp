@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.31",
+  version: "1.0.32",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -298,31 +298,57 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
       if(m.type === 'ptt' || m.type === 'audio'){ alvo = m; break; }
     }
     if(!alvo) return { ok:false, motivo:'sem-audio' };
-    // tenta o helper de alto nível; cai para o DownloadManager
+    // os campos de cripto/mídia podem estar no próprio model OU aninhados em
+    // mediaData (varia conforme a versão do WhatsApp Web)
+    const md = alvo.mediaData || alvo.__x_mediaData || {};
+    function campo(k){ return (alvo[k] != null ? alvo[k] : md[k]); }
+    async function paraBuffer(res){
+      if(!res) return null;
+      if(res.arrayBuffer && typeof res.arrayBuffer === 'function') return await res.arrayBuffer();
+      if(res instanceof Blob) return await res.arrayBuffer();
+      if(res instanceof ArrayBuffer) return res;
+      if(res.buffer instanceof ArrayBuffer) return res.buffer;
+      if(res._blob instanceof Blob) return await res._blob.arrayBuffer();
+      return null;
+    }
     let buf = null;
+    const erros = [];
+    // 1) DownloadManager.downloadAndMaybeDecrypt (helper de baixo nível)
     try{
       let dl = null;
-      try{ const mod = req('WAWebDownloadManager'); dl = mod && (mod.downloadManager || mod.default || mod); }catch(_e){}
+      try{ const mod = req('WAWebDownloadManager'); dl = mod && (mod.downloadManager || mod.default || mod); }catch(_e){ erros.push('mod-dm:'+(_e&&_e.message)); }
       if(dl && typeof dl.downloadAndMaybeDecrypt === 'function'){
-        buf = await dl.downloadAndMaybeDecrypt({
-          directPath: alvo.directPath, encFilehash: alvo.encFilehash, filehash: alvo.filehash,
-          mediaKey: alvo.mediaKey, type: alvo.type, signal: (new AbortController()).signal,
-          mediaKeyTimestamp: alvo.mediaKeyTimestamp,
+        const out = await dl.downloadAndMaybeDecrypt({
+          directPath: campo('directPath'), encFilehash: campo('encFilehash'), filehash: campo('filehash'),
+          mediaKey: campo('mediaKey'), type: alvo.type, signal: (new AbortController()).signal,
+          mediaKeyTimestamp: campo('mediaKeyTimestamp'),
         });
-      }
-    }catch(_e){}
+        buf = await paraBuffer(out) || (out instanceof ArrayBuffer ? out : null);
+      } else { erros.push('sem-downloadAndMaybeDecrypt'); }
+    }catch(e){ erros.push('dm:'+(e&&e.message)); }
+    // 2) downloadMedia no próprio model (API de alto nível)
     if(!buf){
       try{
         if(typeof alvo.downloadMedia === 'function'){
           const res = await alvo.downloadMedia({ downloadEvenIfExpensive:true, isUserInitiated:true });
-          if(res && res.arrayBuffer) buf = await res.arrayBuffer();
-          else if(res instanceof Blob) buf = await res.arrayBuffer();
-        }
-      }catch(_e){}
+          buf = await paraBuffer(res);
+        } else { erros.push('sem-downloadMedia'); }
+      }catch(e){ erros.push('dlmedia:'+(e&&e.message)); }
     }
-    if(!buf) return { ok:false, motivo:'download-falhou' };
-    const mime = String(alvo.mimetype || 'audio/ogg').split(';')[0];
-    return { ok:true, base64: arrayBufferParaBase64(buf), mime: mime, seconds: Number(alvo.duration || 0) };
+    // 3) módulo WAWebDownloadMediaFromMessage (canônico em versões recentes)
+    if(!buf){
+      try{
+        const mod = req('WAWebDownloadMediaFromMessage');
+        const fn = mod && (mod.downloadMedia || mod.default || (typeof mod === 'function' ? mod : null));
+        if(typeof fn === 'function'){
+          const res = await fn(alvo);
+          buf = await paraBuffer(res);
+        } else { erros.push('sem-downloadMediaFromMessage'); }
+      }catch(e){ erros.push('dmfm:'+(e&&e.message)); }
+    }
+    if(!buf) return { ok:false, motivo:'download-falhou', detalhe: erros.join(' | ').slice(0,300) };
+    const mime = String(alvo.mimetype || campo('mimetype') || 'audio/ogg').split(';')[0];
+    return { ok:true, base64: arrayBufferParaBase64(buf), mime: mime, seconds: Number(alvo.duration || campo('duration') || 0) };
   }
   window.addEventListener('message', async (ev)=>{
     if(ev.source !== window) return;
@@ -513,7 +539,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.31. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.32. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -1029,7 +1055,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         log("áudio capturado p/ transcrição (" + (r.seconds||0) + "s)");
         return { base64: r.base64, mime: r.mime, seconds: r.seconds };
       }
-      log("áudio não pôde ser baixado (" + ((r && r.motivo) || '?') + ")");
+      log("áudio não pôde ser baixado (" + ((r && r.motivo) || '?') + ")" + ((r && r.detalhe) ? " :: " + r.detalhe : ""));
     }catch(_e){}
     return null;
   }
@@ -1424,7 +1450,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); }, 1500);
-  log("extensão ativa v1.0.31. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.32. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
