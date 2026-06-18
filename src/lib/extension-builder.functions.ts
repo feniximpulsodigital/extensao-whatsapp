@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.34",
+  version: "1.0.35",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -327,14 +327,43 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
       }
       return null;
     }
-    // 1) downloadMedia() do próprio model. Em muitas versões ele NÃO retorna o
-    //    conteúdo: popula o blob/url dentro de alvo.mediaData. Tratamos os dois.
-    if(typeof alvo.downloadMedia === 'function'){
+    // "Poke": garante que a mídia saia de NEED_POKE/ERROR para resolver o
+    // mediaStage antes de tentar baixar (senão o download volta vazio).
+    try{
+      const stage = alvo.mediaData && alvo.mediaData.mediaStage;
+      if(stage && stage !== 'RESOLVED' && typeof alvo.downloadMedia === 'function'){
+        // não usamos o retorno aqui; só forçamos o WA a buscar/decifrar
+        await alvo.downloadMedia({ downloadEvenIfExpensive:true, isUserInitiated:true }).catch(()=>{});
+      }
+    }catch(_e){}
+    // 1) DownloadManager.downloadAndMaybeDecrypt — forma canônica. Versões
+    //    recentes exigem um 2º argumento "downloadQpl" (sem ele dá o erro
+    //    'addAnnotations'); passamos um stub no-op.
+    if(!buf){
+      try{
+        let dl = null;
+        try{ const mod = req('WAWebDownloadManager'); dl = mod && (mod.downloadManager || mod.default || mod); }catch(_e){ erros.push('mod-dm:'+(_e&&_e.message)); }
+        const mediaObj = alvo.mediaObject || (alvo.mediaData && alvo.mediaData.mediaObject) || null;
+        if(dl && typeof dl.downloadAndMaybeDecrypt === 'function' && mediaObj){
+          const qpl = {
+            addAnnotations: function(){}, markerAnnotate: function(){}, addPoint: function(){},
+            point: function(){}, markerStart: function(){}, markerEnd: function(){},
+            beginMarker: function(){ return { addAnnotations:function(){}, end:function(){}, endMarker:function(){} }; },
+          };
+          let out;
+          try{ out = await dl.downloadAndMaybeDecrypt(mediaObj, qpl); }
+          catch(_e1){ out = await dl.downloadAndMaybeDecrypt(mediaObj); }
+          buf = await paraBuffer2(out) || (out instanceof ArrayBuffer ? out : null);
+        } else if(!mediaObj){ erros.push('sem-mediaObject'); }
+        else { erros.push('sem-downloadAndMaybeDecrypt'); }
+      }catch(e){ erros.push('dm:'+(e&&e.message)); }
+    }
+    // 2) downloadMedia() do model: retorno direto OU blob/url populado no mediaData
+    if(!buf && typeof alvo.downloadMedia === 'function'){
       try{
         const res = await alvo.downloadMedia({ downloadEvenIfExpensive:true, isUserInitiated:true });
         buf = await paraBuffer2(res);
         if(!buf){
-          // procura o blob/url que o downloadMedia tenha populado no mediaData
           const md2 = alvo.mediaData || md || {};
           const cand = md2.mediaBlob || md2.fullSizeBlob || md2._blob || md2.preview || null;
           if(cand){
@@ -348,25 +377,11 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
           }
         }
       }catch(e){ erros.push('dlmedia:'+(e&&e.message)); }
-    } else { erros.push('sem-downloadMedia'); }
-    // 2) método download() (alternativo em versões novas)
+    } else if(!buf){ erros.push('sem-downloadMedia'); }
+    // 3) método download() (alternativo em versões novas)
     if(!buf && typeof alvo.download === 'function'){
       try{ const res = await alvo.download(); buf = await paraBuffer2(res); }
       catch(e){ erros.push('download:'+(e&&e.message)); }
-    }
-    // 3) DownloadManager.downloadAndMaybeDecrypt passando o mediaObject do model
-    //    (passar campos soltos quebrava com 'addAnnotations').
-    if(!buf){
-      try{
-        let dl = null;
-        try{ const mod = req('WAWebDownloadManager'); dl = mod && (mod.downloadManager || mod.default || mod); }catch(_e){ erros.push('mod-dm:'+(_e&&_e.message)); }
-        const mediaObj = alvo.mediaObject || (alvo.mediaData && alvo.mediaData.mediaObject) || null;
-        if(dl && typeof dl.downloadAndMaybeDecrypt === 'function' && mediaObj){
-          const out = await dl.downloadAndMaybeDecrypt(mediaObj);
-          buf = await paraBuffer2(out) || (out instanceof ArrayBuffer ? out : null);
-        } else if(!mediaObj){ erros.push('sem-mediaObject'); }
-        else { erros.push('sem-downloadAndMaybeDecrypt'); }
-      }catch(e){ erros.push('dm:'+(e&&e.message)); }
     }
     if(!buf) return { ok:false, motivo:'download-falhou', detalhe: erros.join(' | ').slice(0,300) };
     const mime = String(alvo.mimetype || campo('mimetype') || 'audio/ogg').split(';')[0];
@@ -561,7 +576,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.34. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.35. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -1513,7 +1528,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ checarAviso(); }, 120000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); checarAviso(); }, 2500);
-  log("extensão ativa v1.0.34. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.35. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
