@@ -570,7 +570,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.41. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.42. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -624,6 +624,13 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const chatsEmProcessamento = new Set();
   const chatsPendentes = new Set(); // respostas adiadas (operador ativo, chat trocado...)
   const respostasProntas = new Map(); // chat -> {hash, reply}: resposta obtida mas ainda não enviada
+  // cache do último áudio baixado por chat (evita rebaixar o mesmo áudio em
+  // passadas repetidas do loop / disputas de instância)
+  const audioCache = new Map(); // chat -> {hash, audio}
+  // cooldown por chat após um "skip" (outra instância/passada reivindicou):
+  // evita reprocessar o mesmo chat em rajada antes da resposta sair.
+  const skipCooldown = new Map(); // chat -> timestamp até quando ignorar
+  const SKIP_COOLDOWN_MS = 8000;
   const debounceTimers = new Map(); // chat -> timer id
   let statusOverrideText = null;
   let statusOverrideOk = true;
@@ -1077,14 +1084,21 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     return meNumber;
   }
   // se a última mensagem do cliente é áudio, baixa o conteúdo p/ transcrição
-  async function obterAudioSeNecessario(nome, messages){
+  async function obterAudioSeNecessario(nome, messages, hashUltima){
     try{
       const ultima = messages[messages.length-1];
       if(!ultima || ultima.role !== 'user' || !ultima.audio) return null;
+      // reusa o áudio já baixado para a mesma mensagem (evita rebaixar)
+      const c = audioCache.get(nome);
+      if(c && c.hash === hashUltima && c.audio){
+        return c.audio;
+      }
       const r = await bridgeRequest('get-audio', { nome: nome }, 12000);
       if(r && r.ok && r.base64){
         log("áudio capturado p/ transcrição (" + (r.seconds||0) + "s)");
-        return { base64: r.base64, mime: r.mime, seconds: r.seconds };
+        const audio = { base64: r.base64, mime: r.mime, seconds: r.seconds };
+        if(hashUltima) audioCache.set(nome, { hash: hashUltima, audio: audio });
+        return audio;
       }
       log("áudio não pôde ser baixado (" + ((r && r.motivo) || '?') + ")" + ((r && r.detalhe) ? " :: " + r.detalhe : ""));
     }catch(_e){}
@@ -1148,7 +1162,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         setButtonStatus("🤖 LENDO...", true, 4000);
         const sessionId = CFG.apiKey + ":" + chat;
         const dedupeKey = chat + ":" + hashUltima;
-        const audio = await obterAudioSeNecessario(chat, mensagens);
+        const audio = await obterAudioSeNecessario(chat, mensagens, hashUltima);
         const resp = await askAI(mensagens, sessionId, dedupeKey, audio);
         if(!resp) return;
         if(resp.skip){ return; }
@@ -1197,6 +1211,8 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   // ============================================================
   async function processarChatHeadless(nome){
     if(chatsEmProcessamento.has(nome)) return "ok";
+    const cd = skipCooldown.get(nome);
+    if(cd && Date.now() < cd) return "ok"; // aguardando: alguém já reivindicou há pouco
     chatsEmProcessamento.add(nome);
     try{
       if(!(await getEnabled())) return "ok";
@@ -1232,10 +1248,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       if(!reply){
         const sessionId = CFG.apiKey + ":" + nome;
         const dedupeKey = nome + ":" + hashUltima;
-        const audio = await obterAudioSeNecessario(nome, mensagens);
+        const audio = await obterAudioSeNecessario(nome, mensagens, hashUltima);
         const resp = await askAI(mensagens, sessionId, dedupeKey, audio);
         if(!resp) return "ok";
-        if(resp.skip) return "ok"; // outra instância cuida; pendente limpa quando a resposta chegar
+        if(resp.skip){ skipCooldown.set(nome, Date.now() + SKIP_COOLDOWN_MS); return "ok"; }
         // mídia (imagem/doc/vídeo): envia o texto fixo e marca NÃO LIDO p/ o dono
         if(resp.keepUnread){
           if(resp.reply){
@@ -1270,6 +1286,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         log("headless: respondido sem abrir o chat:", nome);
         chatsPendentes.delete(nome);
         respostasProntas.delete(nome);
+        audioCache.delete(nome);
         setButtonStatus("🤖 RESPONDIDO", true, 5000);
         return "ok";
       }
@@ -1523,7 +1540,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ checarAviso(); }, 120000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); checarAviso(); }, 2500);
-  log("extensão ativa v1.0.41. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.42. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
