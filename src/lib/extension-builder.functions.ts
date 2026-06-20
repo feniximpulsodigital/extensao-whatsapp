@@ -223,7 +223,13 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
   const TIPOS_MSG = {
     chat:'', image:'[imagem]', video:'[vídeo]', ptt:'[áudio]', audio:'[áudio]',
     document:'[documento]', sticker:'[figurinha]', location:'[localização]', vcard:'[contato]',
+    ptv:'[vídeo]', gif:'[vídeo]', // variantes de vídeo do WhatsApp
   };
+  // normaliza o tipo do store para a categoria que o servidor entende
+  function normalizarMtype(t){
+    if(t === 'ptv' || t === 'gif') return 'video';
+    return t;
+  }
   // marcador invisível anexado a toda mensagem da IA; mensagem nossa SEM o
   // marcador = enviada manualmente (por qualquer PC ou pelo celular)
   const MARCA_IA = '\\u200b\\u2060';
@@ -244,7 +250,11 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
         const fromMe = !!(m.id && m.id.fromMe);
         let texto = '';
         if(m.type === 'chat') texto = String(m.body || '');
-        else texto = TIPOS_MSG[m.type] + (m.caption ? ' ' + String(m.caption) : '');
+        else {
+          // tipo não mapeado: usa um marcador genérico em vez de "undefined"
+          const marcador = TIPOS_MSG[m.type] != null ? TIPOS_MSG[m.type] : '[anexo]';
+          texto = marcador + (m.caption ? ' ' + String(m.caption) : '');
+        }
         texto = texto.trim();
         if(!texto) continue;
         const temMarca = texto.indexOf(MARCA_IA) !== -1;
@@ -255,7 +265,7 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
           t: m.t || 0,
           manual: fromMe && !temMarca,
           audio: (m.type === 'ptt' || m.type === 'audio'),
-          mtype: m.type,
+          mtype: normalizarMtype(m.type),
         });
       }catch(_e){}
     }
@@ -581,7 +591,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.46. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.47. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -1621,7 +1631,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ faxinaCaches(); }, 300000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); checarAviso(); }, 2500);
-  log("extensão ativa v1.0.46. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.47. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
