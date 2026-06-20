@@ -24,6 +24,7 @@ import { Route as AuthenticatedCheckoutRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedBuyCreditsRouteImport } from './routes/_authenticated/buy-credits'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as ApiPublicExtensionVersionRouteImport } from './routes/api/public/extension-version'
 import { Route as ApiPublicCronCreditsRenewRouteImport } from './routes/api/public/cron-credits-renew'
 import { Route as ApiPublicAsaasWebhookRouteImport } from './routes/api/public/asaas-webhook'
 import { Route as ApiPublicAnnouncementRouteImport } from './routes/api/public/announcement'
@@ -113,6 +114,12 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
+const ApiPublicExtensionVersionRoute =
+  ApiPublicExtensionVersionRouteImport.update({
+    id: '/api/public/extension-version',
+    path: '/api/public/extension-version',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicCronCreditsRenewRoute =
   ApiPublicCronCreditsRenewRouteImport.update({
     id: '/api/public/cron-credits-renew',
@@ -221,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/api/public/announcement': typeof ApiPublicAnnouncementRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
+  '/api/public/extension-version': typeof ApiPublicExtensionVersionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesByTo {
@@ -250,6 +258,7 @@ export interface FileRoutesByTo {
   '/api/public/announcement': typeof ApiPublicAnnouncementRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
+  '/api/public/extension-version': typeof ApiPublicExtensionVersionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesById {
@@ -282,6 +291,7 @@ export interface FileRoutesById {
   '/api/public/announcement': typeof ApiPublicAnnouncementRoute
   '/api/public/asaas-webhook': typeof ApiPublicAsaasWebhookRoute
   '/api/public/cron-credits-renew': typeof ApiPublicCronCreditsRenewRoute
+  '/api/public/extension-version': typeof ApiPublicExtensionVersionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRouteTypes {
@@ -314,6 +324,7 @@ export interface FileRouteTypes {
     | '/api/public/announcement'
     | '/api/public/asaas-webhook'
     | '/api/public/cron-credits-renew'
+    | '/api/public/extension-version'
     | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -343,6 +354,7 @@ export interface FileRouteTypes {
     | '/api/public/announcement'
     | '/api/public/asaas-webhook'
     | '/api/public/cron-credits-renew'
+    | '/api/public/extension-version'
     | '/admin'
   id:
     | '__root__'
@@ -374,6 +386,7 @@ export interface FileRouteTypes {
     | '/api/public/announcement'
     | '/api/public/asaas-webhook'
     | '/api/public/cron-credits-renew'
+    | '/api/public/extension-version'
     | '/_authenticated/admin/'
   fileRoutesById: FileRoutesById
 }
@@ -391,6 +404,7 @@ export interface RootRouteChildren {
   ApiPublicAnnouncementRoute: typeof ApiPublicAnnouncementRoute
   ApiPublicAsaasWebhookRoute: typeof ApiPublicAsaasWebhookRoute
   ApiPublicCronCreditsRenewRoute: typeof ApiPublicCronCreditsRenewRoute
+  ApiPublicExtensionVersionRoute: typeof ApiPublicExtensionVersionRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -499,6 +513,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/api/public/extension-version': {
+      id: '/api/public/extension-version'
+      path: '/api/public/extension-version'
+      fullPath: '/api/public/extension-version'
+      preLoaderRoute: typeof ApiPublicExtensionVersionRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/cron-credits-renew': {
       id: '/api/public/cron-credits-renew'
@@ -665,6 +686,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAnnouncementRoute: ApiPublicAnnouncementRoute,
   ApiPublicAsaasWebhookRoute: ApiPublicAsaasWebhookRoute,
   ApiPublicCronCreditsRenewRoute: ApiPublicCronCreditsRenewRoute,
+  ApiPublicExtensionVersionRoute: ApiPublicExtensionVersionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

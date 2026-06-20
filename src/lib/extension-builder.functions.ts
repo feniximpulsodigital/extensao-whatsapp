@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { zipSync, strToU8 } from "fflate";
 import { ICON_16_B64, ICON_48_B64, ICON_128_B64 } from "./extension-icons";
+import { EXTENSION_VERSION } from "./extension-version";
 
 // ---------- Extension source files (templates) ----------
 
@@ -11,7 +12,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.39",
+  version: EXTENSION_VERSION,
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
