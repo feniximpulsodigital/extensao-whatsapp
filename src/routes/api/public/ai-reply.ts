@@ -262,18 +262,56 @@ async function transcribeAudio(opts: {
     return { ok: true as const, text: String(j?.choices?.[0]?.message?.content ?? "").trim() };
   }
 
-  if (provider === "groq" && process.env.GROQ_API_KEY) {
-    return viaWhisper(
-      "https://api.groq.com/openai/v1/audio/transcriptions",
-      process.env.GROQ_API_KEY,
-      "whisper-large-v3-turbo",
-    );
+  // Tenta o provedor configurado primeiro; se a key não existir ou falhar,
+  // cai para QUALQUER outro provedor de transcrição disponível no ambiente.
+  // Assim o áudio é transcrito se houver ao menos uma key (OpenAI/Groq/Lovable),
+  // em vez de desistir só porque o provedor "preferido" não está pronto.
+  const tentativas: Array<() => Promise<{ ok: true; text: string } | { ok: false; error: string }>> = [];
+  const addGroq = () => {
+    if (process.env.GROQ_API_KEY)
+      tentativas.push(() =>
+        viaWhisper(
+          "https://api.groq.com/openai/v1/audio/transcriptions",
+          process.env.GROQ_API_KEY!,
+          "whisper-large-v3-turbo",
+        ),
+      );
+  };
+  const addOpenai = () => {
+    if (process.env.OPENAI_API_KEY)
+      tentativas.push(() =>
+        viaWhisper(
+          "https://api.openai.com/v1/audio/transcriptions",
+          process.env.OPENAI_API_KEY!,
+          "whisper-1",
+        ),
+      );
+  };
+  const addLovable = () => {
+    if (process.env.LOVABLE_API_KEY) tentativas.push(viaLovableGateway);
+  };
+  // ordem: provedor preferido primeiro
+  if (provider === "groq") { addGroq(); addOpenai(); addLovable(); }
+  else if (provider === "openai") { addOpenai(); addGroq(); addLovable(); }
+  else { addLovable(); addGroq(); addOpenai(); }
+
+  if (tentativas.length === 0) {
+    console.error("transcribeAudio: nenhuma key de transcrição configurada (GROQ/OPENAI/LOVABLE)");
+    return { ok: false, error: "Transcrição de áudio não configurada no servidor" };
   }
-  if (provider === "openai" && process.env.OPENAI_API_KEY) {
-    return viaWhisper("https://api.openai.com/v1/audio/transcriptions", process.env.OPENAI_API_KEY, "whisper-1");
+
+  let ultimoErro = "desconhecido";
+  for (const fn of tentativas) {
+    try {
+      const r = await fn();
+      if (r.ok && r.text) return r;
+      ultimoErro = r.ok ? "transcrição vazia" : r.error;
+    } catch (e) {
+      ultimoErro = (e as Error)?.message ?? "exceção";
+      console.error("transcribeAudio tentativa falhou:", ultimoErro);
+    }
   }
-  // anthropic ou provedor sem key configurada
-  return viaLovableGateway();
+  return { ok: false, error: ultimoErro };
 }
 
 export const Route = createFileRoute("/api/public/ai-reply")({
@@ -463,12 +501,17 @@ export const Route = createFileRoute("/api/public/ai-reply")({
           // de voz. Transcrevemos com o provedor do admin e substituímos o
           // marcador "[áudio]" pelo texto na última mensagem do usuário.
           const msgs = parsed.data.messages.map((m) => ({ ...m }));
+          let audioError: string | null = null;
           if (parsed.data.audio?.base64) {
             const tr = await transcribeAudio({
               provider,
               base64: parsed.data.audio.base64,
               mime: parsed.data.audio.mime ?? "audio/ogg",
             });
+            if (!tr.ok) {
+              audioError = tr.error;
+              console.error("transcrição falhou:", tr.error, "mime:", parsed.data.audio.mime);
+            }
             // localiza a última mensagem do cliente para injetar a transcrição
             let lastUserIdx = -1;
             for (let i = msgs.length - 1; i >= 0; i--) {
@@ -572,6 +615,7 @@ export const Route = createFileRoute("/api/public/ai-reply")({
             reply: res.reply,
             credits_charged: charge.creditsCharged,
             credits_balance: charge.balanceAfter,
+            audioError: audioError || undefined,
           });
         } catch (e) {
           console.error("ai-reply error", e);
