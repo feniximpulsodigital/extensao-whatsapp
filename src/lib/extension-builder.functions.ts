@@ -570,7 +570,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.43. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.44. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -631,6 +631,16 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   // evita reprocessar o mesmo chat em rajada antes da resposta sair.
   const skipCooldown = new Map(); // chat -> timestamp até quando ignorar
   const SKIP_COOLDOWN_MS = 8000;
+  // claim LOCAL por chat+hash: evita que os dois gatilhos da MESMA instância
+  // (observer/debounce e o loop atenderNaoLidos) processem a mesma mensagem em
+  // paralelo e disputem o claim no servidor (causa do "outra instância
+  // reivindicou" mesmo com uma só aba).
+  const claimsLocais = new Map(); // "chat:hash" -> ts
+  const CLAIM_LOCAL_TTL_MS = 90000;
+  function jaProcessando(chave){
+    const t = claimsLocais.get(chave);
+    return t && (Date.now() - t < CLAIM_LOCAL_TTL_MS);
+  }
   const debounceTimers = new Map(); // chat -> timer id
   // Faxina periódica: impede que os caches cresçam sem limite ao longo de
   // dias com a aba aberta. Remove entradas antigas e limita o tamanho.
@@ -657,6 +667,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
     try{
       podarMap(respostasProntas, false);
       podarMap(audioCache, false);
+      podarMap(claimsLocais, true);
       podarMap(skipCooldown, true); // valor é o próprio timestamp (futuro)
       // skipCooldown: entradas já vencidas não servem mais
       const agora = Date.now();
@@ -1190,9 +1201,12 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         if(cache && cache.hash === hashUltima) reply = cache.reply;
       }
       if(!reply){
+        const chaveLocal = chat + ":" + hashUltima;
+        if(jaProcessando(chaveLocal)) return;
+        claimsLocais.set(chaveLocal, Date.now());
         setButtonStatus("🤖 LENDO...", true, 4000);
         const sessionId = CFG.apiKey + ":" + chat;
-        const dedupeKey = chat + ":" + hashUltima;
+        const dedupeKey = chaveLocal;
         const audio = await obterAudioSeNecessario(chat, mensagens, hashUltima);
         const resp = await askAI(mensagens, sessionId, dedupeKey, audio);
         if(!resp) return;
@@ -1277,8 +1291,13 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       const cache = respostasProntas.get(nome);
       let reply = (cache && cache.hash === hashUltima) ? cache.reply : null;
       if(!reply){
+        const chaveLocal = nome + ":" + hashUltima;
+        // se esta MESMA instância já está processando esta mensagem por outro
+        // gatilho (observer/loop), não duplica o trabalho
+        if(jaProcessando(chaveLocal)) return "ok";
+        claimsLocais.set(chaveLocal, Date.now());
         const sessionId = CFG.apiKey + ":" + nome;
-        const dedupeKey = nome + ":" + hashUltima;
+        const dedupeKey = chaveLocal;
         const audio = await obterAudioSeNecessario(nome, mensagens, hashUltima);
         const resp = await askAI(mensagens, sessionId, dedupeKey, audio);
         if(!resp) return "ok";
@@ -1580,7 +1599,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ faxinaCaches(); }, 300000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); checarAviso(); }, 2500);
-  log("extensão ativa v1.0.43. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.44. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
