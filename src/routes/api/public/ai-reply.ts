@@ -504,10 +504,11 @@ export const Route = createFileRoute("/api/public/ai-reply")({
               }
             }
             if (tr.ok && tr.text && lastUserIdx >= 0) {
+              // O cliente mandou um áudio: a transcrição É a mensagem dele.
+              // Substituímos o marcador [áudio] pelo texto falado, sem rótulos
+              // que confundam o modelo a "comentar o áudio" em vez de responder.
               const base = msgs[lastUserIdx].content.replace("[áudio]", "").trim();
-              msgs[lastUserIdx].content = base
-                ? `${base}\n[áudio transcrito]: ${tr.text}`
-                : `[áudio transcrito]: ${tr.text}`;
+              msgs[lastUserIdx].content = base ? `${base}\n${tr.text}` : tr.text;
               // cobra a transcrição pela duração estimada (entrada apenas)
               const secs = Math.max(1, Math.ceil(parsed.data.audio.seconds ?? 0));
               await chargeAiUsage({
