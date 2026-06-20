@@ -195,11 +195,9 @@ async function callProvider(opts: {
   };
 }
 
-// Transcreve um áudio (PTT) seguindo o provedor configurado pelo admin:
-// - groq:   Whisper na API do Groq (whisper-large-v3-turbo)
-// - openai: Whisper na API da OpenAI (whisper-1)
-// - anthropic (sem API de áudio) ou sem key: cai no gateway Lovable (Gemini),
-//   que aceita áudio inline e devolve a transcrição.
+// Transcreve um áudio (PTT) via Whisper. Prioriza o Groq (whisper-large-v3-
+// turbo), que aceita bem o ogg/opus do WhatsApp; cai para a OpenAI (whisper-1)
+// se necessário. Não usa o gateway Lovable.
 async function transcribeAudio(opts: {
   provider: "groq" | "openai" | "anthropic";
   base64: string;
@@ -245,40 +243,9 @@ async function transcribeAudio(opts: {
     return { ok: true as const, text: String(j?.text ?? "").trim() };
   }
 
-  async function viaLovableGateway() {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) return { ok: false as const, error: "Transcrição de áudio indisponível" };
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Transcreva o áudio a seguir literalmente, em português. Responda apenas com a transcrição, sem comentários.",
-              },
-              { type: "input_audio", input_audio: { data: base64, format: mime?.includes("mp4") ? "m4a" : "ogg" } },
-            ],
-          },
-        ],
-      }),
-    });
-    if (!r.ok) {
-      const body = (await r.text()).slice(0, 200);
-      console.error("gateway transcribe error", r.status, body);
-      return { ok: false as const, error: `gateway ${r.status}: ${body}` };
-    }
-    const j: any = await r.json();
-    return { ok: true as const, text: String(j?.choices?.[0]?.message?.content ?? "").trim() };
-  }
-
   // Tenta o provedor configurado primeiro; se a key não existir ou falhar,
-  // cai para QUALQUER outro provedor de transcrição disponível no ambiente.
-  // Assim o áudio é transcrito se houver ao menos uma key (OpenAI/Groq/Lovable),
+  // cai para o outro provedor de transcrição disponível no ambiente.
+  // Assim o áudio é transcrito se houver ao menos uma key (Groq/OpenAI),
   // em vez de desistir só porque o provedor "preferido" não está pronto.
   type Fn = () => Promise<{ ok: true; text: string } | { ok: false; error: string }>;
   const disponiveis: Record<string, Fn | null> = {
@@ -298,11 +265,10 @@ async function transcribeAudio(opts: {
             "whisper-1",
           )
       : null,
-    lovable: process.env.LOVABLE_API_KEY ? viaLovableGateway : null,
   };
   // Ordem de transcrição: Groq primeiro (Whisper mais tolerante ao ogg/opus do
   // WhatsApp), depois o provedor configurado, depois o restante. Sem repetir.
-  const ordem = ["groq", provider, "openai", "lovable"];
+  const ordem = ["groq", provider, "openai"];
   const seen = new Set<string>();
   const tentativas: Fn[] = [];
   for (const nome of ordem) {
@@ -313,7 +279,7 @@ async function transcribeAudio(opts: {
   }
 
   if (tentativas.length === 0) {
-    console.error("transcribeAudio: nenhuma key de transcrição configurada (GROQ/OPENAI/LOVABLE)");
+    console.error("transcribeAudio: nenhuma key de transcrição configurada (GROQ/OPENAI)");
     return { ok: false, error: "Transcrição de áudio não configurada no servidor" };
   }
 

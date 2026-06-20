@@ -11,7 +11,7 @@ const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,
   name: `${brandName} — IA WhatsApp`,
-  version: "1.0.38",
+  version: "1.0.39",
   description: `Atendimento automático com IA no WhatsApp Web — ${brandName}.`,
   permissions: ["storage", "activeTab", "clipboardWrite", "tabs"],
   host_permissions: ["https://web.whatsapp.com/*", `${apiOrigin}/*`],
@@ -328,31 +328,60 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
       return null;
     }
     const sleep = (ms)=> new Promise((r)=>setTimeout(r, ms));
-    // Procura recursivamente um Blob, ArrayBuffer ou URL (blob:/data:) dentro
-    // de um objeto — o WhatsApp guarda o áudio decifrado em chaves que mudam
-    // entre versões, então varremos em vez de adivinhar o nome.
-    async function acharBufferEm(obj, prof){
-      if(obj == null || prof > 3) return null;
+    // Um buffer "parece áudio" se tiver assinatura de container conhecido ou,
+    // na dúvida, tamanho razoável (a waveform/preview tem poucos bytes).
+    function pareceAudio(ab){
+      if(!ab || ab.byteLength < 800) return false;
       try{
-        if(obj instanceof Blob) return await obj.arrayBuffer();
-        if(obj instanceof ArrayBuffer) return obj;
-        if(typeof obj === 'string'){
-          if(obj.indexOf('blob:')===0 || obj.indexOf('data:')===0) return await blobUrlParaBuffer(obj);
-          return null;
-        }
-        if(typeof obj.arrayBuffer === 'function' && !(obj instanceof Response)) { try{ return await obj.arrayBuffer(); }catch(_e){} }
-        if(obj._blob instanceof Blob) return await obj._blob.arrayBuffer();
-        if(typeof obj.forceToBlob === 'function'){ try{ const bb = await obj.forceToBlob(); if(bb && bb.arrayBuffer) return await bb.arrayBuffer(); }catch(_e){} }
-        if(typeof obj !== 'object') return null;
-        // chaves prováveis primeiro, depois varredura geral
-        const ordem = ['mediaBlob','fullSizeBlob','_blob','blob','body','buffer','data','file','mediaUrl','url','_url','preview'];
-        for(const k of ordem){ if(obj[k] != null){ const r = await acharBufferEm(obj[k], prof+1); if(r) return r; } }
-        for(const k in obj){ if(ordem.indexOf(k)>=0) continue; try{ const v = obj[k]; if(v && (v instanceof Blob || v instanceof ArrayBuffer || (typeof v==='object'))){ const r = await acharBufferEm(v, prof+1); if(r) return r; } }catch(_e){} }
+        const h = new Uint8Array(ab.slice(0, 12));
+        // OggS
+        if(h[0]===0x4F && h[1]===0x67 && h[2]===0x67 && h[3]===0x53) return true;
+        // ftyp (mp4/m4a) nos bytes 4..8
+        if(h[4]===0x66 && h[5]===0x74 && h[6]===0x79 && h[7]===0x70) return true;
+        // ID3 / MP3
+        if(h[0]===0x49 && h[1]===0x44 && h[2]===0x33) return true;
+        if(h[0]===0xFF && (h[1]&0xE0)===0xE0) return true;
+        // RIFF/WAV
+        if(h[0]===0x52 && h[1]===0x49 && h[2]===0x46 && h[3]===0x46) return true;
+        // EBML/WebM
+        if(h[0]===0x1A && h[1]===0x45 && h[2]===0xDF && h[3]===0xA3) return true;
       }catch(_e){}
-      return null;
+      // sem assinatura: aceita só se for grande o bastante p/ ser o áudio
+      return ab.byteLength > 2000;
+    }
+    // Coleta recursivamente TODOS os ArrayBuffers candidatos (Blob/ArrayBuffer/
+    // URL), em vez de pegar o primeiro — a waveform/preview costuma vir antes
+    // do áudio real. Depois escolhemos o melhor (assinatura de áudio / maior).
+    async function coletarBuffers(obj, prof, out){
+      if(obj == null || prof > 4 || out.length > 12) return;
+      try{
+        if(obj instanceof Blob){ out.push(await obj.arrayBuffer()); return; }
+        if(obj instanceof ArrayBuffer){ out.push(obj); return; }
+        if(ArrayBuffer.isView && ArrayBuffer.isView(obj)){ out.push(obj.buffer); return; }
+        if(typeof obj === 'string'){
+          if(obj.indexOf('blob:')===0 || obj.indexOf('data:')===0){ const b = await blobUrlParaBuffer(obj); if(b) out.push(b); }
+          return;
+        }
+        if(typeof obj !== 'object') return;
+        if(typeof obj.forceToBlob === 'function'){ try{ const bb = await obj.forceToBlob(); if(bb && bb.arrayBuffer) out.push(await bb.arrayBuffer()); }catch(_e){} }
+        if(typeof obj.arrayBuffer === 'function' && !(obj instanceof Response)){ try{ out.push(await obj.arrayBuffer()); }catch(_e){} }
+        const ordem = ['mediaBlob','fullSizeBlob','_blob','blob','body','buffer','data','file','mediaUrl','url','_url'];
+        for(const k of ordem){ if(obj[k] != null) await coletarBuffers(obj[k], prof+1, out); }
+        for(const k in obj){ if(ordem.indexOf(k)>=0) continue; if(k==='preview'||k==='thumbnail'||k==='waveform') continue; try{ const v = obj[k]; if(v && (typeof v==='object' || typeof v==='string')) await coletarBuffers(v, prof+1, out); }catch(_e){} }
+      }catch(_e){}
+    }
+    async function acharBufferEm(obj){
+      const cands = [];
+      await coletarBuffers(obj, 0, cands);
+      if(!cands.length) return null;
+      // 1) prefere os que têm assinatura de áudio; 2) entre eles, o maior
+      const validos = cands.filter(pareceAudio);
+      const pool = validos.length ? validos : cands;
+      pool.sort((a,b)=> b.byteLength - a.byteLength);
+      return pool[0] || null;
     }
     async function lerDoMediaData(){
-      return await acharBufferEm(alvo.mediaData || md || {}, 0);
+      return await acharBufferEm(alvo.mediaData || md || {});
     }
     // 1) downloadMedia() do model + poke: dispara o download/decifragem e
     //    espera o mediaStage RESOLVED, lendo o blob que o WA popula.
@@ -361,7 +390,7 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
       try{
         const res = await alvo.downloadMedia({ downloadEvenIfExpensive:true, isUserInitiated:true });
         if(res && typeof res === 'object'){ try{ resKeys = Object.keys(res).join(','); }catch(_e){} }
-        buf = await acharBufferEm(res, 0);
+        buf = await acharBufferEm(res);
         if(!buf) buf = await lerDoMediaData();
         for(let i=0; !buf && i<10; i++){
           await sleep(500);
@@ -371,7 +400,7 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
     } else { erros.push('sem-downloadMedia'); }
     // 2) método download() do model (alternativo)
     if(!buf && typeof alvo.download === 'function'){
-      try{ const res = await alvo.download(); buf = await acharBufferEm(res, 0) || await lerDoMediaData(); }
+      try{ const res = await alvo.download(); buf = await acharBufferEm(res) || await lerDoMediaData(); }
       catch(e){ erros.push('download:'+(e&&e.message)); }
     }
     // 3) por último, downloadAndMaybeDecrypt (pode quebrar nesta versão)
@@ -382,7 +411,7 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
         const mediaObj = alvo.mediaObject || (alvo.mediaData && alvo.mediaData.mediaObject) || null;
         if(dl && typeof dl.downloadAndMaybeDecrypt === 'function' && mediaObj){
           const out = await dl.downloadAndMaybeDecrypt(mediaObj);
-          buf = await paraBuffer2(out) || (out instanceof ArrayBuffer ? out : null);
+          buf = await acharBufferEm(out) || (out instanceof ArrayBuffer ? out : null);
         } else if(!mediaObj){ erros.push('sem-mediaObject'); }
         else { erros.push('sem-downloadAndMaybeDecrypt'); }
       }catch(e){ erros.push('dm:'+(e&&e.message)); }
@@ -395,7 +424,8 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
       return { ok:false, motivo:'download-falhou', detalhe: erros.join(' | ').slice(0,400) };
     }
     const mime = String(alvo.mimetype || campo('mimetype') || 'audio/ogg').split(';')[0];
-    return { ok:true, base64: arrayBufferParaBase64(buf), mime: mime, seconds: Number(alvo.duration || campo('duration') || 0) };
+    log("áudio baixado: " + buf.byteLength + " bytes, mime " + mime);
+    return { ok:true, base64: arrayBufferParaBase64(buf), mime: mime, seconds: Number(alvo.duration || campo('duration') || 0), bytes: buf.byteLength };
   }
   window.addEventListener('message', async (ev)=>{
     if(ev.source !== window) return;
@@ -586,7 +616,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.38. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.39. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -1539,7 +1569,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ checarAviso(); }, 120000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); checarAviso(); }, 2500);
-  log("extensão ativa v1.0.38. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.39. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
