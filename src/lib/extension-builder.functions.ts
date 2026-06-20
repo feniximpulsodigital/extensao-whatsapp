@@ -461,23 +461,33 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
     }
     return false;
   }
-  // marca o chat como NÃO LIDO (badge), para o dono perceber que precisa olhar
-  function marcarNaoLido(req, chat){
+  // marca o chat como NÃO LIDO (badge), para o dono perceber que precisa olhar.
+  // Os nomes de módulo do WhatsApp mudam entre versões — tentamos várias vias e
+  // reportamos qual funcionou (ou o motivo da falha).
+  async function marcarNaoLido(req, chat){
+    const erros = [];
+    // 1) ação canônica markUnread (assíncrona)
+    for(const nomeMod of ['WAWebMarkChatUnreadAction','WAWebUpdateUnreadChatAction','WAWebChatMarkingAction']){
+      try{
+        const mod = req(nomeMod);
+        const fn = mod && (mod.markUnread || mod.sendMarkUnread || mod.updateUnread || mod.markChatUnread);
+        if(typeof fn === 'function'){
+          await fn(chat, true);
+          return { ok:true, via:nomeMod };
+        }
+      }catch(e){ erros.push(nomeMod+':'+(e&&e.message)); }
+    }
+    // 2) método no próprio model do chat
+    try{ if(typeof chat.markUnread === 'function'){ await chat.markUnread(); return { ok:true, via:'chat.markUnread' }; } }catch(e){ erros.push('chat.markUnread:'+(e&&e.message)); }
+    // 3) fallback bruto: força o contador de não-lidas no model
     try{
-      const mod = req('WAWebUpdateUnreadChatAction');
-      const fn = mod && (mod.markUnread || mod.sendMarkUnread || mod.updateUnread);
-      if(typeof fn === 'function'){
-        const p = fn(chat, true);
-        if(p && typeof p.catch === 'function') p.catch(()=>{});
-        return true;
-      }
-    }catch(_e){}
-    // fallback: marca 1 não lido direto no model do chat
-    try{ chat.markUnread && chat.markUnread(); return true; }catch(_e){}
-    try{ chat.unreadCount = (chat.unreadCount || 0) + 1; return true; }catch(_e){}
-    return false;
+      if(chat.setUnreadCount){ chat.setUnreadCount(chat.unreadCount > 0 ? chat.unreadCount : -1); }
+      else { chat.unreadCount = (chat.unreadCount > 0 ? chat.unreadCount : 1); }
+      return { ok:true, via:'unreadCount' };
+    }catch(e){ erros.push('unreadCount:'+(e&&e.message)); }
+    return { ok:false, motivo: erros.join(' | ').slice(0,200) };
   }
-  window.addEventListener('message', (ev)=>{
+  window.addEventListener('message', async (ev)=>{
     if(ev.source !== window) return;
     const d = ev.data;
     if(!d || d.__argos !== 'mark-unread') return;
@@ -487,8 +497,9 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
       try{ if(typeof window.require === 'function') req = window.require; }catch(_e){}
       const col = req ? getChatCollection(req) : null;
       const chat = col ? acharChatModel(col, d.nome) : null;
-      if(req && chat) resp = { ok: marcarNaoLido(req, chat) };
-    }catch(_e){}
+      if(req && chat) resp = await marcarNaoLido(req, chat);
+      else resp = { ok:false, motivo: !req ? 'sem-require' : 'chat-nao-encontrado' };
+    }catch(err){ resp = { ok:false, motivo:String((err&&err.message)||err) }; }
     window.postMessage(Object.assign({ __argos:'mark-unread-result', reqId: d.reqId }, resp), '*');
   });
   window.addEventListener('message', (ev)=>{
@@ -570,7 +581,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.45. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.46. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -1218,9 +1229,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         if(resp.keepUnread){
           if(resp.reply){
             const campoM = buscarElemento(SELETORES_INPUT);
-            if(campoM){ await inserirTexto(campoM, resp.reply + MARCA_IA); await enviarMensagem(campoM); }
+            if(campoM){ await inserirTexto(campoM, resp.reply + MARCA_IA); await enviarMensagem(campoM); await esperar(1200); }
           }
-          await bridgeRequest('mark-unread', { nome: chat }, 3000);
+          const mu = await bridgeRequest('mark-unread', { nome: chat }, 3000);
+          log("mídia: marcado não-lido?", (mu && mu.ok), (mu && mu.via) ? ("(" + mu.via + ")") : "", (mu && mu.motivo) ? mu.motivo : "");
           chatsPendentes.delete(chat);
           setButtonStatus("📎 MÍDIA — VER", false, 5000);
           return;
@@ -1312,8 +1324,12 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         if(resp.keepUnread){
           if(resp.reply){
             await bridgeRequest('send-message', { nome: nome, texto: resp.reply, keepUnread: true }, 8000);
+            // enviar marca o chat como lido; espera o WA processar antes de
+            // remarcar como não-lido, senão a marcação não "pega"
+            await esperar(1200);
           }
-          await bridgeRequest('mark-unread', { nome: nome }, 3000);
+          const mu = await bridgeRequest('mark-unread', { nome: nome }, 3000);
+          log("mídia: marcado não-lido?", (mu && mu.ok), (mu && mu.via) ? ("(" + mu.via + ")") : "", (mu && mu.motivo) ? mu.motivo : "");
           chatsPendentes.delete(nome);
           setButtonStatus("📎 MÍDIA — VER", false, 5000);
           return "ok";
@@ -1605,7 +1621,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ faxinaCaches(); }, 300000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); checarAviso(); }, 2500);
-  log("extensão ativa v1.0.45. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.46. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
