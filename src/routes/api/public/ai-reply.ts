@@ -216,17 +216,30 @@ async function transcribeAudio(opts: {
 
   async function viaWhisper(url: string, key: string, model: string) {
     const form = new FormData();
-    const ext = (mime || "audio/ogg").includes("mp4") ? "m4a" : "ogg";
+    // Define a extensão pelo mime real. WhatsApp PTT = ogg/opus.
+    const m = (mime || "audio/ogg").toLowerCase();
+    const ext = m.includes("mp4") || m.includes("m4a") || m.includes("aac")
+      ? "m4a"
+      : m.includes("mpeg") || m.includes("mp3")
+        ? "mp3"
+        : m.includes("wav")
+          ? "wav"
+          : m.includes("webm")
+            ? "webm"
+            : "ogg";
     form.append("file", b64ToBlob(), `audio.${ext}`);
     form.append("model", model);
+    form.append("language", "pt");
+    form.append("response_format", "json");
     const r = await fetch(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}` },
       body: form,
     });
     if (!r.ok) {
-      console.error("whisper error", r.status, await r.text());
-      return { ok: false as const, error: "Falha ao transcrever o áudio" };
+      const body = (await r.text()).slice(0, 200);
+      console.error("whisper error", r.status, body);
+      return { ok: false as const, error: `whisper ${r.status}: ${body}` };
     }
     const j: any = await r.json();
     return { ok: true as const, text: String(j?.text ?? "").trim() };
@@ -255,8 +268,9 @@ async function transcribeAudio(opts: {
       }),
     });
     if (!r.ok) {
-      console.error("gateway transcribe error", r.status, await r.text());
-      return { ok: false as const, error: "Falha ao transcrever o áudio" };
+      const body = (await r.text()).slice(0, 200);
+      console.error("gateway transcribe error", r.status, body);
+      return { ok: false as const, error: `gateway ${r.status}: ${body}` };
     }
     const j: any = await r.json();
     return { ok: true as const, text: String(j?.choices?.[0]?.message?.content ?? "").trim() };
@@ -266,34 +280,37 @@ async function transcribeAudio(opts: {
   // cai para QUALQUER outro provedor de transcrição disponível no ambiente.
   // Assim o áudio é transcrito se houver ao menos uma key (OpenAI/Groq/Lovable),
   // em vez de desistir só porque o provedor "preferido" não está pronto.
-  const tentativas: Array<() => Promise<{ ok: true; text: string } | { ok: false; error: string }>> = [];
-  const addGroq = () => {
-    if (process.env.GROQ_API_KEY)
-      tentativas.push(() =>
-        viaWhisper(
-          "https://api.groq.com/openai/v1/audio/transcriptions",
-          process.env.GROQ_API_KEY!,
-          "whisper-large-v3-turbo",
-        ),
-      );
+  type Fn = () => Promise<{ ok: true; text: string } | { ok: false; error: string }>;
+  const disponiveis: Record<string, Fn | null> = {
+    groq: process.env.GROQ_API_KEY
+      ? () =>
+          viaWhisper(
+            "https://api.groq.com/openai/v1/audio/transcriptions",
+            process.env.GROQ_API_KEY!,
+            "whisper-large-v3-turbo",
+          )
+      : null,
+    openai: process.env.OPENAI_API_KEY
+      ? () =>
+          viaWhisper(
+            "https://api.openai.com/v1/audio/transcriptions",
+            process.env.OPENAI_API_KEY!,
+            "whisper-1",
+          )
+      : null,
+    lovable: process.env.LOVABLE_API_KEY ? viaLovableGateway : null,
   };
-  const addOpenai = () => {
-    if (process.env.OPENAI_API_KEY)
-      tentativas.push(() =>
-        viaWhisper(
-          "https://api.openai.com/v1/audio/transcriptions",
-          process.env.OPENAI_API_KEY!,
-          "whisper-1",
-        ),
-      );
-  };
-  const addLovable = () => {
-    if (process.env.LOVABLE_API_KEY) tentativas.push(viaLovableGateway);
-  };
-  // ordem: provedor preferido primeiro
-  if (provider === "groq") { addGroq(); addOpenai(); addLovable(); }
-  else if (provider === "openai") { addOpenai(); addGroq(); addLovable(); }
-  else { addLovable(); addGroq(); addOpenai(); }
+  // Ordem de transcrição: Groq primeiro (Whisper mais tolerante ao ogg/opus do
+  // WhatsApp), depois o provedor configurado, depois o restante. Sem repetir.
+  const ordem = ["groq", provider, "openai", "lovable"];
+  const seen = new Set<string>();
+  const tentativas: Fn[] = [];
+  for (const nome of ordem) {
+    if (seen.has(nome)) continue;
+    seen.add(nome);
+    const fn = disponiveis[nome];
+    if (fn) tentativas.push(fn);
+  }
 
   if (tentativas.length === 0) {
     console.error("transcribeAudio: nenhuma key de transcrição configurada (GROQ/OPENAI/LOVABLE)");
