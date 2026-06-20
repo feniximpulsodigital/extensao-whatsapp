@@ -570,7 +570,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.42. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.43. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -632,6 +632,37 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const skipCooldown = new Map(); // chat -> timestamp até quando ignorar
   const SKIP_COOLDOWN_MS = 8000;
   const debounceTimers = new Map(); // chat -> timer id
+  // Faxina periódica: impede que os caches cresçam sem limite ao longo de
+  // dias com a aba aberta. Remove entradas antigas e limita o tamanho.
+  const CACHE_TTL_MS = 30 * 60_000; // 30 min sem uso → descarta
+  const CACHE_MAX = 200;            // teto de entradas por cache
+  function podarMap(m, ehTimestamp){
+    const agora = Date.now();
+    for(const [k, v] of m){
+      const t = ehTimestamp ? v : (v && v.ts);
+      if(!t || agora - t > CACHE_TTL_MS) m.delete(k);
+    }
+    // se ainda estourar o teto, remove os mais antigos
+    if(m.size > CACHE_MAX){
+      const ents = [...m.entries()].sort((a,b)=>{
+        const ta = ehTimestamp ? a[1] : (a[1] && a[1].ts) || 0;
+        const tb = ehTimestamp ? b[1] : (b[1] && b[1].ts) || 0;
+        return ta - tb;
+      });
+      const remover = m.size - CACHE_MAX;
+      for(let i=0; i<remover; i++) m.delete(ents[i][0]);
+    }
+  }
+  function faxinaCaches(){
+    try{
+      podarMap(respostasProntas, false);
+      podarMap(audioCache, false);
+      podarMap(skipCooldown, true); // valor é o próprio timestamp (futuro)
+      // skipCooldown: entradas já vencidas não servem mais
+      const agora = Date.now();
+      for(const [k, v] of skipCooldown){ if(typeof v === 'number' && v < agora - CACHE_TTL_MS) skipCooldown.delete(k); }
+    }catch(_e){}
+  }
   let statusOverrideText = null;
   let statusOverrideOk = true;
   let statusOverrideUntil = 0;
@@ -1097,7 +1128,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       if(r && r.ok && r.base64){
         log("áudio capturado p/ transcrição (" + (r.seconds||0) + "s)");
         const audio = { base64: r.base64, mime: r.mime, seconds: r.seconds };
-        if(hashUltima) audioCache.set(nome, { hash: hashUltima, audio: audio });
+        if(hashUltima) audioCache.set(nome, { hash: hashUltima, audio: audio, ts: Date.now() });
         return audio;
       }
       log("áudio não pôde ser baixado (" + ((r && r.motivo) || '?') + ")" + ((r && r.detalhe) ? " :: " + r.detalhe : ""));
@@ -1179,7 +1210,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         }
         reply = resp.reply;
         if(!reply) return;
-        respostasProntas.set(chat, { hash: hashUltima, reply: reply });
+        respostasProntas.set(chat, { hash: hashUltima, reply: reply, ts: Date.now() });
       }
 
       // delay humanizado 1.5s - 4s
@@ -1264,7 +1295,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         }
         reply = resp.reply;
         if(!reply) return "ok";
-        respostasProntas.set(nome, { hash: hashUltima, reply: reply });
+        respostasProntas.set(nome, { hash: hashUltima, reply: reply, ts: Date.now() });
       }else{
         log("headless: reusando resposta em cache para", nome);
       }
@@ -1327,29 +1358,37 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   // ============================================================
   // OBSERVER DE NOVAS MENSAGENS
   // ============================================================
-  const obs = new MutationObserver((muts)=>{
-    let hasIncoming = false;
-    for(const m of muts){
-      for(const node of m.addedNodes){
-        if(!(node instanceof HTMLElement)) continue;
-        const candidatos = [];
-        if(node.matches?.('[role="row"]')) candidatos.push(node);
-        node.querySelectorAll?.('[role="row"]').forEach((r)=>candidatos.push(r));
-        for(const r of candidatos){
-          if(detectarRoleRow(r) === 'user'){ hasIncoming = true; break; }
-        }
-        if(hasIncoming) break;
-      }
-      if(hasIncoming) break;
-    }
-    if(!hasIncoming) return;
+  // Throttle: o DOM do WhatsApp muda muito (digitação, status, scroll). Em vez
+  // de avaliar a cada mutação, fazemos uma checagem leve no máximo a cada 600ms.
+  let obsThrottle = 0;
+  let obsAgendado = false;
+  const OBS_THROTTLE_MS = 600;
+  function avaliarNovasMensagens(){
     const chat = getChatId();
     if(!chat) return;
-    // só agenda se última mensagem for do contato
     const msgs = lerMensagens(5);
     if(!msgs.length) return;
     if(msgs[msgs.length-1].role !== "user") return;
     agendarResposta(chat);
+  }
+  const obs = new MutationObserver((muts)=>{
+    // varredura barata: a mutação adicionou alguma linha de mensagem?
+    let mexeu = false;
+    for(const m of muts){
+      if(m.addedNodes && m.addedNodes.length){ mexeu = true; break; }
+    }
+    if(!mexeu) return;
+    const agora = Date.now();
+    if(agora - obsThrottle < OBS_THROTTLE_MS){
+      // dentro da janela: agenda uma única avaliação no fim dela
+      if(!obsAgendado){
+        obsAgendado = true;
+        setTimeout(()=>{ obsAgendado = false; obsThrottle = Date.now(); try{ avaliarNovasMensagens(); }catch(_e){} }, OBS_THROTTLE_MS);
+      }
+      return;
+    }
+    obsThrottle = agora;
+    avaliarNovasMensagens();
   });
   function attachObserver(){
     const main = document.querySelector('#main') || document.body;
@@ -1538,9 +1577,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ pollingChatAberto().catch((e)=>warn("polling", e)); }, 5000);
   setInterval(()=>{ atenderNaoLidos().catch((e)=>warn("atenderNaoLidos", e)); }, 7000);
   setInterval(()=>{ checarAviso(); }, 120000);
+  setInterval(()=>{ faxinaCaches(); }, 300000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); checarAviso(); }, 2500);
-  log("extensão ativa v1.0.42. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.43. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
