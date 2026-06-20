@@ -425,7 +425,7 @@ const BRIDGE_JS = `// Roda no MAIN world da página: tem acesso aos internals do
       return { ok:false, motivo:'download-falhou', detalhe: erros.join(' | ').slice(0,400) };
     }
     const mime = String(alvo.mimetype || campo('mimetype') || 'audio/ogg').split(';')[0];
-    log("áudio baixado: " + buf.byteLength + " bytes, mime " + mime);
+    try{ console.log('%c[Argos]','color:#16a34a;font-weight:bold',"áudio baixado: " + buf.byteLength + " bytes, mime " + mime); }catch(_e){}
     return { ok:true, base64: arrayBufferParaBase64(buf), mime: mime, seconds: Number(alvo.duration || campo('duration') || 0), bytes: buf.byteLength };
   }
   window.addEventListener('message', async (ev)=>{
@@ -617,7 +617,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.39. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.40. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -1570,7 +1570,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ checarAviso(); }, 120000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); checarAviso(); }, 2500);
-  log("extensão ativa v1.0.39. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.40. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
