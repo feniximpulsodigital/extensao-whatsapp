@@ -570,7 +570,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   const log = (...a)=>console.log("%c[Argos]","color:#16a34a;font-weight:bold", ...a);
   const warn = (...a)=>console.warn("[Argos]", ...a);
   if(!CFG.apiKey || !CFG.endpoint){warn("config ausente");return;}
-  log("inicializando v1.0.44. endpoint =", CFG.endpoint);
+  log("inicializando v1.0.45. endpoint =", CFG.endpoint);
 
   chrome.storage.local.get(["enabled"],(r)=>{
     if(r.enabled===undefined) chrome.storage.local.set({enabled:true});
@@ -1195,7 +1195,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
       if(ultima.role !== "user"){ log("última é nossa, não responder"); chatsPendentes.delete(chat); return; }
 
       let reply = replyPronto || null;
-      const hashUltima = hashTexto(ultima.content) + ":" + mensagens.length;
+      // inclui o timestamp da última mensagem: dois áudios diferentes têm o
+      // mesmo content ("[áudio]"), então sem o 't' colidiriam no dedupe e o
+      // 2º áudio receberia "skip" sem ser respondido.
+      const hashUltima = hashTexto(ultima.content) + ":" + mensagens.length + ":" + (ultima.t || 0);
       if(!reply){
         const cache = respostasProntas.get(chat);
         if(cache && cache.hash === hashUltima) reply = cache.reply;
@@ -1286,7 +1289,10 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
         return "ok";
       }
       log("headless: respondendo", nome, "| última:", ultima.content.slice(0, 60));
-      const hashUltima = hashTexto(ultima.content) + ":" + mensagens.length;
+      // inclui o timestamp da última mensagem: dois áudios diferentes têm o
+      // mesmo content ("[áudio]"), então sem o 't' colidiriam no dedupe e o
+      // 2º áudio receberia "skip" sem ser respondido.
+      const hashUltima = hashTexto(ultima.content) + ":" + mensagens.length + ":" + (ultima.t || 0);
       // reusa resposta já obtida (envio anterior falhou) — sem nova chamada à IA
       const cache = respostasProntas.get(nome);
       let reply = (cache && cache.hash === hashUltima) ? cache.reply : null;
@@ -1599,7 +1605,7 @@ const CONTENT_JS = `// Conteúdo injetado no WhatsApp Web. Lê mensagens novas e
   setInterval(()=>{ faxinaCaches(); }, 300000);
 
   setTimeout(()=>{ ensureToggleButton(); attachObserver(); lastSeenChat = getChatId(); checarAviso(); }, 2500);
-  log("extensão ativa v1.0.44. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
+  log("extensão ativa v1.0.45. Headless + multi-PC + limite de PCs/número + transcrição de áudio + resposta automática a mídia (não-lido) + avisos do admin + IA desliga ao intervir manualmente (reative no botão).");
 })();
 `;
 
