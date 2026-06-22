@@ -13,7 +13,9 @@ async function loadTenant(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("tenants")
-    .select("id, status, plan_id, pending_plan_id, billing_cycle, subscription_renews_at")
+    .select(
+      "id, status, plan_id, pending_plan_id, billing_cycle, subscription_renews_at, plans!tenants_plan_id_fkey(is_custom)",
+    )
     .eq("owner_id", userId)
     .maybeSingle();
   if (!data) throw new Error("Conta sem empresa vinculada");
@@ -49,13 +51,18 @@ export const getPlanChangeOptions = createServerFn({ method: "GET" })
       return { ...p, priceForCycle: price, kind };
     });
 
+    // Plano pré-pago/sob medida (is_custom): o cliente NÃO troca de plano
+    // sozinho — só o admin pode movê-lo para um plano padrão.
+    const isCustomPlan = !!(tenant.plans as { is_custom?: boolean } | null)?.is_custom;
+
     return {
       tenantStatus: tenant.status,
       billingCycle: cycle,
       currentPlanId: tenant.plan_id,
       pendingPlanId: tenant.pending_plan_id,
       renewsAt: tenant.subscription_renews_at,
-      options,
+      isCustomPlan,
+      options: isCustomPlan ? [] : options,
     };
   });
 
@@ -65,6 +72,9 @@ export const scheduleDowngrade = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const tenant = await loadTenant(context.userId);
     if (tenant.status !== "active") throw new Error("Ative sua conta antes de trocar de plano.");
+    if ((tenant.plans as { is_custom?: boolean } | null)?.is_custom) {
+      throw new Error("Seu plano é sob medida. Fale com o suporte para alterar o plano.");
+    }
     if (data.planId === tenant.plan_id) throw new Error("Este já é o seu plano atual.");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

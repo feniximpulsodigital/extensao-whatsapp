@@ -459,6 +459,34 @@ function PlanCard() {
   const current = options.find((p) => p.kind === "current");
   const pending = data?.pendingPlanId ? options.find((p) => p.id === data.pendingPlanId) : null;
 
+  // Plano pré-pago / sob medida: o cliente não troca de plano sozinho —
+  // só compra créditos. Mudança de plano é feita pelo admin.
+  if (data?.isCustomPlan) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Meu plano</CardTitle>
+          <CardDescription>
+            Você está no plano <b>Pré-pago (sem mensalidade)</b>. Você paga apenas pelos créditos que
+            usar — sem mensalidade.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Para mudar para um plano com mensalidade, fale com o suporte. Enquanto isso, é só comprar
+            créditos quando precisar.
+          </p>
+          <Button asChild>
+            <Link to="/buy-credits">
+              <Zap className="h-4 w-4 mr-2" />
+              Comprar créditos
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
