@@ -10,7 +10,7 @@ type Props = {
 export function Logo({ size = 32, showText = true, className = "" }: Props) {
   const { branding } = useTheme();
   const src = branding?.brandLogoUrl || iconUrl;
-  const name = branding?.brandName || "Argos Zap";
+  const name = branding?.brandName || "Argos Responde";
   const [first, ...rest] = name.split(" ");
   const second = rest.join(" ");
 

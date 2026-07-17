@@ -103,8 +103,7 @@ function PricingSection({
     <section id="pricing" className="bg-muted/40 py-20">
       <div className="container mx-auto px-4">
         <div className="mx-auto max-w-2xl text-center">
-          <span className="text-sm font-semibold uppercase tracking-wider text-primary">Planos</span>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
             Cabe no bolso. Paga sozinho na primeira venda extra.
           </h2>
           <p className="mt-4 text-muted-foreground">
@@ -255,10 +254,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
       {/* Dor / problema */}
       <section id="problemas" className="container mx-auto px-4 py-20">
         <div className="mx-auto max-w-2xl text-center">
-          <span className="text-sm font-semibold uppercase tracking-wider text-primary">
-            O problema
-          </span>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
             Você sabe que precisa responder rápido. O dia a dia não deixa.
           </h2>
           <p className="mt-4 text-muted-foreground">
@@ -301,10 +297,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
       <section id="solucao" className="bg-gradient-to-b from-primary/5 via-muted/40 to-background py-20">
         <div className="container mx-auto px-4">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-wider text-primary">
-              A solução
-            </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+            <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
               Uma IA treinada com o seu negócio, atendendo 24 horas no seu WhatsApp
             </h2>
             <p className="mt-4 text-muted-foreground">
@@ -382,10 +375,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
         <section className="container mx-auto px-4 py-20">
           <div className="mx-auto grid max-w-5xl items-center gap-10 md:grid-cols-2">
             <div>
-              <span className="text-sm font-semibold uppercase tracking-wider text-primary">
-                Veja em ação
-              </span>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+              <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
                 22h47, loja fechada — e a venda acontecendo
               </h2>
               <p className="mt-4 text-muted-foreground">
@@ -442,10 +432,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
       {TESTIMONIALS.length > 0 ? (
         <section className="container mx-auto px-4 py-20">
           <div className="mx-auto max-w-2xl text-center">
-            <span className="text-sm font-semibold uppercase tracking-wider text-primary">
-              Quem usa, aprova
-            </span>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+            <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
               Negócios que pararam de perder cliente no WhatsApp
             </h2>
             {SOCIAL_PROOF_STAT && (
@@ -473,10 +460,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
         TRUST_BADGES.length > 0 && (
           <section className="container mx-auto px-4 py-20">
             <div className="mx-auto max-w-2xl text-center">
-              <span className="text-sm font-semibold uppercase tracking-wider text-primary">
-                Por que confiar na Argos
-              </span>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+              <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
                 Feita para você vender mais sem perder o controle
               </h2>
               {SOCIAL_PROOF_STAT && (
@@ -502,10 +486,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
         <section className="py-20">
           <div className="container mx-auto px-4">
             <div className="mx-auto max-w-2xl text-center">
-              <span className="text-sm font-semibold uppercase tracking-wider text-primary">
-                Para quem é
-              </span>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+              <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
                 Feita para o dia a dia do pequeno negócio
               </h2>
             </div>
@@ -545,10 +526,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
       {/* Como funciona */}
       <section id="como" className="container mx-auto px-4 py-20">
         <div className="mx-auto max-w-2xl text-center">
-          <span className="text-sm font-semibold uppercase tracking-wider text-primary">
-            Como funciona
-          </span>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
             Em poucos minutos sua IA está atendendo
           </h2>
         </div>
@@ -628,10 +606,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
         <section className="container mx-auto px-4 py-20">
           <div className="mx-auto max-w-3xl">
             <div className="text-center">
-              <span className="text-sm font-semibold uppercase tracking-wider text-primary">
-                Sem risco
-              </span>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+              <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
                 Compromisso real, sem letra miúda
               </h2>
             </div>

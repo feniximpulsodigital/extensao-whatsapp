@@ -32,7 +32,19 @@
       "PowerShell(Get-Process git,git-filter-branch -ErrorAction SilentlyContinue)",
       "PowerShell(Get-Process git -ErrorAction SilentlyContinue | Select-Object Name,Id; Write-Output \"=== output ===\"; if \\(\\(Get-Item \"C:\\\\Users\\\\wolves\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--PROJETOS-GITHUB-extensao-whatsapp\\\\6fced084-ef9f-483e-82a6-da6224b89644\\\\tasks\\\\bok0zyb6h.output\"\\).Length -gt 0\\) { Get-Content \"C:\\\\Users\\\\wolves\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--PROJETOS-GITHUB-extensao-whatsapp\\\\6fced084-ef9f-483e-82a6-da6224b89644\\\\tasks\\\\bok0zyb6h.output\" -Tail 15 } else { Write-Output \"\\(vazio\\)\" })",
       "PowerShell($p = Get-Process git -ErrorAction SilentlyContinue; if \\($p\\) { Write-Output \"AINDA RODANDO: $\\($p.Count\\) processos git\" } else { Write-Output \"CONCLUIDO: nenhum processo git ativo\" })",
-      "PowerShell($p = Get-Process git -ErrorAction SilentlyContinue; if \\($p\\) { Write-Output \"AINDA RODANDO: $\\($p.Count\\) git\" } else { Write-Output \"CONCLUIDO\" }; Write-Output \"=== .env no historico \\(vazio = removido\\) ===\"; git log --oneline --all -- .env 2>&1 | Select-Object -First 5)"
+      "PowerShell($p = Get-Process git -ErrorAction SilentlyContinue; if \\($p\\) { Write-Output \"AINDA RODANDO: $\\($p.Count\\) git\" } else { Write-Output \"CONCLUIDO\" }; Write-Output \"=== .env no historico \\(vazio = removido\\) ===\"; git log --oneline --all -- .env 2>&1 | Select-Object -First 5)",
+      "WebFetch(domain:faq.whatsapp.com)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -s --max-time 10 https://argosresponde.com.br/api/public/extension-version)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" --max-time 10 https://argosresponde.com.br/)",
+      "Bash(curl -s --max-time 20 -X POST https://argosresponde.com.br/api/public/ai-reply -H 'Content-Type: application/json' -H 'x-api-key: 2bcb220b4c0c53609cdfe49254bccf2315561ac1c712a6c2' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"[anexo]\"}],\"sessionId\":\"audit-gif\",\"dedupeKey\":\"audit-gif-__CMDSUB_OUTPUT__\",\"mediaType\":\"gif\"}')",
+      "PowerShell(npm run dev)",
+      "Bash(grep -qiE \"localhost:[0-9]|ready in\" \"C:\\\\\\\\Users\\\\\\\\wolves\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\claude\\\\\\\\d--PROJETOS-GITHUB-extensao-whatsapp\\\\\\\\6fced084-ef9f-483e-82a6-da6224b89644\\\\\\\\tasks\\\\\\\\b4y1e9sft.output\")",
+      "Bash(break)",
+      "Bash(grep -iE \"localhost:|ready in|error\" \"C:\\\\\\\\Users\\\\\\\\wolves\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\claude\\\\\\\\d--PROJETOS-GITHUB-extensao-whatsapp\\\\\\\\6fced084-ef9f-483e-82a6-da6224b89644\\\\\\\\tasks\\\\\\\\b4y1e9sft.output\")",
+      "mcp__claude_ai_Supabase__list_projects",
+      "PowerShell(git add -A; git commit -q -F .git/CMTMSG.txt; \"commit exit: $LASTEXITCODE\"; Remove-Item .git/CMTMSG.txt -Confirm:$false)"
     ]
   }
 }

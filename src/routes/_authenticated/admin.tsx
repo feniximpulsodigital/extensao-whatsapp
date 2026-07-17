@@ -67,7 +67,7 @@ function AdminLayout() {
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Link to="/admin/settings" className="flex items-center gap-2">
             <Logo size={28} showText={false} />
-            <span className="font-bold">Argos Zap · Super Admin</span>
+            <span className="font-bold">Argos Responde · Super Admin</span>
           </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle />

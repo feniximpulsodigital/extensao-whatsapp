@@ -24,7 +24,7 @@ function BrandingPage() {
   });
 
   const [form, setForm] = useState({
-    brandName: "Argos Zap",
+    brandName: "Argos Responde",
     brandLogoUrl: "",
     accentLight: "#0F6E56",
     accentDark: "#39FF8A",
@@ -77,7 +77,7 @@ function BrandingPage() {
               id="brandName"
               value={form.brandName}
               onChange={(e) => setForm({ ...form, brandName: e.target.value })}
-              placeholder="Argos Zap"
+              placeholder="Argos Responde"
             />
             <p className="text-xs text-muted-foreground">
               Primeira palavra fica na cor do texto; o restante usa a cor de destaque.
@@ -94,7 +94,7 @@ function BrandingPage() {
               placeholder="https://..."
             />
             <p className="text-xs text-muted-foreground">
-              Deixe vazio para usar o ícone padrão do Argos Zap.
+              Deixe vazio para usar o ícone padrão do Argos Responde.
             </p>
           </div>
 

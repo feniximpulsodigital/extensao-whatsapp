@@ -7,7 +7,7 @@ import { EXTENSION_VERSION } from "./extension-version";
 
 // ---------- Extension source files (templates) ----------
 
-const PRODUCTION_ORIGIN = "https://extensaowhatsapp.com.br";
+const PRODUCTION_ORIGIN = "https://argosresponde.com.br";
 
 const MANIFEST = (brandName: string, apiOrigin: string) => ({
   manifest_version: 3,

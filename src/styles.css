@@ -65,7 +65,7 @@
 
 :root {
   --radius: 0.75rem;
-  /* LIGHT theme (default) — Argos Zap brand: fundo claro + accent verde dark */
+  /* LIGHT theme (default) — Argos Responde brand: fundo claro + accent verde dark */
   --background: oklch(1 0 0);                /* #FFFFFF */
   --foreground: oklch(0.18 0 0);             /* #111111 */
   --card: oklch(1 0 0);
@@ -102,7 +102,7 @@
 }
 
 .dark {
-  /* DARK theme — Argos Zap brand: preto #111 + verde neon #39FF8A */
+  /* DARK theme — Argos Responde brand: preto #111 + verde neon #39FF8A */
   --background: oklch(0.18 0 0);             /* #111111 */
   --foreground: oklch(1 0 0);                /* #FFFFFF */
   --card: oklch(0.23 0 0);                   /* #222222 */

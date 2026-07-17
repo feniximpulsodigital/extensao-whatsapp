@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const DEFAULTS = {
-  brandName: "Argos Zap",
+  brandName: "Argos Responde",
   brandLogoUrl: null as string | null,
   accentLight: "#0F6E56",
   accentDark: "#39FF8A",

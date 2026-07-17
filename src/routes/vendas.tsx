@@ -122,10 +122,7 @@ function SalesPage() {
       {/* Antes / depois */}
       <section className="container mx-auto px-4 py-20">
         <div className="mx-auto max-w-2xl text-center">
-          <span className="text-sm font-semibold uppercase tracking-wider text-primary">
-            A diferença
-          </span>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
             O que muda no seu WhatsApp a partir de hoje
           </h2>
         </div>
