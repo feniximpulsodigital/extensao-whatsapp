@@ -11,13 +11,13 @@ import { SiteFooter } from "@/components/sales/SiteFooter";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Argos — Pare de perder clientes no WhatsApp. IA atende por você 24/7" },
+      { title: "Argos — Pare de perder clientes no WhatsApp. IA atende por você 24 horas" },
       {
         name: "description",
         content:
           "A Argos responde seus clientes no WhatsApp Web em segundos, com IA treinada no seu negócio. Atendimento 24 horas, vendas que não dormem.",
       },
-      { property: "og:title", content: "Argos — IA que vende no seu WhatsApp 24/7" },
+      { property: "og:title", content: "Argos — IA que vende no seu WhatsApp 24 horas" },
       {
         property: "og:description",
         content:
