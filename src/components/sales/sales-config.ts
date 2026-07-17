@@ -48,5 +48,4 @@ export const GUARANTEE_DAYS = 7;
 
 // Bônus de boas-vindas exibido como gatilho de ação. null = esconde.
 // Mantenha coerente com o que o sistema realmente concede.
-export const WELCOME_BONUS: string | null =
-  "Comece hoje e configure sua IA com a ajuda do nosso time, sem custo extra.";
+export const WELCOME_BONUS: string | null = null;

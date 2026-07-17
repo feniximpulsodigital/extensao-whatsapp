@@ -44,7 +44,11 @@
       "Bash(break)",
       "Bash(grep -iE \"localhost:|ready in|error\" \"C:\\\\\\\\Users\\\\\\\\wolves\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\claude\\\\\\\\d--PROJETOS-GITHUB-extensao-whatsapp\\\\\\\\6fced084-ef9f-483e-82a6-da6224b89644\\\\\\\\tasks\\\\\\\\b4y1e9sft.output\")",
       "mcp__claude_ai_Supabase__list_projects",
-      "PowerShell(git add -A; git commit -q -F .git/CMTMSG.txt; \"commit exit: $LASTEXITCODE\"; Remove-Item .git/CMTMSG.txt -Confirm:$false)"
+      "PowerShell(git add -A; git commit -q -F .git/CMTMSG.txt; \"commit exit: $LASTEXITCODE\"; Remove-Item .git/CMTMSG.txt -Confirm:$false)",
+      "PowerShell(git push; \"push exit: $LASTEXITCODE\"; git log --oneline -1)",
+      "Bash(sleep 8 && grep -iE \"localhost:|ready in\" \"$HOME/.claude/*/tasks/*.output\" 2>/dev/null | tail -3)",
+      "Read(//c/Users/wolves/.claude/**)",
+      "Bash(sqlite3 /dev/null \"select 'checar dados do banco'\")"
     ]
   }
 }

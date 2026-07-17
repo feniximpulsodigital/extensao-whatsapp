@@ -9,23 +9,23 @@ type Msg = {
 const CONVERSA: Msg[] = [
   {
     from: "cliente",
-    text: "Boa noite! Ainda tá aberto? Queria saber o valor do combo família 🍕",
-    time: "22:47",
+    text: "Boa noite! Vocês vendem a jaqueta jeans azul que vi no Instagram?",
+    time: "21:15",
   },
   {
     from: "argos",
-    text: "Boa noite! 😊 Estamos sim! O combo família sai por R$ 89,90 e inclui 2 pizzas grandes + refri 2L. Entregamos até 23h30. Quer que eu anote seu pedido?",
-    time: "22:47",
+    text: "Boa noite! 😊 Sim, temos sim! A jaqueta azul custa R$ 129,90 e tem nos tamanhos P, M, G e GG. Qual tamanho você quer?",
+    time: "21:15",
   },
   {
     from: "cliente",
-    text: "Quero sim! Pode ser uma calabresa e uma quatro queijos",
-    time: "22:48",
+    text: "Tamanho M. Qual é o prazo de entrega?",
+    time: "21:16",
   },
   {
     from: "argos",
-    text: "Perfeito! Combo família com calabresa + quatro queijos + refri 2L = R$ 89,90. Me passa seu endereço que eu já calculo a entrega? 🛵",
-    time: "22:48",
+    text: "Perfeito! Tamanho M, R$ 129,90. A entrega é no dia seguinte na região da Zona Sul, sem taxa adicional. Quer confirmar o pedido? 📦",
+    time: "21:16",
   },
 ];
 
@@ -80,8 +80,8 @@ export function WhatsAppDemo({ className = "" }: { className?: string }) {
         </div>
       </div>
       <p className="mt-2 text-center text-xs text-muted-foreground">
-        Simulação ilustrativa de um atendimento feito pela Argos às 22h47, fora do horário
-        comercial.
+        Simulação ilustrativa de um atendimento feito pela Argos à noite, respondendo na hora
+        mesmo com a loja fechada.
       </p>
     </div>
   );

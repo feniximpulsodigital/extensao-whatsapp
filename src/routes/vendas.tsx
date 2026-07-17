@@ -41,7 +41,7 @@ export const Route = createFileRoute("/vendas")({
       {
         property: "og:description",
         content:
-          "IA que atende seus clientes 24/7 no WhatsApp Web, com o tom da sua marca. Mensal via Pix, sem fidelidade.",
+          "IA que atende seus clientes 24 horas no WhatsApp Web, com o tom da sua marca. Mensal via Pix, sem fidelidade.",
       },
     ],
   }),
@@ -195,7 +195,7 @@ function SalesPage() {
               },
               {
                 q: "E se eu quiser assumir a conversa?",
-                a: "É só responder. A Argos percebe na hora, sai da frente e devolve o controle para você. Liga e desliga quando quiser, por contato.",
+                a: "É só responder — a IA detecta que você entrou e se retira automaticamente. Você liga e desliga quando quiser, por contato.",
               },
               {
                 q: "Como funciona o pagamento e o cancelamento?",

@@ -104,7 +104,7 @@ function PricingSection({
       <div className="container mx-auto px-4">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
-            Cabe no bolso. Paga sozinho na primeira venda extra.
+            Cabe no bolso. Se paga sozinho na primeira venda extra.
           </h2>
           <p className="mt-4 text-muted-foreground">
             Pix ou cartão · Sem fidelidade · Cancele quando quiser
@@ -232,7 +232,7 @@ function PricingSection({
         )}
 
         <p className="mx-auto mt-8 max-w-xl text-center text-xs text-muted-foreground">
-          Todos os planos incluem IA 24/7, transcrição de áudios e suporte humano. Sem taxa de setup.
+          Todos os planos incluem IA 24 horas, transcrição de áudios e suporte humano. Sem taxa de setup.
           Comece hoje e cancele quando quiser.
         </p>
       </div>
@@ -354,8 +354,8 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
               <HeartHandshake className="h-6 w-6 text-primary" />
               <h3 className="mt-3 font-semibold">Você no controle, sempre</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Entrou na conversa? A IA percebe na hora e sai da frente. Você liga e desliga a
-                qualquer momento, por contato.
+                Quando você responde, a IA se afasta automaticamente. Você muda de ideia e ativa de novo?
+                Liga e desliga por contato, quando quiser.
               </p>
             </div>
             <div className="rounded-lg border bg-background p-5">
@@ -386,7 +386,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
                 {[
                   "Responde com seus preços, produtos e regras de entrega",
                   "Mantém o tom da sua marca em cada mensagem",
-                  "Se você entrar na conversa, a IA percebe e sai da frente",
+                  "Se você responder, a IA entende e deixa a conversa com você",
                 ].map((i) => (
                   <li key={i} className="flex gap-2">
                     <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> {i}
@@ -411,7 +411,7 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
           </h2>
           <div className="mx-auto mt-10 grid max-w-4xl gap-8 text-center md:grid-cols-3">
             {[
-              { stat: "24/7", label: "atendendo de madrugada, no feriado e no fim de semana" },
+              { stat: "24 horas", label: "atendendo de madrugada, no feriado e no fim de semana" },
               {
                 stat: "Áudios",
                 label: "transcritos automaticamente — a IA entende e responde quem manda áudio",
@@ -572,13 +572,13 @@ export function SalesPitch({ variant = "full" }: { variant?: "full" | "compact" 
       {/* Risco-zero: garantia + bônus, logo antes do preço */}
       {(GUARANTEE_DAYS > 0 || WELCOME_BONUS) && (
         <section className="container mx-auto px-4 pt-20">
-          <div className="mx-auto grid max-w-4xl gap-4 md:grid-cols-2">
+          <div className={`mx-auto grid gap-4 ${WELCOME_BONUS ? "max-w-4xl md:grid-cols-2" : "max-w-2xl"}`}>
             {GUARANTEE_DAYS > 0 && (
-              <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-5">
+              <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-6">
                 <ShieldCheck className="h-7 w-7 shrink-0 text-primary" />
                 <div>
-                  <h3 className="font-semibold">Garantia de {GUARANTEE_DAYS} dias</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <h3 className="text-lg font-semibold">Garantia de {GUARANTEE_DAYS} dias</h3>
+                  <p className="mt-2 text-muted-foreground">
                     Testou e não era pra você? Devolvemos o valor dentro de {GUARANTEE_DAYS} dias.
                     Sem burocracia, sem perguntas difíceis.
                   </p>
