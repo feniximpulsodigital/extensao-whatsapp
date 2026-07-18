@@ -6,7 +6,6 @@ import { Logo } from "@/components/brand/Logo";
 import { SalesPitch, CtaButton } from "@/components/sales/SalesPitch";
 import { WhatsAppDemo } from "@/components/sales/WhatsAppDemo";
 import { SiteFooter } from "@/components/sales/SiteFooter";
-import { WhatsAppFloat } from "@/components/sales/WhatsAppFloat";
 
 // A página de vendas tem um único tema (claro): fundos brancos fazem os blocos
 // verdes (hero, faixas, CTA) estourarem com o máximo de contraste e dão a cara
@@ -250,7 +249,6 @@ function SalesPage() {
       </section>
 
       <SiteFooter />
-      <WhatsAppFloat />
     </div>
   );
 }

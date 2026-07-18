@@ -5,7 +5,6 @@ import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SalesPitch, CtaButton } from "@/components/sales/SalesPitch";
 import { WhatsAppDemo } from "@/components/sales/WhatsAppDemo";
-import { WhatsAppFloat } from "@/components/sales/WhatsAppFloat";
 import { SiteFooter } from "@/components/sales/SiteFooter";
 
 export const Route = createFileRoute("/")({
@@ -117,7 +116,6 @@ function Landing() {
       <SalesPitch variant="full" />
 
       <SiteFooter />
-      <WhatsAppFloat />
     </div>
   );
 }
