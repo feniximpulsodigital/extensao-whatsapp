@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutorial - Argos Responde</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #0F6E56;
+            --primary-light: #39FF8A;
+            --bg: #ffffff;
+            --bg-muted: #f5f5f5;
+            --text: #111111;
+            --text-muted: #666666;
+            --border: #e0e0e0;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #1a1a1a;
+                --bg-muted: #2d2d2d;
+                --text: #ffffff;
+                --text-muted: #999999;
+                --border: #333333;
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background-color: var(--bg);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            margin-bottom: 40px;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 20px;
+        }
+
+        h1 {
+            color: var(--primary);
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 1.1em;
+        }
+
+        nav {
+            background-color: var(--bg-muted);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 40px;
+            border-left: 4px solid var(--primary);
+        }
+
+        nav h3 {
+            color: var(--primary);
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        nav ol {
+            list-style: none;
+            counter-reset: step-counter;
+        }
+
+        nav li {
+            counter-increment: step-counter;
+            margin-bottom: 8px;
+            padding-left: 30px;
+            position: relative;
+        }
+
+        nav li:before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 0;
+            top: 0;
+            background-color: var(--primary);
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+
+        nav a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        nav a:hover {
+            text-decoration: underline;
+        }
+
+        section {
+            margin-bottom: 50px;
+        }
+
+        section h2 {
+            color: var(--primary);
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary);
+        }
+
+        section h3 {
+            color: var(--text);
+            font-size: 1.3em;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+
+        .step {
+            background-color: var(--bg-muted);
+            border-left: 4px solid var(--primary);
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .step strong {
+            color: var(--primary);
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .step ol, .step ul {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+
+        .step li {
+            margin-bottom: 8px;
+            color: var(--text-muted);
+        }
+
+        .plan {
+            background-color: var(--bg-muted);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .plan h4 {
+            color: var(--primary);
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+
+        .plan .price {
+            font-size: 1.3em;
+            color: var(--primary);
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .plan ul {
+            list-style: none;
+            margin-left: 0;
+        }
+
+        .plan li {
+            padding: 6px 0;
+            color: var(--text-muted);
+        }
+
+        .plan li:before {
+            content: "✓ ";
+            color: var(--success);
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        .highlight {
+            background-color: var(--primary);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 500;
+        }
+
+        .warning-box {
+            background-color: var(--warning);
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            border-left: 4px solid #d97706;
+        }
+
+        .success-box {
+            background-color: var(--success);
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+            border-left: 4px solid #059669;
+        }
+
+        .faq {
+            margin-top: 20px;
+        }
+
+        .faq-item {
+            background-color: var(--bg-muted);
+            border-radius: 6px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        .faq-q {
+            padding: 15px;
+            font-weight: 600;
+            color: var(--primary);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .faq-q:hover {
+            background-color: var(--border);
+        }
+
+        .faq-toggle {
+            display: inline-block;
+            transition: transform 0.3s;
+        }
+
+        .faq-item.open .faq-toggle {
+            transform: rotate(180deg);
+        }
+
+        .faq-a {
+            padding: 15px;
+            border-top: 1px solid var(--border);
+            display: none;
+            background-color: var(--bg);
+            color: var(--text-muted);
+        }
+
+        .faq-item.open .faq-a {
+            display: block;
+        }
+
+        .tips {
+            background-color: var(--bg-muted);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid var(--primary);
+        }
+
+        .tips h4 {
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+
+        .tips ul {
+            list-style: none;
+            margin-left: 0;
+        }
+
+        .tips li {
+            padding: 8px 0;
+            color: var(--text-muted);
+        }
+
+        .tips li:before {
+            content: "💡 ";
+            margin-right: 8px;
+        }
+
+        footer {
+            text-align: center;
+            padding-top: 40px;
+            border-top: 2px solid var(--border);
+            color: var(--text-muted);
+            margin-top: 60px;
+        }
+
+        code {
+            background-color: var(--bg-muted);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: "Courier New", monospace;
+            color: var(--text);
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8em;
+            }
+
+            section h2 {
+                font-size: 1.3em;
+            }
+
+            nav {
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 Tutorial Completo: Argos Responde</h1>
+            <p class="subtitle">Passo a passo para configurar e usar o sistema de IA no WhatsApp</p>
+        </header>
+
+        <nav>
+            <h3>📑 Índice de Conteúdo</h3>
+            <ol>
+                <li><a href="#criacao">Criação da Conta</a></li>
+                <li><a href="#plano">Escolha do Plano</a></li>
+                <li><a href="#configuracao">Configuração Inicial</a></li>
+                <li><a href="#treinar">Treinar a IA</a></li>
+                <li><a href="#extensao">Instalar a Extensão</a></li>
+                <li><a href="#uso">Ativar e Usar</a></li>
+                <li><a href="#clientes">Gerenciar Clientes</a></li>
+                <li><a href="#creditos">Acompanhar Uso</a></li>
+                <li><a href="#suporte">Suporte e Ajuda</a></li>
+            </ol>
+        </nav>
+
+        <section id="criacao">
+            <h2>1️⃣ Criação da Conta</h2>
+
+            <h3>Passo 1.1: Acessar o site</h3>
+            <div class="step">
+                <ol>
+                    <li>Acesse <span class="highlight">https://argosresponde.com.br</span></li>
+                    <li>Clique em <strong>"Quero começar agora"</strong> (botão verde no topo)</li>
+                    <li>Você será redirecionado para a página de cadastro</li>
+                </ol>
+            </div>
+
+            <h3>Passo 1.2: Preencher os dados</h3>
+            <div class="step">
+                <strong>Na página de cadastro, preencha:</strong>
+                <ul>
+                    <li><strong>E-mail:</strong> seu e-mail corporativo (para login e notificações)</li>
+                    <li><strong>Senha:</strong> mínimo 8 caracteres (recomenda-se forte)</li>
+                    <li><strong>Nome da empresa:</strong> aparecerá na extensão</li>
+                    <li><strong>Número de WhatsApp:</strong> formato 5511999999999 (só dígitos)</li>
+                </ul>
+            </div>
+
+            <h3>Passo 1.3: Revisar e confirmar</h3>
+            <div class="step">
+                <ol>
+                    <li>Revise os dados</li>
+                    <li>Clique em <strong>"Criar minha conta"</strong></li>
+                    <li>Você será redirecionado para o checkout</li>
+                </ol>
+            </div>
+        </section>
+
+        <section id="plano">
+            <h2>2️⃣ Escolha do Plano</h2>
+
+            <h3>Comparativa de Planos</h3>
+
+            <div class="plan">
+                <h4>🚀 Plano Starter</h4>
+                <div class="price">R$ XX/mês</div>
+                <ul>
+                    <li>1 número de WhatsApp</li>
+                    <li>1 computador conectado</li>
+                    <li>XXXX créditos de IA por mês</li>
+                    <li>Transcrição de áudios</li>
+                    <li>Suporte por tickets</li>
+                </ul>
+                <p style="margin-top: 10px; color: var(--text-muted);">💬 <strong>Ideal para:</strong> pequenas empresas testando a solução</p>
+            </div>
+
+            <div class="plan" style="border-color: var(--primary); border-width: 3px;">
+                <h4>⭐ Plano Pro (Mais Escolhido)</h4>
+                <div class="price">R$ XX/mês</div>
+                <ul>
+                    <li>1 número de WhatsApp</li>
+                    <li>Computadores ilimitados</li>
+                    <li>XXXXX créditos de IA por mês</li>
+                    <li>Transcrição de áudios</li>
+                    <li>Suporte prioritário</li>
+                    <li>Customização da extensão</li>
+                </ul>
+                <p style="margin-top: 10px; color: var(--text-muted);">💬 <strong>Ideal para:</strong> empresas que querem escala</p>
+            </div>
+
+            <div class="plan">
+                <h4>🏢 Plano Enterprise</h4>
+                <div class="price">Contato</div>
+                <ul>
+                    <li>Múltiplos números de WhatsApp</li>
+                    <li>Computadores ilimitados</li>
+                    <li>Créditos ilimitados</li>
+                    <li>Customizações avançadas</li>
+                </ul>
+                <p style="margin-top: 10px; color: var(--text-muted);">💬 <strong>Ideal para:</strong> grandes operações</p>
+            </div>
+
+            <h3>Forma de Pagamento</h3>
+            <div class="step">
+                <strong>Escolha uma opção:</strong>
+                <ul>
+                    <li><strong>💳 Cartão de crédito:</strong> debitado na hora (seguro, hospedado no Asaas)</li>
+                    <li><strong>🔄 PIX:</strong> cobrado mensalmente (assinatura recorrente)</li>
+                </ul>
+            </div>
+
+            <div class="warning-box">
+                ⚠️ <strong>Importante:</strong> CPF/CNPJ é necessário para gerar a cobrança. Use CNPJ se for PJ, ou CPF se for PF.
+            </div>
+        </section>
+
+        <section id="configuracao">
+            <h2>3️⃣ Configuração Inicial</h2>
+
+            <h3>Passo 3.1: Acessar o Dashboard</h3>
+            <div class="step">
+                <strong>Após confirmar o pagamento:</strong>
+                <ul>
+                    <li>Você será redirecionado para o <span class="highlight">Dashboard</span></li>
+                    <li>Este é seu <strong>centro de controle</strong></li>
+                    <li>Aqui você verá status da conta, créditos e links rápidos</li>
+                </ul>
+            </div>
+
+            <h3>Passo 3.2: Configurar a IA</h3>
+            <div class="step">
+                <ol>
+                    <li>No menu lateral, clique em <strong>"Configurar IA"</strong></li>
+                    <li>Você será levado para a página de treinamento</li>
+                </ol>
+            </div>
+        </section>
+
+        <section id="treinar">
+            <h2>4️⃣ Treinar a IA</h2>
+
+            <h3>Passo 4.1: Definir o tom de voz</h3>
+            <div class="step">
+                <strong>Descreva como quer que a IA fale:</strong>
+                <ul>
+                    <li>Exemplo 1: "Fala descontraída e amigável, com emojis. Sempre oferece soluções rápidas."</li>
+                    <li>Exemplo 2: "Tom corporativo e profissional. Sem emojis. Propõe próximos passos claros."</li>
+                </ul>
+                <p style="margin-top: 10px; color: var(--text-muted);">Quanto mais detalhe, melhor a IA aprende!</p>
+            </div>
+
+            <h3>Passo 4.2: Informações da empresa</h3>
+            <div class="step">
+                <strong>Preencha cada campo:</strong>
+                <ul>
+                    <li><strong>Descrição:</strong> o que você faz (ex: "Loja online de jaquetas, entrega em 24h")</li>
+                    <li><strong>Produtos/Serviços:</strong> principais itens (ex: "Jaquetas de couro, moletom, jeans")</li>
+                    <li><strong>Preços:</strong> tabela com seus produtos (ex: "Jaqueta básica: R$ 89,90")</li>
+                    <li><strong>Entrega:</strong> informações (ex: "24h SP, frete grátis acima R$ 150")</li>
+                    <li><strong>Pagamento:</strong> formas aceitas (ex: "PIX, cartão, transferência")</li>
+                </ul>
+            </div>
+
+            <h3>Passo 4.3: Exemplos de conversas (recomendado)</h3>
+            <div class="step">
+                <strong>Adicione perguntas comuns e respostas esperadas:</strong>
+                <ul>
+                    <li><strong>P:</strong> "Qual é o menor preço de jaqueta?"</li>
+                    <li><strong>R:</strong> "Nossa básica sai por R$ 89,90. Quer saber as cores?"</li>
+                </ul>
+                <p style="margin-top: 10px; color: var(--text-muted);">Quanto mais exemplos, mais precisa a IA fica!</p>
+            </div>
+
+            <h3>Passo 4.4: Salvar e testar</h3>
+            <div class="step">
+                <ol>
+                    <li>Clique em <strong>"Salvar configurações"</strong></li>
+                    <li>A IA será retreinada (leva alguns segundos)</li>
+                    <li>Use o campo de teste para verificar respostas</li>
+                </ol>
+            </div>
+        </section>
+
+        <section id="extensao">
+            <h2>5️⃣ Instalar a Extensão</h2>
+
+            <h3>Passo 5.1: Baixar a extensão</h3>
+            <div class="step">
+                <ol>
+                    <li>No Dashboard, clique em <strong>"Baixar Extensão"</strong></li>
+                    <li>Clique em <strong>"Gerar e baixar extensão"</strong></li>
+                    <li>Um arquivo <code>.zip</code> será baixado</li>
+                </ol>
+            </div>
+
+            <h3>Passo 5.2: Instalar no Chrome</h3>
+            <div class="step">
+                <ol>
+                    <li>Abra Chrome e vá para <code>chrome://extensions/</code></li>
+                    <li>Ative <strong>"Modo de desenvolvedor"</strong> (canto superior direito)</li>
+                    <li>Clique em <strong>"Carregar extensão sem empacotamento"</strong></li>
+                    <li>Selecione a pasta extraída do <code>.zip</code></li>
+                    <li>A extensão <strong>Argos Responde</strong> aparecerá no Chrome</li>
+                </ol>
+            </div>
+
+            <h3>Passo 5.3: Acessar o WhatsApp Web</h3>
+            <div class="step">
+                <ol>
+                    <li>Abra <span class="highlight">https://web.whatsapp.com/</span></li>
+                    <li>Escaneie o QR code com seu celular</li>
+                    <li>Aguarde carregar completamente</li>
+                </ol>
+            </div>
+
+            <h3>Passo 5.4: Verificar status</h3>
+            <div class="success-box">
+                ✅ Abra qualquer conversa no WhatsApp Web. No topo, você deve ver um <strong>ícone verde "IA ativa"</strong>. Pronto!
+            </div>
+        </section>
+
+        <section id="uso">
+            <h2>6️⃣ Ativar e Usar</h2>
+
+            <h3>Passo 6.1: Ativar a IA por contato</h3>
+            <div class="step">
+                <strong>A IA não responde TODOS automaticamente. Você escolhe:</strong>
+                <ol>
+                    <li>Abra uma conversa no WhatsApp Web</li>
+                    <li>No topo, você verá um botão <strong>"Ativar IA"</strong></li>
+                    <li>Clique para ativar (ícone fica verde)</li>
+                    <li>A IA passará a responder neste contato</li>
+                </ol>
+            </div>
+
+            <h3>Passo 6.2: Testar com uma mensagem</h3>
+            <div class="step">
+                <ol>
+                    <li>Peça para alguém enviar uma mensagem</li>
+                    <li>A IA responde em menos de 3 segundos</li>
+                </ol>
+            </div>
+
+            <h3>Passo 6.3: Você responde? A IA detecta!</h3>
+            <div class="success-box">
+                ✅ Se você digitar e enviar uma resposta, a IA <strong>percebe na hora</strong> e se afasta. Quando terminar, pode reativar.
+            </div>
+        </section>
+
+        <section id="clientes">
+            <h2>7️⃣ Gerenciar Clientes</h2>
+
+            <h3>Passo 7.1: Acessar lista de clientes</h3>
+            <div class="step">
+                <ol>
+                    <li>No menu, clique em <strong>"Clientes"</strong></li>
+                    <li>Você verá:</li>
+                    <li style="list-style-type: none; margin-left: 20px;">
+                        • Lista de todas as contas
+                        <br>• Status de cada uma (ativa, suspensa)
+                        <br>• Número de WhatsApp
+                        <br>• Data de criação
+                    </li>
+                </ol>
+            </div>
+
+            <h3>Passo 7.2: Excluir um cliente</h3>
+            <div class="step">
+                <ol>
+                    <li>Clique no cliente</li>
+                    <li>Clique em <strong>"Excluir cliente"</strong></li>
+                    <li>Confirme a exclusão</li>
+                    <li>A assinatura no Asaas será cancelada automaticamente</li>
+                </ol>
+            </div>
+        </section>
+
+        <section id="creditos">
+            <h2>8️⃣ Acompanhar Uso</h2>
+
+            <h3>Passo 8.1: Ver créditos disponíveis</h3>
+            <div class="step">
+                <strong>No Dashboard você verá:</strong>
+                <ul>
+                    <li>✅ Créditos disponíveis neste mês</li>
+                    <li>✅ Créditos já consumidos</li>
+                    <li>✅ Botão para comprar extras</li>
+                </ul>
+            </div>
+
+            <h3>Passo 8.2: Histórico de uso</h3>
+            <div class="step">
+                <ol>
+                    <li>Vá para <strong>"Uso da IA"</strong> no menu</li>
+                    <li>Você verá:</li>
+                    <li style="list-style-type: none; margin-left: 20px;">
+                        • Quantas mensagens respondidas
+                        <br>• Áudios transcritos
+                        <br>• Créditos gastos
+                    </li>
+                </ol>
+            </div>
+
+            <h3>Passo 8.3: Avisos de saldo baixo</h3>
+            <div class="warning-box">
+                ⚠️ Se créditos caírem abaixo de 20%, você receberá um aviso no Dashboard. Clique em "Comprar créditos" para adicionar mais.
+            </div>
+        </section>
+
+        <section id="suporte">
+            <h2>9️⃣ Suporte e Ajuda</h2>
+
+            <h3>Passo 9.1: Abrir ticket de suporte</h3>
+            <div class="step">
+                <ol>
+                    <li>No Dashboard, clique em <strong>"Suporte"</strong></li>
+                    <li>Clique em <strong>"Abrir novo ticket"</strong></li>
+                    <li>Descreva o problema com detalhes</li>
+                    <li>Clique em <strong>"Enviar"</strong></li>
+                    <li>Nossa equipe responderá via e-mail</li>
+                </ol>
+            </div>
+
+            <h3>Perguntas Frequentes</h3>
+            <div class="faq">
+                <div class="faq-item">
+                    <div class="faq-q">
+                        <span>⏱️ Quanto tempo leva para a IA responder?</span>
+                        <span class="faq-toggle">▼</span>
+                    </div>
+                    <div class="faq-a">
+                        Menos de 3 segundos normalmente. Se o cliente enviar áudio, pode levar até 5 segundos (porque transcreve).
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <div class="faq-q">
+                        <span>💻 A IA responde quando não estou no computador?</span>
+                        <span class="faq-toggle">▼</span>
+                    </div>
+                    <div class="faq-a">
+                        Não. A IA roda enquanto o Chrome estiver aberto com o WhatsApp Web. Se desligar o PC, a IA não responde.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <div class="faq-q">
+                        <span>📱 Posso usar em mais de um número de WhatsApp?</span>
+                        <span class="faq-toggle">▼</span>
+                    </div>
+                    <div class="faq-a">
+                        Depende do plano. Starter: 1 número. Pro em diante: múltiplos. Entre em contato com suporte para ativar.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <div class="faq-q">
+                        <span>🔄 Posso trocar de plano?</span>
+                        <span class="faq-toggle">▼</span>
+                    </div>
+                    <div class="faq-a">
+                        Sim. Se subir de plano, cobra a diferença na hora. Se descer, vale a partir do próximo ciclo.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <div class="faq-q">
+                        <span>🛑 O que acontece se meus créditos acabarem?</span>
+                        <span class="faq-toggle">▼</span>
+                    </div>
+                    <div class="faq-a">
+                        A IA para de responder. Você pode comprar créditos extras a qualquer momento e reativar.
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <div class="faq-q">
+                        <span>✅ Tem garantia?</span>
+                        <span class="faq-toggle">▼</span>
+                    </div>
+                    <div class="faq-a">
+                        Sim! 7 dias de garantia. Se não gostar, clique em "Solicitar reembolso" no Dashboard e devolvemos sem burocracia.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>💡 Dicas e Boas Práticas</h2>
+
+            <div class="tips">
+                <h4>🎯 Configure bem desde o início</h4>
+                <ul>
+                    <li>Quanto mais detalhes você der (tom, produtos, preços), melhor a IA responde</li>
+                    <li>Atualize regularmente se suas informações mudarem</li>
+                </ul>
+            </div>
+
+            <div class="tips">
+                <h4>📊 Comece com poucos contatos</h4>
+                <ul>
+                    <li>Ative a IA em 2-3 contatos de teste primeiro</li>
+                    <li>Monitore as respostas</li>
+                    <li>Ajuste a configuração se necessário</li>
+                    <li>Depois expanda para mais contatos</li>
+                </ul>
+            </div>
+
+            <div class="tips">
+                <h4>🎮 Você tem controle total</h4>
+                <ul>
+                    <li>Pode desativar a IA por contato quando quiser</li>
+                    <li>Pode responder você mesmo e a IA detecta</li>
+                    <li>Nenhuma automação é forçada</li>
+                </ul>
+            </div>
+
+            <div class="tips">
+                <h4>🔊 Áudios são seus amigos</h4>
+                <ul>
+                    <li>A IA transcreve áudios automaticamente</li>
+                    <li>Ajuda a manter a conversa mais natural</li>
+                    <li>Qualidade do áudio = melhor transcrição</li>
+                </ul>
+            </div>
+        </section>
+
+        <section>
+            <h2>🚀 Próximos Passos</h2>
+            <div class="step">
+                <ol>
+                    <li>✅ Criar conta e escolher plano</li>
+                    <li>✅ Configurar tom de voz e informações</li>
+                    <li>✅ Instalar a extensão no Chrome</li>
+                    <li>✅ Ativar a IA em alguns contatos de teste</li>
+                    <li>✅ Testar com mensagens e áudios</li>
+                    <li>✅ Expandir conforme se sentir confortável</li>
+                    <li>✅ Monitorar uso de créditos</li>
+                </ol>
+            </div>
+        </section>
+
+        <footer>
+            <p>📞 <strong>Dúvidas?</strong> Abra um ticket no Dashboard ou envie um e-mail para <strong>support@argosresponde.com.br</strong></p>
+            <p style="margin-top: 20px; font-size: 0.9em;">© 2026 Argos Responde — Venda mais, durma tranquilo. 🚀</p>
+        </footer>
+    </div>
+
+    <script>
+        // FAQ Toggle
+        document.querySelectorAll('.faq-q').forEach(element => {
+            element.addEventListener('click', () => {
+                const item = element.closest('.faq-item');
+                item.classList.toggle('open');
+            });
+        });
+    </script>
+</body>
+</html>
