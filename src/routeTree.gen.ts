@@ -18,6 +18,7 @@ import { Route as AssinarRouteImport } from './routes/assinar'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as AuthenticatedTutorialRouteImport } from './routes/_authenticated/tutorial'
 import { Route as AuthenticatedSupportRouteImport } from './routes/_authenticated/support'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCheckoutRouteImport } from './routes/_authenticated/checkout'
@@ -83,6 +84,11 @@ const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
   path: '/invite/$token',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedTutorialRoute = AuthenticatedTutorialRouteImport.update({
+  id: '/tutorial',
+  path: '/tutorial',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedSupportRoute = AuthenticatedSupportRouteImport.update({
   id: '/support',
@@ -213,6 +219,7 @@ export interface FileRoutesByFullPath {
   '/checkout': typeof AuthenticatedCheckoutRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/support': typeof AuthenticatedSupportRoute
+  '/tutorial': typeof AuthenticatedTutorialRoute
   '/invite/$token': typeof InviteTokenRoute
   '/admin/ai-config': typeof AuthenticatedAdminAiConfigRoute
   '/admin/ai-credits': typeof AuthenticatedAdminAiCreditsRoute
@@ -243,6 +250,7 @@ export interface FileRoutesByTo {
   '/checkout': typeof AuthenticatedCheckoutRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/support': typeof AuthenticatedSupportRoute
+  '/tutorial': typeof AuthenticatedTutorialRoute
   '/invite/$token': typeof InviteTokenRoute
   '/admin/ai-config': typeof AuthenticatedAdminAiConfigRoute
   '/admin/ai-credits': typeof AuthenticatedAdminAiCreditsRoute
@@ -276,6 +284,7 @@ export interface FileRoutesById {
   '/_authenticated/checkout': typeof AuthenticatedCheckoutRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/support': typeof AuthenticatedSupportRoute
+  '/_authenticated/tutorial': typeof AuthenticatedTutorialRoute
   '/invite/$token': typeof InviteTokenRoute
   '/_authenticated/admin/ai-config': typeof AuthenticatedAdminAiConfigRoute
   '/_authenticated/admin/ai-credits': typeof AuthenticatedAdminAiCreditsRoute
@@ -309,6 +318,7 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/dashboard'
     | '/support'
+    | '/tutorial'
     | '/invite/$token'
     | '/admin/ai-config'
     | '/admin/ai-credits'
@@ -339,6 +349,7 @@ export interface FileRouteTypes {
     | '/checkout'
     | '/dashboard'
     | '/support'
+    | '/tutorial'
     | '/invite/$token'
     | '/admin/ai-config'
     | '/admin/ai-credits'
@@ -371,6 +382,7 @@ export interface FileRouteTypes {
     | '/_authenticated/checkout'
     | '/_authenticated/dashboard'
     | '/_authenticated/support'
+    | '/_authenticated/tutorial'
     | '/invite/$token'
     | '/_authenticated/admin/ai-config'
     | '/_authenticated/admin/ai-credits'
@@ -471,6 +483,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/invite/$token'
       preLoaderRoute: typeof InviteTokenRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/tutorial': {
+      id: '/_authenticated/tutorial'
+      path: '/tutorial'
+      fullPath: '/tutorial'
+      preLoaderRoute: typeof AuthenticatedTutorialRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/support': {
       id: '/_authenticated/support'
@@ -659,6 +678,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCheckoutRoute: typeof AuthenticatedCheckoutRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedSupportRoute: typeof AuthenticatedSupportRoute
+  AuthenticatedTutorialRoute: typeof AuthenticatedTutorialRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -667,6 +687,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCheckoutRoute: AuthenticatedCheckoutRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedSupportRoute: AuthenticatedSupportRoute,
+  AuthenticatedTutorialRoute: AuthenticatedTutorialRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

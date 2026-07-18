@@ -34,6 +34,7 @@ import {
   ShieldCheck,
   Megaphone,
   X,
+  Book,
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -176,17 +177,25 @@ function Dashboard() {
           <div className="flex items-center gap-2">
             <ThemeToggle />
             {!isAdmin && (
-              <Button asChild variant="ghost" size="sm">
-                <Link to="/support">
-                  <LifeBuoy className="h-4 w-4 mr-1" />
-                  Suporte
-                  {(supportBadge?.unread ?? 0) > 0 && (
-                    <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
-                      {supportBadge!.unread}
-                    </span>
-                  )}
-                </Link>
-              </Button>
+              <>
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/tutorial">
+                    <Book className="h-4 w-4 mr-1" />
+                    Tutorial
+                  </Link>
+                </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/support">
+                    <LifeBuoy className="h-4 w-4 mr-1" />
+                    Suporte
+                    {(supportBadge?.unread ?? 0) > 0 && (
+                      <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
+                        {supportBadge!.unread}
+                      </span>
+                    )}
+                  </Link>
+                </Button>
+              </>
             )}
             {isAdmin && (
               <Button asChild variant="outline" size="sm">
@@ -246,6 +255,30 @@ function Dashboard() {
           <h1 className="text-3xl font-bold">Olá, {user.email}</h1>
           <p className="text-muted-foreground">Seu painel Argos</p>
         </div>
+
+        {!isAdmin && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Book className="h-5 w-5 text-primary" />
+                  <CardTitle>📚 Tutorial: Como Usar a Argos</CardTitle>
+                </div>
+              </div>
+              <CardDescription>
+                Aprenda passo a passo como configurar e começar a usar o sistema
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Siga nosso tutorial completo com instruções, dicas e respostas às perguntas frequentes.
+              </p>
+              <Button asChild>
+                <Link to="/tutorial">Abrir Tutorial</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {!isAdmin && tenant?.status === "suspended" && (
           <Card className="border-destructive bg-destructive/10">

@@ -50,7 +50,8 @@
       "Read(//c/Users/wolves/.claude/**)",
       "Bash(sqlite3 /dev/null \"select 'checar dados do banco'\")",
       "PowerShell(git add -A; git commit -q -F .git/CMTMSG.txt; \"commit exit: $LASTEXITCODE\"; Remove-Item .git/CMTMSG.txt -Confirm:$false; git log --oneline -1)",
-      "PowerShell(git push; \"push exit: $LASTEXITCODE\")"
+      "PowerShell(git push; \"push exit: $LASTEXITCODE\")",
+      "PowerShell(tail -20)"
     ]
   }
 }
