@@ -59,6 +59,7 @@ function CheckoutPage() {
     mutationFn: (planId: string) =>
       checkout({ data: { planId, billingCycle: cycle, method, cpfCnpj } }),
     onSuccess: (r) => {
+      window.fbq?.("track", "InitiateCheckout");
       // Redireciona para a página de pagamento segura e hospedada do Asaas,
       // onde o cliente escolhe cartão ou PIX. Nenhum dado de cartão passa por
       // aqui. A confirmação/ativação acontece pelo webhook do Asaas.

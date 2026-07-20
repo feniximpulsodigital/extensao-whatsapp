@@ -78,6 +78,33 @@ export const Route = createFileRoute("/api/public/asaas-webhook")({
             .update({ status: "confirmed", paid_at: new Date().toISOString() })
             .eq("id", row.id);
 
+          // Meta Conversions API — Purchase server-side (não depende do
+          // navegador do cliente, funciona mesmo com ad blocker). Não
+          // bloqueia o fluxo de pagamento se falhar.
+          if (row.tenant_id) {
+            const { data: tenantRow } = await supabaseAdmin
+              .from("tenants")
+              .select("owner_id")
+              .eq("id", row.tenant_id)
+              .maybeSingle();
+            if (tenantRow?.owner_id) {
+              const { data: profile } = await supabaseAdmin
+                .from("profiles")
+                .select("email, phone")
+                .eq("id", tenantRow.owner_id)
+                .maybeSingle();
+              const { sendMetaCapiEvent } = await import("@/lib/meta-capi.server");
+              await sendMetaCapiEvent({
+                eventName: "Purchase",
+                email: profile?.email ?? null,
+                phone: profile?.phone ?? null,
+                valueCents: row.amount_cents ?? undefined,
+                currency: "BRL",
+                eventId: `payment-${payment.id}`,
+              });
+            }
+          }
+
           // ===== CREDIT PACKAGE =====
           if (row.kind === "credit_pack" && row.package_id) {
             const { data: pkg } = await supabaseAdmin

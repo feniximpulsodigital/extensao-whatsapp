@@ -83,6 +83,7 @@ function SignupPage() {
         },
       }),
     onSuccess: async () => {
+      window.fbq?.("track", "Lead");
       const r = await supabase.auth.signInWithPassword({
         email: form.email.trim().toLowerCase(),
         password: form.password,

@@ -293,6 +293,9 @@ export type Database = {
           brand_name: string
           created_at: string
           id: string
+          meta_capi_access_token: string | null
+          meta_pixel_id: string | null
+          meta_test_event_code: string | null
           singleton: boolean
           updated_at: string
         }
@@ -307,6 +310,9 @@ export type Database = {
           brand_name?: string
           created_at?: string
           id?: string
+          meta_capi_access_token?: string | null
+          meta_pixel_id?: string | null
+          meta_test_event_code?: string | null
           singleton?: boolean
           updated_at?: string
         }
@@ -321,6 +327,9 @@ export type Database = {
           brand_name?: string
           created_at?: string
           id?: string
+          meta_capi_access_token?: string | null
+          meta_pixel_id?: string | null
+          meta_test_event_code?: string | null
           singleton?: boolean
           updated_at?: string
         }
