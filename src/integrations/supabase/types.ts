@@ -281,6 +281,30 @@ export type Database = {
         }
         Relationships: []
       }
+      maintenance_runs: {
+        Row: {
+          detail: string | null
+          id: string
+          ran_at: string
+          status: string
+          tenants_count: number | null
+        }
+        Insert: {
+          detail?: string | null
+          id?: string
+          ran_at?: string
+          status: string
+          tenants_count?: number | null
+        }
+        Update: {
+          detail?: string | null
+          id?: string
+          ran_at?: string
+          status?: string
+          tenants_count?: number | null
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           asaas_api_key_production: string | null

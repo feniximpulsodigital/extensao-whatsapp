@@ -3,6 +3,11 @@ import "./lib/error-capture";
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { startDbKeepAliveScheduler } from "./lib/maintenance-scheduler.server";
+
+// Roda uma única vez quando o processo Node sobe (não a cada request).
+// Mantém o Supabase ativo mesmo que o site fique sem tráfego por dias.
+startDbKeepAliveScheduler();
 
 // h3 swallows in-handler throws into a normal 500 Response with body
 // {"unhandled":true,"message":"HTTPError"} — try/catch alone never fires for those.

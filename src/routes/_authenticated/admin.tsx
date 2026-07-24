@@ -15,6 +15,7 @@ import {
   Palette,
   LifeBuoy,
   Megaphone,
+  Database,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Logo } from "@/components/brand/Logo";
@@ -59,6 +60,7 @@ function AdminLayout() {
     { to: "/admin/usage", label: "Uso & Margem", icon: BarChart3 },
     { to: "/admin/support", label: "Suporte", icon: LifeBuoy },
     { to: "/admin/announcements", label: "Avisos", icon: Megaphone },
+    { to: "/admin/maintenance", label: "Manutenção", icon: Database },
   ] as const;
 
   return (
